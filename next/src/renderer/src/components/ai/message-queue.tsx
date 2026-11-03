@@ -1,0 +1,216 @@
+import { Menu } from "@base-ui/react/menu"
+import { Forward2Icon } from "@solar-icons/react/bold-duotone/forward-2"
+import { ListArrowDownMinimalisticIcon as QueueIcon } from "@solar-icons/react/linear/list-arrow-down-minimalistic"
+import { MenuDotsIcon as MoreIcon } from "@solar-icons/react/linear/menu-dots"
+import { TrashBinMinimalisticIcon as TrashIcon } from "@solar-icons/react/linear/trash-bin-minimalistic"
+import { cn } from "cn"
+import { AnimatePresence, Reorder, useDragControls, useReducedMotion } from "motion/react"
+import * as React from "react"
+import { Button } from "@/components/ui/button"
+
+interface QueuedMessage {
+  attachments?: number
+  content: string
+  id: string
+  status?: "queued" | "sending"
+}
+
+interface MessageQueueProps extends React.ComponentProps<"section"> {
+  items: QueuedMessage[]
+  onRemove?: (id: string) => void
+  onSendNow?: (id: string) => void
+  onMoveToTop?: (id: string) => void
+  onReorder?: (items: QueuedMessage[]) => void
+}
+
+function QueueRow({
+  item,
+  enabled,
+  onMove,
+  children,
+}: {
+  item: QueuedMessage
+  enabled: boolean
+  onMove: (direction: number) => void
+  children: React.ReactNode
+}) {
+  const controls = useDragControls()
+  const reducedMotion = useReducedMotion()
+  return (
+    <Reorder.Item
+      value={item}
+      dragListener={false}
+      dragControls={controls}
+      className="group/queue-row relative flex items-center gap-3 rounded-md bg-card py-1.5"
+      whileDrag={{ zIndex: 10 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{
+        default: reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 40 },
+        opacity: { duration: 0.15, ease: [0.23, 1, 0.32, 1] },
+      }}
+    >
+      <button
+        type="button"
+        disabled={!enabled}
+        aria-label={`Reorder message: ${item.content}`}
+        title="Drag to reorder, or use Up and Down arrow keys"
+        className="relative flex h-7 w-4 shrink-0 touch-none items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing enabled:cursor-grab"
+        onPointerDown={(event) => {
+          if (enabled) controls.start(event)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            event.preventDefault()
+            onMove(event.key === "ArrowUp" ? -1 : 1)
+          }
+        }}
+      >
+        <QueueIcon
+          aria-hidden="true"
+          className={cn(
+            "absolute size-4 opacity-100 transition-opacity duration-150 ease-out",
+            enabled && "group-focus-within/queue-row:opacity-0 group-hover/queue-row:opacity-0",
+          )}
+        />
+        <svg
+          className={cn(
+            "absolute size-4 opacity-0 transition-opacity duration-150 ease-out",
+            enabled && "group-focus-within/queue-row:opacity-100 group-hover/queue-row:opacity-100",
+          )}
+          aria-hidden="true"
+          width="16"
+          height="16"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+        >
+          {[4, 8, 12].map((y) => (
+            <React.Fragment key={y}>
+              <circle cx="5" cy={y} r="1" />
+              <circle cx="11" cy={y} r="1" />
+            </React.Fragment>
+          ))}
+        </svg>
+      </button>
+      {children}
+    </Reorder.Item>
+  )
+}
+
+function MessageQueue({
+  className,
+  items,
+  onRemove,
+  onSendNow,
+  onMoveToTop,
+  onReorder,
+  ...props
+}: MessageQueueProps) {
+  return (
+    <section
+      aria-label="Queued messages"
+      data-slot="message-queue"
+      className={cn(
+        "rounded-[1rem] bg-card p-3 font-sans text-sm font-[450] tracking-[-0.05px] text-muted-foreground shadow-card",
+        className,
+      )}
+      {...props}
+    >
+      <Reorder.Group as="ol" axis="y" values={items} onReorder={(next) => onReorder?.(next)}>
+        <AnimatePresence initial={false}>
+          {items.map((item, index) => (
+            <QueueRow
+              key={item.id}
+              item={item}
+              enabled={!!onReorder}
+              onMove={(direction) => {
+                const target = index + direction
+                if (target < 0 || target >= items.length) return
+                const next = [...items]
+                const from = next[index]
+                const to = next[target]
+                if (!from || !to) return
+                ;[next[index], next[target]] = [to, from]
+                onReorder?.(next)
+              }}
+            >
+              <p className="line-clamp-2 min-w-0 flex-1 text-sm leading-5 font-[450] text-muted-foreground">
+                {item.content}
+              </p>
+              {item.attachments ? (
+                <span className="shrink-0 text-xs leading-5 font-[450] text-muted-foreground">
+                  {item.attachments} files
+                </span>
+              ) : null}
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  type="button"
+                  disabled={item.status === "sending"}
+                  onClick={() => onSendNow?.(item.id)}
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 text-sm font-[450] tracking-[-0.05px] text-muted-foreground"
+                >
+                  <Forward2Icon className="size-4" />
+                  {/* Axe AI: plain label ("Send now" stops the current reply and sends this). */}
+                  {item.status === "sending" ? "Sending…" : "Send now"}
+                </Button>
+                <Button
+                  type="button"
+                  aria-label={`Remove queued message: ${item.content}`}
+                  onClick={() => onRemove?.(item.id)}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <TrashIcon className="size-4" />
+                </Button>
+                <Menu.Root>
+                  <Menu.Trigger
+                    render={
+                      <Button
+                        type="button"
+                        aria-label={`More actions for: ${item.content}`}
+                        size="icon-sm"
+                        variant="ghost"
+                      />
+                    }
+                  >
+                    <MoreIcon className="size-4" />
+                  </Menu.Trigger>
+                  <Menu.Portal>
+                    <Menu.Positioner side="bottom" align="end" sideOffset={6} className="z-50">
+                      <Menu.Popup className="min-w-36 origin-(--transform-origin) rounded-[1rem] bg-card p-1 font-sans text-sm font-[450] tracking-[-0.05px] text-muted-foreground shadow-card transition-[opacity,scale] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] outline-none data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 motion-reduce:transition-opacity">
+                        <Menu.Item
+                          className="cursor-pointer rounded-[0.75rem] px-3 py-2 outline-none data-highlighted:bg-muted"
+                          onClick={() => navigator.clipboard.writeText(item.content)}
+                        >
+                          Copy message
+                        </Menu.Item>
+                        {onMoveToTop && (
+                          <Menu.Item
+                            disabled={index === 0}
+                            className="cursor-pointer rounded-[0.75rem] px-3 py-2 outline-none data-highlighted:bg-muted data-disabled:opacity-40"
+                            onClick={() => onMoveToTop(item.id)}
+                          >
+                            Move to top
+                          </Menu.Item>
+                        )}
+                      </Menu.Popup>
+                    </Menu.Positioner>
+                  </Menu.Portal>
+                </Menu.Root>
+              </div>
+            </QueueRow>
+          ))}
+        </AnimatePresence>
+      </Reorder.Group>
+      {!items.length && (
+        <p className="px-2 py-3 text-xs leading-5 font-[450] text-muted-foreground">No queued messages.</p>
+      )}
+    </section>
+  )
+}
+
+export type { MessageQueueProps, QueuedMessage }
+export { MessageQueue }

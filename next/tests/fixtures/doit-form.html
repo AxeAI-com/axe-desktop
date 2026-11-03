@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Order form</title>
+    <style>
+      body { font: 15px/1.5 -apple-system, system-ui, sans-serif; max-width: 420px; margin: 48px auto; color: #222; }
+      label { display: block; margin: 14px 0 4px; }
+      input, textarea { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; border: 1px solid #bbb; border-radius: 6px; }
+      button { margin-top: 18px; padding: 9px 16px; font: inherit; border: 0; border-radius: 8px; background: #222; color: #fff; }
+      #done { margin-top: 18px; color: #1a7f37; }
+    </style>
+  </head>
+  <body>
+    <!-- A test page for Do it runs: the server counts every real POST to /send. -->
+    <h1>Order form</h1>
+    <form id="order">
+      <label for="name">Your name</label>
+      <input id="name" name="name" placeholder="Your name" />
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" placeholder="Email" />
+      <label for="note">Note</label>
+      <textarea id="note" name="note" placeholder="Note"></textarea>
+      <button type="submit">Send order</button>
+    </form>
+    <p id="done" hidden>Thanks, your order was sent.</p>
+    <script>
+      document.getElementById("order").addEventListener("submit", async (e) => {
+        e.preventDefault()
+        const body = JSON.stringify(Object.fromEntries(new FormData(e.target)))
+        await fetch("/send", { method: "POST", headers: { "Content-Type": "application/json" }, body })
+        document.getElementById("done").hidden = false
+        document.title = "Order sent"
+      })
+    </script>
+  </body>
+</html>

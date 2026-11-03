@@ -1,0 +1,91 @@
+import { AltArrowDownIcon as ChevronDownIcon } from "@solar-icons/react/linear/alt-arrow-down"
+import { CheckCircleIcon as CheckCircle2Icon } from "@solar-icons/react/linear/check-circle"
+import { DangerCircleIcon as CircleAlertIcon } from "@solar-icons/react/linear/danger-circle"
+import { LoaderIcon as LoaderCircleIcon } from "@solar-icons/react/linear/loader"
+import { ToolboxIcon as WrenchIcon } from "@solar-icons/react/linear/toolbox"
+import { cn } from "cn"
+import type * as React from "react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+
+interface ToolResultProps extends React.ComponentProps<typeof Collapsible> {
+  duration?: string
+  name: string
+  output?: React.ReactNode
+  /** Axe AI: "declined" is a step you said no to. */
+  status?: "complete" | "declined" | "error" | "running"
+  summary: string
+}
+
+function ToolResult({
+  className,
+  defaultOpen = false,
+  duration,
+  name,
+  output,
+  status = "complete",
+  summary,
+  ...props
+}: ToolResultProps) {
+  return (
+    <Collapsible
+      data-slot="tool-result"
+      className={cn(
+        "rounded-[1rem] bg-card font-sans text-sm font-[450] tracking-[-0.05px] text-muted-foreground shadow-card",
+        className,
+      )}
+      defaultOpen={defaultOpen}
+      {...props}
+    >
+      <CollapsibleTrigger
+        className="group flex w-full items-center gap-3 p-3 text-left"
+        render={<button aria-label={`Toggle ${name} result`} type="button" />}
+      >
+        <ToolStatus status={status} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate card-heading">{name}</p>
+          <p className="truncate text-xs leading-5 text-muted-foreground">{summary}</p>
+        </div>
+        {duration && <span className="text-xs leading-5 text-muted-foreground">{duration}</span>}
+        {output && (
+          <ChevronDownIcon className="size-4 text-muted-foreground transition-[rotate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] group-data-panel-open:rotate-180 motion-reduce:transition-none" />
+        )}
+      </CollapsibleTrigger>
+      {output && (
+        <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-opacity">
+          <div className="border-t border-foreground/8 p-3 font-mono text-xs leading-5 text-muted-foreground">
+            {output}
+          </div>
+        </CollapsibleContent>
+      )}
+    </Collapsible>
+  )
+}
+
+const statusEnterClass =
+  "transition-[opacity,scale] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:scale-90 starting:opacity-0 motion-reduce:starting:scale-100"
+
+function ToolStatus({ status }: Pick<ToolResultProps, "status">) {
+  if (status === "running")
+    return (
+      <LoaderCircleIcon aria-label="Running" className="size-4 animate-spin motion-reduce:animate-none" />
+    )
+  // Axe AI: a step you said no to, neither done nor failed.
+  if (status === "declined")
+    return (
+      <span aria-label="Not allowed" className={cn("flex size-4 items-center justify-center rounded-full border border-muted-foreground/50", statusEnterClass)}>
+        <span className="h-px w-2 rounded-full bg-muted-foreground" />
+      </span>
+    )
+  if (status === "error")
+    return <CircleAlertIcon aria-label="Failed" className={cn("size-4 text-destructive", statusEnterClass)} />
+  return (
+    <CheckCircle2Icon aria-label="Complete" className={cn("size-4 text-emerald-600", statusEnterClass)} />
+  )
+}
+
+function ToolResultIcon() {
+  return <WrenchIcon className="size-4" />
+}
+
+export type { ToolResultProps }
+export { ToolResult, ToolResultIcon }

@@ -1,0 +1,69 @@
+# The new Axe desktop app (next/) on a real Windows PC: logic tests, the real app opening, and the
+# installer installing, starting and uninstalling. Private repo, free minutes; runs only on this branch.
+name: axe-desktop-windows
+on:
+  push:
+    branches: [ci/axe-desktop-windows]
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - name: Logic tests
+        run: pnpm test
+      - name: Build
+        run: pnpm run build
+      - name: The real app opens on Windows
+        run: |
+          mkdir shots
+          node tests/e2e/windows-smoke.mjs shots
+      - name: Build the installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm exec electron-builder --win nsis --x64 --publish never
+      - name: Install, start, check, uninstall
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist -Filter "*.exe" | Where-Object Name -notlike "*uninstall*" | Select-Object -First 1
+          Write-Host "Installer: $($setup.Name) $([math]::Round($setup.Length / 1MB)) MB"
+          Start-Process $setup.FullName -ArgumentList "/S" -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter "Axe AI.exe" | Select-Object -First 1
+          if (-not $exe) { throw "Not installed" }
+          Write-Host "Installed: $($exe.FullName)"
+          if (-not (Test-Path "HKCU:\Software\Classes\axedesktop")) { throw "axedesktop:// sign-in link not registered" }
+          Write-Host "Sign-in link axedesktop:// registered"
+          $p = Start-Process $exe.FullName -PassThru
+          Start-Sleep 20
+          $p.Refresh()
+          if ($p.HasExited) { throw "The installed app quit by itself (code $($p.ExitCode))" }
+          $title = (Get-Process -Id $p.Id).MainWindowTitle
+          Write-Host "Running, window title: '$title'"
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$PWD\shots\3-installed-app.png")
+          Get-Process | Where-Object { $_.Path -eq $exe.FullName } | Stop-Process -Force
+          $un = Get-ChildItem (Split-Path $exe.FullName) -Filter "Uninstall*.exe" | Select-Object -First 1
+          Start-Process $un.FullName -ArgumentList "/S" -Wait
+          Start-Sleep 5
+          if (Test-Path $exe.FullName) { throw "Uninstall left the app behind" }
+          Write-Host "Uninstalled"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: windows-shots
+          path: next/shots
+          retention-days: 3

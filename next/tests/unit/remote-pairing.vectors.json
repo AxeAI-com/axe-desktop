@@ -1,0 +1,30 @@
+{
+  "macSign": "MC4CAQAwBQYDK2VwBCIEIAjMqySHG3xnauPc3HrRnBPIgOPfL4aXPwXGevsCEh7f",
+  "macDh": "MC4CAQAwBQYDK2VuBCIEIAgnnm5wM11N7aR5urNaivTe2HEvKxdvdM1Whk1fEeJi",
+  "macPub": {
+    "ed": "5jnHuvz0w1VU8O1iwWoofQ2EOxuT-EAUECU-N3g-Bbk",
+    "x": "6lMvGn6kKiAa0n7XHYbBuzK-JF-fDnYVIuchmMIaqHg"
+  },
+  "phoneSign": "MC4CAQAwBQYDK2VwBCIEII3yu--eM33hVWdtrbjY1-Irwg4ji2_UJRgJTiXJbqST",
+  "phoneDh": "MC4CAQAwBQYDK2VuBCIEIOCikaTPNWViVIE9Fv5Qy2B1DbLxxWv3v-MVDRrHUolC",
+  "phonePub": {
+    "ed": "yTpLjQqt71qkyxOINF1hTiyZTEU0zMcN5h0M0ZtKHM8",
+    "x": "bNIcKKTIkfMI1FBJmM36G963-DB8T5itRffbB0gyAzo"
+  },
+  "qr": {
+    "v": 1,
+    "mac": "jZYVl8_hAIvMdHcT9FJi6g",
+    "name": "David's Mac",
+    "ed": "5jnHuvz0w1VU8O1iwWoofQ2EOxuT-EAUECU-N3g-Bbk",
+    "x": "6lMvGn6kKiAa0n7XHYbBuzK-JF-fDnYVIuchmMIaqHg",
+    "s": "Kpan6km5V0tfZZvQBSTgkwvjO72dkwC7XiNNqPxNhbE",
+    "exp": 1793000120000,
+    "acct": "3mdgVXe6_9CDrgbiElkVlw"
+  },
+  "req": {
+    "mac": "jZYVl8_hAIvMdHcT9FJi6g",
+    "phone": "V6UjYUPXNlaV8CFoRIke5Q",
+    "sealed": "5ROsKAhhFLlnKGz7C1_eqHZ6qpRD0-Ao-F7KL7XA3zx_Xo3wmPyCy7O6D-w37InhE9LUTm6T5yWK0TU_1A-vf5lOs4wWJou3vku5KBKx2C-ZbJxbMJfCuZ_SnMRs5vZyFwJWNKAiLOB71APnFGWiB81R61LDm_77RX1d-NrMxFUXu1yxqnpSZIeVCqg_M4E8KuN-SC1yh0oPy3Lq9fHvmFlTRNtHD7sz71SDRAhj81EqiKOL6iE-D5xOeKjXcaV4AY-m5hs1S7t3o8FsEUrs3cM4j3ey75G2oYGAvHuyy0EreOjJKNz2BUvXEPGXJKSbiyC1w61YPi2phFQAOl2hwbyRCpsDj2pVT38Uil56RDF-UOzQzF7IXhfy5YeL3HYWZ8HbXDe6JJJdIjcbTG8NNM7nVMYztUxHNCi2h7TjS33CgXCtTa52vjgbwQEiwv1Lr4LCyan12gKIpLAcCNKI34wG5iAdULRyLbp58ttDOKsX3q_tz4kkCTp05gTPAPBfMVsO8rpecx_KqW3C73PHNUGfSREPeSi9TTcJ-Q"
+  },
+  "now": 1793000000000
+}

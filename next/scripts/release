@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+# Releases Axe AI for desktop (Mac, Windows, Linux) in one unattended command.
+#
+#   next/scripts/release <version> --notes notes.md   bump, build all three at once, sign, check, publish (feeds last)
+#   next/scripts/release <version> --dry-run          bump locally, build, sign and check all three, fresh-install the Mac build; publish nothing
+#
+# After publishing, next/scripts/release-verify checks the release as a user meets it (download API, fresh install,
+# update from the live version) and fails the run, with the rollback command, if it does not hold.
+#
+# --notes: what changed for users, 3 to 6 plain lines in Markdown; it becomes the GitHub release v<version>.
+# Needed for a real release, optional for a dry run.
+#
+# Mac builds on this Mac. Windows and Linux build at the same time on GitHub's free runners (the
+# axe-desktop-release workflow, started by pushing a throwaway ci/axe-desktop-release-* branch). The version
+# bump goes to master as a PR that merges itself on green checks while the builds run.
+#
+# Publishing: every build and .sig goes to a staging folder on the server first and is checked there
+# (sha512sum), then one ssh command moves the builds into downloads/desktop and the latest*.yml feeds last.
+# A failure before that step deletes the staging folder, so nothing is half-published.
+#
+# Needs gh, pnpm, node 24, curl, ssh to DEPLOY_SSH_HOST (default hostinger) and the update key
+# (~/.axe-signing or AXE_UPDATE_KEY; only sign-update.ts reads it). RELEASE_BASE (default origin/master)
+# picks what to build; a real release only builds origin/master.
+set -euo pipefail
+
+usage() { echo "usage: next/scripts/release <x.y.z> (--notes notes.md | --dry-run [--notes notes.md])" >&2; exit 2; }
+VERSION="${1:-}"
+DRY=0 NOTES_FILE=""
+[ $# -gt 0 ] && shift
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dry-run) DRY=1 ;;
+    --notes) [ $# -ge 2 ] || usage; NOTES_FILE=$2; shift ;;
+    *) usage ;;
+  esac
+  shift
+done
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || usage
+if [ -n "$NOTES_FILE" ]; then
+  [ -f "$NOTES_FILE" ] && grep -q '[^[:space:]]' "$NOTES_FILE" || { echo "release: $NOTES_FILE is missing or empty" >&2; exit 2; }
+elif [ $DRY = 0 ]; then
+  echo "release: a real release needs --notes notes.md (what changed for users, 3 to 6 lines)" >&2
+  exit 2
+fi
+
+REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+BASE="${RELEASE_BASE:-origin/master}"
+REMOTE="${DEPLOY_SSH_HOST:-hostinger}"
+APP_DIR="${APP_DIR:-/opt/apps/axeai-v2}"
+DEST="$APP_DIR/downloads/desktop"
+FEED_URL="https://axeai.com/downloads/desktop"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+STAGE="$APP_DIR/release-staging/$VERSION-$STAMP"
+CI_BRANCH="ci/axe-desktop-release-$VERSION-$STAMP"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/axe-release-$VERSION.XXXX")"
+SRC="$WORK/src" OUT="$WORK/out" LOG="$WORK/logs"
+mkdir -p "$OUT/mac" "$OUT/win" "$OUT/linux" "$LOG"
+# A copy, so editing the file during the ~10 minute run doesn't change what's published.
+NOTES="$WORK/notes.md"
+{ [ -n "$NOTES_FILE" ] && cat "$NOTES_FILE" && echo; echo "Builds, signatures and update feeds: $FEED_URL/ (Mac, Windows, Linux)."; } >"$NOTES"
+START=$SECONDS
+PIDS=() CI_PUSHED=0 STAGED=0 PUBLISHED=0 PR_URL="" RUN_ID=""
+export GH_REPO="${GH_REPO:-AxeAI-com/axe-mac}"
+
+say() { printf '%4ds  %s\n' $((SECONDS - START)) "$*"; }
+die() { echo "release: FAILED: $*" >&2; exit 1; }
+elapsed() { printf '%dm %02ds' $(((SECONDS - START) / 60)) $(((SECONDS - START) % 60)); }
+
+cleanup() {
+  local code=$?
+  for p in ${PIDS[@]+"${PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
+  [ -n "$RUN_ID" ] && [ $code -ne 0 ] && gh run cancel "$RUN_ID" >/dev/null 2>&1 || true
+  [ $CI_PUSHED = 1 ] && git -C "$REPO_ROOT" push -q origin --delete "$CI_BRANCH" >/dev/null 2>&1 || true
+  [ $STAGED = 1 ] && [ $PUBLISHED = 0 ] && ssh "$REMOTE" "rm -rf '$STAGE'" >/dev/null 2>&1 || true
+  git -C "$REPO_ROOT" worktree remove --force "$SRC" >/dev/null 2>&1 || true
+  if [ $code -ne 0 ]; then
+    rm -rf "$OUT"
+    [ -n "$PR_URL" ] && [ $PUBLISHED = 0 ] && echo "release: the version PR is still open: $PR_URL" >&2
+    echo "release: logs in $LOG" >&2
+  elif [ $DRY = 0 ]; then
+    rm -rf "$WORK"
+  fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+# A background step: its output goes to $LOG/<name>.log, and its one-line failure reason to $WORK/fail-<name>.
+step() {
+  local name=$1
+  shift
+  ( JOB=$name; "$@" ) >"$LOG/$name.log" 2>&1 &
+  PIDS+=($!)
+  eval "PID_$name=$!"
+}
+jdie() { echo "$*" >"$WORK/fail-$JOB"; exit 1; }
+await() {
+  local name=$1 pid
+  eval "pid=\$PID_$name"
+  wait "$pid" || die "$(cat "$WORK/fail-$name" 2>/dev/null || echo "$name failed"), see $LOG/$name.log"
+}
+
+# ---- 1. Preflight --------------------------------------------------------------------------------------
+for t in gh pnpm node curl ssh git shasum; do command -v "$t" >/dev/null || die "$t isn't installed"; done
+[ -f "${AXE_UPDATE_KEY:-$HOME/.axe-signing/imperium-update-ed25519.pem}" ] || die "no update signing key on this Mac"
+[ "$(df -g "${TMPDIR:-/tmp}" | awk 'NR==2 {print $4}')" -ge 10 ] || die "less than 10 GB free for the builds"
+git -C "$REPO_ROOT" fetch -q origin || die "git fetch failed"
+if [ $DRY = 0 ]; then
+  [ "$BASE" = "origin/master" ] || die "a real release builds origin/master only (RELEASE_BASE=$BASE)"
+  if git -C "$REPO_ROOT" rev-parse -q --verify refs/heads/master >/dev/null; then
+    [ "$(git -C "$REPO_ROOT" rev-list --count origin/master..master)" = 0 ] || die "local master has commits that aren't pushed"
+  fi
+  if [ "$(git -C "$REPO_ROOT" branch --show-current)" = master ]; then
+    [ -z "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=no)" ] || die "the master checkout has uncommitted changes"
+  fi
+fi
+# master's own checks: nothing failing on its tip, and PR checks green on the last commit that touched the app
+# (pushes that don't touch next/ don't run them).
+if [ "$BASE" = "origin/master" ]; then
+  tip="$(git -C "$REPO_ROOT" rev-parse origin/master)"
+  app="$(git -C "$REPO_ROOT" log -1 --first-parent --format=%H origin/master -- next .github/workflows/pr-checks.yml)"
+  # Dependabot's own updater job also reports on master's tip; when it can't open its update PR it fails,
+  # but it's GitHub's bot, not one of our checks, so it doesn't hold a release.
+  bad="$(gh api "repos/$GH_REPO/commits/$tip/check-runs" -q '.check_runs[] | select(.name != "Dependabot") | select(.status != "completed" or (.conclusion | IN("success","skipped","neutral") | not)) | .name' 2>/dev/null)" ||
+    die "can't read master's checks"
+  [ -z "$bad" ] || die "master's checks aren't green yet: $(echo $bad)"
+  gh api "repos/$GH_REPO/commits/$app/check-runs" -q '.check_runs[] | select(.name == "check") | .conclusion' 2>/dev/null | grep -qx success ||
+    die "PR checks haven't passed on master's last app commit ${app:0:7}"
+fi
+LIVE="$(curl -fsS "$FEED_URL/latest-mac.yml?t=$STAMP" | awk '/^version:/ {print $2; exit}')" || die "can't read the live feed"
+newest="$(printf '%s\n%s\n' "$LIVE" "$VERSION" | sort -V | tail -1)"
+[ "$newest" = "$VERSION" ] && [ "$LIVE" != "$VERSION" ] || die "$VERSION isn't newer than the live $LIVE"
+ssh -o BatchMode=yes -o ConnectTimeout=10 "$REMOTE" true 2>/dev/null || die "can't ssh to $REMOTE"
+taken="$(ssh "$REMOTE" "ls '$DEST' 2>/dev/null | grep -F -e 'Axe-AI-$VERSION-' -e 'Axe-AI-Setup-$VERSION.' || true")"
+if [ -n "$taken" ]; then
+  [ $DRY = 1 ] && say "note: the server already has $VERSION files" || die "the server already has $VERSION files"
+fi
+say "Axe AI $VERSION ($([ $DRY = 1 ] && echo "dry run, publishes nothing" || echo "release")), live is $LIVE, logs in $LOG"
+
+# ---- 2. Version bump ----------------------------------------------------------------------------------
+git -C "$REPO_ROOT" worktree add -q --detach "$SRC" "$BASE" || die "can't check out $BASE"
+CURRENT="$(node -p "require('$SRC/next/package.json').version")"
+BUMPED=0
+if [ "$CURRENT" != "$VERSION" ]; then
+  sed -i '' "s/^  \"version\": \"$CURRENT\",/  \"version\": \"$VERSION\",/" "$SRC/next/package.json"
+  [ "$(node -p "require('$SRC/next/package.json').version")" = "$VERSION" ] || die "couldn't raise the version in package.json"
+  git -C "$SRC" commit -q -m "Desktop $VERSION" -- next/package.json || die "can't commit the version bump"
+  BUMPED=1
+fi
+COMMIT="$(git -C "$SRC" rev-parse HEAD)"
+
+if [ $DRY = 0 ] && [ $BUMPED = 1 ]; then
+  git -C "$SRC" push -q origin "HEAD:refs/heads/release-$VERSION" 2>"$LOG/push.log" || die "can't push release-$VERSION (does it exist already?)"
+  PR_URL="$(gh pr create --base master --head "release-$VERSION" --title "Desktop $VERSION" --body "$(printf '%s\n' \
+    "Raises next/package.json to $VERSION for the release (\`next/scripts/release\`)." "" \
+    "Testing: PR checks; the builds of this commit are signed and hash-checked before anything is published." "" \
+    "Risk: none on its own; the release publishes only after this merges." "" \
+    "How to revert: revert this commit (the updater only moves forward, so ship a higher version instead)." "" \
+    "🤖 Generated with [Claude Code](https://claude.com/claude-code)")")" || die "can't open the version PR"
+  say "version PR $PR_URL"
+  merge_pr() {
+  
+    for _ in $(seq 1 24); do gh pr checks "$PR_URL" >/dev/null 2>&1 && break; sleep 5; done
+    gh pr checks "$PR_URL" --watch --interval 15 >/dev/null || jdie "the version PR's checks failed: $PR_URL"
+    # No --delete-branch: gh then switches the local branch, which fails when master is checked out in another
+    # worktree (exit 1 although the PR merged). Delete the remote branch with git instead.
+    gh pr merge "$PR_URL" --merge >/dev/null || jdie "can't merge the version PR: $PR_URL"
+    git -C "$REPO_ROOT" push -q origin --delete "release-$VERSION" >/dev/null 2>&1 || true
+  }
+  step pr merge_pr
+elif [ $BUMPED = 0 ]; then
+  say "package.json is already $VERSION at $(git -C "$SRC" rev-parse --short HEAD)"
+fi
+
+# ---- 3. Build all three at once -------------------------------------------------------------------------
+# Notarization: none yet, the Mac build is ad-hoc signed (no Developer ID). With one, set mac.identity,
+# hardenedRuntime and notarize in package.json and APPLE_* in the environment: electron-builder then notarizes
+# inside build_mac, which already runs while Windows and Linux build.
+git -C "$SRC" push -q origin "HEAD:refs/heads/$CI_BRANCH" 2>"$LOG/push-ci.log" || die "can't push $CI_BRANCH"
+CI_PUSHED=1
+if [ $DRY = 0 ]; then
+  ssh "$REMOTE" "mkdir -p '$STAGE'" || die "can't make the staging folder on $REMOTE"
+  STAGED=1
+fi
+
+# Signs one system's folder, checks it, and (for a real release) uploads it to the staging folder.
+finish() {
+  local dir=$1 what=$2
+  node "$SRC/next/scripts/sign-update.ts" "$dir" || jdie "signing $what failed"
+  node "$SRC/next/scripts/release-check.ts" "$dir" "$VERSION" --manifest >"$dir.manifest" || jdie "$what: $(tail -1 "$LOG/$JOB.log")"
+  [ $DRY = 1 ] && return 0
+  scp -q "$dir"/* "$REMOTE:$STAGE/" || jdie "uploading $what to staging failed"
+}
+
+build_mac() {
+  cd "$SRC/next"
+  pnpm install --frozen-lockfile || jdie "pnpm install failed"
+  pnpm run release:mac || jdie "the Mac build failed"
+  find dist -maxdepth 1 \( -name "*.dmg" -o -name "*.dmg.blockmap" -o -name "*-mac.zip" -o -name "*-mac.zip.blockmap" \
+    -o -name latest-mac.yml \) -exec cp {} "$OUT/mac/" \;
+  finish "$OUT/mac" Mac
+}
+
+build_ci() {
+
+  for _ in $(seq 1 30); do
+    RUN_ID="$(gh run list -w axe-desktop-release -b "$CI_BRANCH" --json databaseId,headSha \
+      -q "map(select(.headSha == \"$COMMIT\"))[0].databaseId // empty" 2>/dev/null || true)"
+    [ -n "$RUN_ID" ] && break
+    sleep 5
+  done
+  [ -n "$RUN_ID" ] || jdie "the Windows/Linux workflow didn't start"
+  echo "$RUN_ID" >"$WORK/run-id"
+  gh run watch "$RUN_ID" --exit-status --interval 15 >/dev/null || jdie "the Windows/Linux build failed: gh run view $RUN_ID --log-failed"
+  gh run download "$RUN_ID" -D "$WORK/ci" || jdie "can't download the Windows/Linux builds"
+  cp "$WORK/ci/axe-desktop-windows/"* "$OUT/win/" && cp "$WORK/ci/axe-desktop-linux/"* "$OUT/linux/" || jdie "the Windows/Linux builds are incomplete"
+  finish "$OUT/win" Windows
+  finish "$OUT/linux" Linux
+}
+
+say "building Mac here, Windows and Linux on GitHub ($CI_BRANCH)"
+step mac build_mac
+step ci build_ci
+# The run id is written by the background job; pick it up so a failure can cancel the run.
+for _ in $(seq 1 40); do [ -s "$WORK/run-id" ] && RUN_ID="$(cat "$WORK/run-id")" && break; sleep 3; done
+await mac
+say "Mac built, signed and checked"
+await ci
+RUN_ID=""
+say "Windows and Linux built, signed and checked"
+
+# ---- 4. Publish, feeds last ------------------------------------------------------------------------------
+if [ $DRY = 1 ]; then
+  du -sh "$OUT" | awk '{print $1}' >"$WORK/size"
+  echo
+  # The published checks (API, update from $LIVE) need the real feed; the fresh install runs on the new .dmg.
+  say "fresh install check of the new Mac build (next/scripts/release-verify --dmg)"
+  "$SRC/next/scripts/release-verify" "$VERSION" --dmg "$(ls "$OUT"/mac/Axe-AI-"$VERSION"-"$(uname -m | sed s/x86_64/x64/)".dmg)" >"$LOG/verify.log" 2>&1 ||
+    die "the new Mac build failed its fresh install check: $(grep FAIL "$LOG/verify.log" | head -1), see $LOG/verify.log"
+  echo
+  echo "Dry run of Axe AI $VERSION passed in $(elapsed): all three built, signed and hash-checked, the Mac build installs and starts; nothing published."
+  echo "  commit  $COMMIT (from $BASE, not pushed except to $CI_BRANCH, now deleted)"
+  echo "  builds  $OUT ($(cat "$WORK/size"))"
+  (cd "$OUT" && find . -type f ! -name "*.manifest" | sort | sed 's|^\./|          |')
+  exit 0
+fi
+
+if [ $BUMPED = 1 ]; then
+  await pr
+  git -C "$REPO_ROOT" fetch -q origin
+  [ "$(git -C "$REPO_ROOT" rev-parse "origin/master^{tree}")" = "$(git -C "$SRC" rev-parse "$COMMIT^{tree}")" ] ||
+    die "master changed while building; nothing published, run again"
+  COMMIT="$(git -C "$REPO_ROOT" rev-parse origin/master)"
+  say "version PR merged"
+fi
+
+cat "$OUT"/*.manifest | ssh "$REMOTE" "cd '$STAGE' && sha512sum -c --quiet -" >"$LOG/staging-check.log" 2>&1 ||
+  die "the files on the server don't match the builds ($(tail -1 "$LOG/staging-check.log"))"
+say "staging on $REMOTE matches every build"
+
+ssh "$REMOTE" bash -s -- "$STAGE" "$DEST" "$APP_DIR/release-staging/feeds-before-$VERSION" >"$LOG/publish.log" 2>&1 <<'EOF' || die "publishing failed ($(tail -1 "$LOG/publish.log"))"
+set -euo pipefail
+stage=$1 dest=$2 backup=$3
+cd "$stage"
+for f in *; do
+  case $f in latest*.yml) ;; *) [ ! -e "$dest/$f" ] || { echo "$f is already in $dest"; exit 3; } ;; esac
+done
+mkdir -p "$backup" && cp "$dest"/latest*.yml "$backup/" 2>/dev/null || true
+chmod a+r ./*
+for f in *; do case $f in latest*.yml) ;; *) mv "$f" "$dest/" ;; esac; done
+mv latest*.yml "$dest/"
+cd / && rmdir "$stage"
+EOF
+PUBLISHED=1
+say "published; feeds live"
+
+for d in mac win linux; do
+  for f in "$OUT/$d"/latest*.yml; do
+    curl -fsS "$FEED_URL/$(basename "$f")?t=$STAMP" | cmp -s - "$f" ||
+      die "published, but $FEED_URL/$(basename "$f") isn't the new feed; roll back: copy $APP_DIR/release-staging/feeds-before-$VERSION/* to $DEST"
+  done
+done
+while read -r _ name; do
+  local_size="$(stat -f %z "$(ls "$OUT"/*/"$name" | head -1)")"
+  served="$(curl -fsSI "$FEED_URL/$name" | awk 'tolower($1) == "content-length:" {print $2}' | tr -d '\r')"
+  [ "$served" = "$local_size" ] ||
+    die "published, but $FEED_URL/$name doesn't answer with the right file; roll back: copy $APP_DIR/release-staging/feeds-before-$VERSION/* to $DEST"
+done < <(cat "$OUT"/*.manifest)
+say "every served feed and file checks out"
+
+gh release create "v$VERSION" --target "$COMMIT" --title "Axe AI $VERSION" \
+  --notes-file "$NOTES" >/dev/null 2>&1 ||
+  echo "release: note: couldn't create the GitHub release v$VERSION (the app is published)" >&2
+
+# The checks a user would see: the download API, a fresh install, and the update from the live version.
+say "checking the release as a user meets it (next/scripts/release-verify $VERSION --prev $LIVE, up to ~15 minutes)"
+"$SRC/next/scripts/release-verify" "$VERSION" --prev "$LIVE" >"$LOG/verify.log" 2>&1 && VERIFIED=1 || VERIFIED=0
+grep -E '^ *[0-9]+s  (PASS|FAIL|skip) ' "$LOG/verify.log" | sed 's/^ *[0-9]*s  /          /' || true
+if [ $VERIFIED = 0 ]; then
+  # Keep the logs: cleanup only deletes $WORK on success.
+  echo "release: FAILED: published, but release-verify failed (see $LOG/verify.log). To stop the spread, roll back the feeds:" >&2
+  echo "  ssh $REMOTE 'cp $APP_DIR/release-staging/feeds-before-$VERSION/latest*.yml $DEST/'  (a server change: ask the maintainer first)" >&2
+  exit 1
+fi
+
+echo
+echo "Released Axe AI $VERSION in $(elapsed), verified."
+echo "  commit    $COMMIT${PR_URL:+ ($PR_URL)}"
+echo "  download  $FEED_URL/  (Mac arm64 and Intel .dmg, Windows .exe, Linux .AppImage and .deb)"
+echo "  feeds     $FEED_URL/latest-mac.yml  latest.yml  latest-linux.yml"
+echo "  github    https://github.com/$GH_REPO/releases/tag/v$VERSION"

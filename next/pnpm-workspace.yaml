@@ -1,0 +1,25 @@
+# Supply-chain guards (same as axe-web): wait a day before installing new
+# releases, refuse provenance downgrades, and no git or tarball sub-dependencies.
+# .github/workflows/supply-chain.yml fails if these are removed.
+minimumReleaseAge: 1440
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 43200
+blockExoticSubdeps: true
+
+# minimatch GHSA-g3hv-75wg-m249 (Dependabot alert #12): only 11.0.1+ is patched. 9.x and 10.x hold the
+# vulnerable code and use the same named-export API as 11, so they move up. 3.x and 5.x use a default
+# export and have no patched line; they don't contain the vulnerable optimizer (build-time only).
+overrides:
+  "minimatch@>=9 <11": "^11.0.1"
+
+onlyBuiltDependencies:
+  - electron
+  - esbuild
+# node-pty ships prebuilt binaries for Mac and Windows; its install script would compile from source
+# (needs Python) and fails on the Linux CI container. Linux release builds compile it in electron-builder.
+ignoredBuiltDependencies:
+  - electron-winstaller
+  - node-pty
+allowBuilds:
+  electron-winstaller: false
+  node-pty: false

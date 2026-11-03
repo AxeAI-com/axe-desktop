@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e 'try{const p=require(\"path\"),cp=require(\"child_process\");const j=JSON.parse(require(\"fs\").readFileSync(0,\"utf8\"));const f=j.tool_input&&j.tool_input.file_path;const root=process.env.CLAUDE_PROJECT_DIR||j.cwd||process.cwd();const n=p.join(root,\"next\")+p.sep;if(f&&/\\.(tsx?|jsx?|json|css)$/.test(f)&&p.resolve(f).startsWith(n))cp.spawnSync(\"pnpm\",[\"--dir\",p.join(root,\"next\"),\"exec\",\"biome\",\"format\",\"--write\",f],{stdio:\"ignore\"})}catch(e){}process.exit(0)' || true"
+          }
+        ]
+      }
+    ]
+  }
+}

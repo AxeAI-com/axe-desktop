@@ -1,0 +1,74 @@
+# Release builds of the new Axe desktop app (next/) for Windows and Linux, on GitHub's free runners.
+# Unsigned by the OS (no code-signing certificate yet); the updater signature is added on the release Mac.
+# Runs only on these branches (scripts/release pushes a throwaway ci/axe-desktop-release-<v>-<time>); the builds
+# come back as private artifacts. The Windows installer is also installed, started and uninstalled before it is kept.
+name: axe-desktop-release
+on:
+  push:
+    branches: [ci/axe-desktop-release, "ci/axe-desktop-release-*"]
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: release:win
+            name: windows
+          - os: ubuntu-latest
+            script: release:linux
+            name: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm run ${{ matrix.script }}
+      # The installer that ships: installs silently, starts and stays up 20 seconds, registers axedesktop://,
+      # uninstalls cleanly (the same check as axe-desktop-windows.yml). A failure fails the release.
+      - name: Install, start, check, uninstall
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist -Filter "*.exe" | Where-Object Name -notlike "*uninstall*" | Select-Object -First 1
+          if (-not $setup) { throw "No installer in dist" }
+          Write-Host "Installer: $($setup.Name) $([math]::Round($setup.Length / 1MB)) MB"
+          Start-Process $setup.FullName -ArgumentList "/S" -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter "Axe AI.exe" | Select-Object -First 1
+          if (-not $exe) { throw "Not installed" }
+          Write-Host "Installed: $($exe.FullName)"
+          $p = Start-Process $exe.FullName -PassThru
+          Start-Sleep 20
+          $p.Refresh()
+          if ($p.HasExited) { throw "The installed app quit by itself (code $($p.ExitCode))" }
+          # The app registers axedesktop:// itself on first start, not the installer.
+          if (-not (Test-Path "HKCU:\Software\Classes\axedesktop")) { throw "axedesktop:// sign-in link not registered" }
+          Write-Host "Running, window title: '$((Get-Process -Id $p.Id).MainWindowTitle)'"
+          Get-Process | Where-Object { $_.Path -eq $exe.FullName } | Stop-Process -Force
+          $un = Get-ChildItem (Split-Path $exe.FullName) -Filter "Uninstall*.exe" | Select-Object -First 1
+          Start-Process $un.FullName -ArgumentList "/S" -Wait
+          Start-Sleep 5
+          if (Test-Path $exe.FullName) { throw "Uninstall left the app behind" }
+          Write-Host "Uninstalled"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: axe-desktop-${{ matrix.name }}
+          path: |
+            next/dist/*.exe
+            next/dist/*.exe.blockmap
+            next/dist/*.AppImage
+            next/dist/*.deb
+            next/dist/latest*.yml
+          retention-days: 3

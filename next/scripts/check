@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Quiet check: typecheck, lint, test. One line per pass; tail of the log on fail.
+cd "$(dirname "$0")/.." || exit 1
+steps=(typecheck lint)
+[ "$1" = "--no-test" ] || steps+=(test)
+# The tests launch Electron; make sure its binary was downloaded (pnpm can skip the install script).
+if [[ " ${steps[*]} " == *" test "* ]] && ! [ -e "$(node -e 'process.stdout.write(require("electron"))' 2>/dev/null)" ]; then
+  node node_modules/electron/install.js >/dev/null 2>&1 && echo "· installed the Electron binary"
+fi
+for s in "${steps[@]}"; do
+  log=$(mktemp)
+  if pnpm run "$s" >"$log" 2>&1; then
+    echo "✓ $s"
+    rm -f "$log"
+  else
+    echo "✗ $s"
+    tail -40 "$log"
+    rm -f "$log"
+    exit 1
+  fi
+done

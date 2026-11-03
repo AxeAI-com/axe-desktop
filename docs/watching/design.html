@@ -1,0 +1,1269 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Axe Watching Design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: a spec book. Left rail = screen picker grouped by section; right = the app window (1240x800, scaled),
+   then that screen's copy and notes. After the screens: architecture, then the owner's decisions. */
+:root {
+  --bg: #f4f3ef; --fg: #1d1c19; --muted: #6f6b62; --rule: #e2ded5; --raise: #ffffff; --accent: #060ae6; --accent-soft: rgb(6 10 230 / .07);
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #111113; --fg: #ececef; --muted: #9a9aa3; --rule: #27272c; --raise: #1a1a1d; --accent: #a7a9ff; --accent-soft: rgb(167 169 255 / .1); color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #111113; --fg: #ececef; --muted: #9a9aa3; --rule: #27272c; --raise: #1a1a1d; --accent: #a7a9ff; --accent-soft: rgb(167 169 255 / .1); color-scheme: dark; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--sans); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 36px 120px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+a { color: var(--accent); }
+h1, h2, h3 { font-weight: 400; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 4.6vw, 44px); line-height: 1.08; letter-spacing: -0.02em; }
+h2 { font-size: 26px; line-height: 1.2; letter-spacing: -0.01em; }
+h3 { font-size: 18px; line-height: 1.3; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+.eyebrow { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.wrap { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.intro .lede { color: var(--muted); font-size: 17px; max-width: 60ch; margin-top: 14px; }
+.five { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--rule); }
+.five li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--rule); font-size: 14.5px; }
+.five li b { font-weight: 500; }
+.five li span.n { font-family: var(--mono); font-size: 12px; color: var(--muted); padding-top: 2px; }
+.five li small { display: block; color: var(--muted); font-size: 13.5px; }
+@media (max-width: 900px) { .intro { grid-template-columns: minmax(0, 1fr); } }
+
+/* Viewer */
+.viewer { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 28px; align-items: start; }
+.rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); max-height: calc(100vh - 24px); overflow-y: auto; padding-right: 6px; font-size: 13.5px; }
+.rail .grp { margin: 14px 0 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.rail .grp:first-child { margin-top: 0; }
+.rail button { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 4px 8px; border-radius: 6px; cursor: pointer; color: var(--fg); line-height: 1.35; }
+.rail button:hover { background: var(--accent-soft); }
+.rail button[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
+.rail button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.picksel { display: none; width: 100%; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--raise); color: var(--fg); }
+.stage { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between; }
+.bar .ttl { display: flex; flex-direction: column; min-width: 0; }
+.bar .ttl h3 { font-size: 19px; }
+.bar .ttl small { color: var(--muted); font-size: 13.5px; }
+.ctrls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.seg button, .nb { font: inherit; font-size: 13px; border: 0; background: transparent; color: var(--muted); padding: 5px 13px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--raise); color: var(--fg); box-shadow: 0 0 0 1px var(--rule); }
+.nb { background: color-mix(in srgb, var(--fg) 7%, transparent); color: var(--fg); }
+.seg button:focus-visible, .nb:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.frame { width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--rule), 0 24px 60px -36px rgb(0 0 0 / .45); background: var(--raise); }
+.scale { width: 1240px; height: 800px; transform-origin: top left; }
+.spec { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; }
+.spec h4 { margin: 0 0 8px; font-weight: 500; font-size: 13px; font-family: var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.spec table { width: 100%; border-collapse: collapse; font-size: 13.5px; line-height: 1.45; }
+.spec td { vertical-align: top; padding: 7px 10px 7px 0; border-top: 1px solid var(--rule); }
+.spec td:first-child { width: 34%; color: var(--muted); }
+.spec td.s { font-family: var(--sans); }
+.spec td.s q { quotes: none; }
+@media (max-width: 1100px) { .spec { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 860px) { .viewer { grid-template-columns: minmax(0, 1fr); } .rail { display: none; } .picksel { display: block; } }
+
+/* Long-form sections */
+.doc { max-width: 980px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 22px; }
+.doc > p, .doc li { max-width: 74ch; }
+.doc h2 { margin-top: 18px; }
+.doc h3 { margin-top: 10px; }
+.doc ul, .doc ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.tbl { overflow-x: auto; }
+.tbl table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13.5px; line-height: 1.5; }
+.tbl th { text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 400; padding: 6px 12px 6px 0; }
+.tbl td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-top: 1px solid var(--rule); }
+.tbl td:first-child { white-space: nowrap; }
+pre.code { margin: 0; overflow-x: auto; background: var(--raise); box-shadow: 0 0 0 1px var(--rule); border-radius: 10px; padding: 14px 16px; font: 12.5px/1.6 var(--mono); }
+.flow { overflow-x: auto; background: var(--raise); box-shadow: 0 0 0 1px var(--rule); border-radius: 10px; padding: 16px; }
+.flow svg { display: block; min-width: 860px; }
+.flow svg text { font-family: var(--sans); }
+.callout { border-left: 2px solid var(--accent); padding: 2px 0 2px 14px; color: var(--fg); max-width: 74ch; }
+.decisions { counter-reset: d; list-style: none; padding: 0 !important; }
+.decisions li { counter-increment: d; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; padding: 12px 0; border-top: 1px solid var(--rule); max-width: none !important; }
+.decisions .dec { color: var(--accent, inherit); font-weight: 600; }
+.decisions li::before { content: counter(d, decimal-leading-zero); font-family: var(--mono); font-size: 12px; color: var(--muted); padding-top: 3px; }
+.decisions b { font-weight: 500; }
+.decisions small { display: block; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+.check { columns: 2 320px; column-gap: 32px; font-size: 13.5px; }
+.check label { display: flex; gap: 8px; break-inside: avoid; padding: 3px 0; }
+
+/* ============ The app (Axe AI desktop, from next/src/renderer/src/styles.css) ============ */
+.app {
+  --bg: #f7f6f3; --side: #efede8; --tile: #ffffff; --tile-h: #fbfaf8; --ink: #1c1b18; --ink2: #4f4c45; --ink3: #7a766d; --ink4: #aaa59b;
+  --line: #e6e2da; --line2: #dcd8cf; --edge: 0 0 0 1px #e6e2da; --fill: rgb(28 27 24 / .05); --fill2: rgb(28 27 24 / .08);
+  --navh: #e9e6df; --nava: #e3dfd6; --btn: #efece6; --btnh: #e7e3db; --bubble: #efece6; --pop: #ffffff;
+  --elev: 0 0 0 1px #e6e2da, 0 8px 24px -12px rgb(0 0 0 / 28%);
+  --brand: #060ae6; --brand-h: #0508c4; --brand-soft: rgb(6 10 230 / .08); --brand-text: #060ae6;
+  --warn: #b85a0c; --warn-soft: rgb(214 112 20 / .11); --live: #0d8a7c; --ok: #1e8a5a; --ok-soft: rgb(30 138 90 / .1); --danger: #cf3535;
+  --cs: #ffffff; --cedge: 0 0 0 1px #dcd8cf, 0 6px 20px -12px rgb(28 27 24 / .18); --chart: #1c1b18; --grid: #ebe7df; --area: rgb(28 27 24 / .05);
+  --add: rgb(30 138 90 / .1); --add-t: #17714a; --del: rgb(207 53 53 / .09); --del-t: #a52c2c; --overlay: rgb(0 0 0 / .32);
+  --desk: #d9d4c8; --deskwin: #ecebe8; --notif: rgb(246 246 246 / .92); --notif-ink: #1d1d1f; --notif-ink2: #4a4a4f; --menubar: rgb(246 246 246 / .7);
+}
+.app.dark {
+  --bg: #151517; --side: #1f1a1c; --tile: #1d1d20; --tile-h: #232326; --ink: #ededf0; --ink2: #c2c2c8; --ink3: #8e8e96; --ink4: #5e5e66;
+  --line: rgb(255 255 255 / .06); --line2: rgb(255 255 255 / .1); --edge: none; --fill: rgb(255 255 255 / .05); --fill2: rgb(255 255 255 / .08);
+  --navh: rgb(255 255 255 / .05); --nava: rgb(255 255 255 / .1); --btn: #2c2c30; --btnh: #36363b; --bubble: #2c2c30; --pop: #2a2a2e;
+  --elev: 0 28px 64px -12px rgb(0 0 0 / .75), 0 8px 24px rgb(0 0 0 / .35);
+  --brand: #3438ff; --brand-h: #4d51ff; --brand-soft: rgb(52 56 255 / .22); --brand-text: #a7a9ff;
+  --warn: #ff9d5c; --warn-soft: rgb(255 157 92 / .13); --live: #3cc8b4; --ok: #45c08a; --ok-soft: rgb(69 192 138 / .12); --danger: #ff6b6b;
+  --cs: #2a2a2e; --cedge: none; --chart: #ededf0; --grid: rgb(255 255 255 / .07); --area: rgb(255 255 255 / .05);
+  --add: rgb(69 192 138 / .13); --add-t: #7fdcae; --del: rgb(255 107 107 / .12); --del-t: #ff9a9a; --overlay: rgb(5 6 8 / .55);
+  --desk: #26282e; --deskwin: #1b1b1e; --notif: rgb(44 44 48 / .9); --notif-ink: #f2f2f4; --notif-ink2: #b9b9c0; --menubar: rgb(30 30 34 / .7);
+}
+.app { width: 1240px; height: 800px; position: relative; overflow: hidden; background: var(--bg); color: var(--ink); font: 400 15px/22px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.app * { font-weight: 400; }
+.app svg { display: block; flex: none; }
+.app svg text { font-family: inherit; font-variant-numeric: tabular-nums; }
+.app .win { display: flex; height: 100%; }
+.app .sb { width: 260px; flex: none; background: var(--side); padding: 0 10px 10px; display: flex; flex-direction: column; gap: 1px; font-size: 13px; }
+.app .lights { height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 8px; }
+.app .lights i { width: 12px; height: 12px; border-radius: 6px; background: #ff5f57; } .app .lights i:nth-child(2) { background: #febc2e; } .app .lights i:nth-child(3) { background: #28c840; }
+.app .lights .tg { margin-left: auto; color: var(--ink3); width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; }
+.app .nav { height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 10px; border-radius: 6px; color: var(--ink2); font-size: 13px; }
+.app .nav svg { color: var(--ink3); }
+.app .nav.on { background: var(--nava); color: var(--ink); }
+.app .nav.hov { background: var(--navh); }
+.app .badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 11px; line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+.app .sub { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 36px; border-radius: 6px; color: var(--ink2); font-size: 13px; white-space: nowrap; overflow: hidden; }
+.app .sub span { overflow: hidden; text-overflow: ellipsis; }
+.app .sub.on { background: var(--nava); color: var(--ink); }
+.app .sub.more { color: var(--ink3); }
+.app .sbh { font-size: 12px; color: var(--ink3); padding: 16px 10px 4px; }
+.app .cr { height: 28px; display: flex; align-items: center; padding: 0 10px; border-radius: 6px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .me { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 6px 8px; color: var(--ink); }
+.app .av { width: 26px; height: 26px; border-radius: 13px; background: var(--brand); color: #fff; display: grid; place-items: center; font-size: 12px; }
+.app .main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.app .tb { height: 48px; flex: none; display: flex; align-items: center; padding: 0 14px; gap: 4px; position: relative; z-index: 3; }
+.app .tbn { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border-radius: 6px; font-size: 13px; color: var(--ink); }
+.app .tbn svg { color: var(--ink3); }
+.app .tbn.open { background: var(--fill2); }
+.app .tbr { margin-left: auto; display: flex; gap: 6px; }
+.app .body { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+.app .col { width: 736px; margin: 0 auto; padding: 8px 0 200px; display: flex; flex-direction: column; gap: 16px; }
+.app .dock { position: absolute; left: 0; right: 0; bottom: 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; z-index: 2; }
+.app .dock::before { content: ""; position: absolute; left: 0; right: 0; bottom: -18px; height: 140px; background: linear-gradient(transparent, var(--bg) 45%); z-index: -1; }
+.app .cwrap { width: 768px; position: relative; display: flex; flex-direction: column; }
+.app .composer { border-radius: 16px; background: var(--cs); box-shadow: var(--cedge); padding: 6px 8px 6px 6px; display: flex; flex-direction: column; position: relative; }
+.app .cline { display: flex; align-items: center; gap: 4px; min-height: 36px; }
+.app .composer .rb { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; color: var(--ink2); flex: none; }
+.app .composer .rb.on { background: var(--fill2); color: var(--ink); }
+.app .composer .rb.hot { border-radius: 18px; color: var(--brand-text); background: var(--brand-soft); }
+.app .ctool { display: flex; align-items: center; gap: 4px; padding: 6px 6px 0; min-height: 34px; }
+.app .ctool .sp { flex: 1; }
+.app .ctool .chip.open { background: var(--fill2); color: var(--ink); }
+.app .ring { width: 16px; height: 16px; border-radius: 8px; box-shadow: inset 0 0 0 2px var(--fill2); margin: 0 6px; }
+.app .dstrip { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 4px 0 10px; }
+.app .dstrip .tm { font-size: 12px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.app .dstrip .sp { flex: 1; }
+.app .wave { display: flex; align-items: center; gap: 2px; height: 20px; }
+.app .wave i { width: 2px; border-radius: 1px; background: var(--brand-text); }
+.app .sb2 { width: 28px; height: 28px; border-radius: 14px; display: grid; place-items: center; background: var(--fill2); color: var(--ink2); }
+.app .sb2.pri { background: var(--brand); color: #fff; }
+.app .mi .tile2 { width: 18px; height: 18px; border-radius: 5px; background: var(--fill); display: grid; place-items: center; flex: none; }
+.app .mi .tile2 svg { width: 12px; height: 12px; }
+.app .mi .d { margin-left: auto; color: var(--ink3); font-size: 13px; padding-left: 16px; }
+.app .ref { color: var(--brand-text); background: var(--brand-soft); border-radius: 5px; padding: 0 4px; }
+.app .composer.focus { box-shadow: var(--cedge), 0 0 0 2px var(--brand-soft); }
+.app .ctext { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; min-height: 24px; padding-left: 2px; font-size: 15px; color: var(--ink); flex-wrap: wrap; }
+.app .ctext .ph { color: var(--ink3); }
+.app .caret { display: inline-block; width: 1.5px; height: 18px; background: var(--brand); margin-left: -6px; vertical-align: middle; }
+.app .crow { display: flex; align-items: center; gap: 6px; }
+.app .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px; font-size: 13px; color: var(--ink2); background: transparent; white-space: nowrap; }
+.app .chip.fill { background: var(--btn); color: var(--ink); }
+.app .chip.kind { background: var(--brand-soft); color: var(--brand-text); height: 26px; padding: 0 6px 0 8px; }
+.app .chip.kind svg { color: var(--brand-text); }
+.app .chip svg { color: var(--ink3); }
+.app .send { margin-left: auto; width: 32px; height: 32px; border-radius: 16px; background: var(--brand); color: #fff; display: grid; place-items: center; }
+.app .send.off { background: var(--btn); color: var(--ink4); }
+.app .send.busy { background: var(--btn); color: var(--ink3); }
+.app .below { width: 768px; padding: 0 16px; margin-top: -4px; font-size: 12px; line-height: 16px; color: var(--ink3); display: flex; gap: 10px; align-items: center; min-height: 16px; }
+.app .below.err { color: var(--warn); }
+.app .below .lk { color: var(--brand-text); }
+.app .starters { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.app .pill { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px 0 10px; border-radius: 15px; background: var(--tile); box-shadow: var(--edge); font-size: 13px; color: var(--ink2); }
+.app.dark .pill { background: var(--tile); }
+.app .pill svg { color: var(--ink3); }
+.app .pill.hov { background: var(--tile-h); color: var(--ink); }
+.app .hero { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding-bottom: 70px; }
+.app .hero h1 { font-size: 20px; line-height: 28px; margin: 0; }
+.app .hero p { color: var(--ink3); font-size: 15px; margin: -6px 0 6px; }
+.app .tile { width: 28px; height: 28px; border-radius: 6px; background: var(--fill); color: var(--ink2); display: grid; place-items: center; flex: none; }
+.app .wl { display: flex; flex-direction: column; }
+.app .wr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 10px; border-radius: 10px; position: relative; }
+.app .wr + .wr::before { content: ""; position: absolute; left: 50px; right: 10px; top: 0; height: 1px; background: var(--line); }
+.app .wr.hov { background: var(--fill); }
+.app .wr.hov::before, .app .wr.hov + .wr::before { display: none; }
+.app .wr .t { min-width: 0; display: flex; flex-direction: column; }
+.app .wr .n { font-size: 15px; line-height: 21px; display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; }
+.app .wr .n span { overflow: hidden; text-overflow: ellipsis; }
+.app .wr .l { font-size: 13px; line-height: 18px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app .wr .r { font-size: 12px; color: var(--ink3); text-align: right; white-space: nowrap; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.app .wr.prob .l { color: var(--ink); }
+.app .wr.prob .r { color: var(--warn); }
+.app .wr.news .l { color: var(--ink); }
+.app .wr.paused .n, .app .wr.paused .tile { opacity: .5; }
+.app .wr .more { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--ink2); background: var(--fill2); }
+.app .dot { width: 7px; height: 7px; border-radius: 4px; flex: none; display: inline-block; }
+.app .dot.warn { background: var(--warn); } .app .dot.news { background: var(--brand); } .app .dot.live { background: var(--live); } .app .dot.ok { background: var(--ok); } .app .dot.mute { background: var(--ink4); }
+.app .gap { height: 10px; }
+.app .banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--fill); font-size: 13px; color: var(--ink2); }
+.app .banner svg { color: var(--ink3); }
+.app .banner .btn { margin-left: auto; }
+.app .bub { align-self: flex-end; max-width: 540px; background: var(--bubble); padding: 8px 14px; border-radius: 16px; font-size: 15px; line-height: 22px; }
+.app .bub.act { font-size: 13px; padding: 5px 12px; color: var(--ink2); display: inline-flex; gap: 6px; align-items: center; }
+.app .msg { font-size: 15px; line-height: 22px; color: var(--ink); display: flex; flex-direction: column; gap: 10px; }
+.app .msg .sub2 { color: var(--ink3); font-size: 13px; }
+.app .card { position: relative; background: var(--tile); box-shadow: var(--edge); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.app .card.warnc { box-shadow: var(--edge), inset 3px 0 0 var(--warn); }
+.app .meta { font-size: 12px; line-height: 16px; color: var(--ink3); display: flex; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+.app .meta .w { color: var(--warn); } .app .meta .b { color: var(--brand-text); } .app .meta .g { color: var(--ok); }
+.app .hl { font-size: 17px; line-height: 24px; color: var(--ink); }
+.app .p { font-size: 15px; line-height: 22px; color: var(--ink2); }
+.app .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.app .facts div { display: flex; flex-direction: column; border-top: 1px solid var(--line); padding-top: 8px; font-size: 13px; line-height: 18px; min-width: 0; }
+.app .facts div span:first-child { color: var(--ink3); font-size: 12px; line-height: 16px; }
+.app .facts .w { color: var(--warn); }
+.app .acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.app .btn { height: 28px; padding: 0 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; background: var(--btn); color: var(--ink); white-space: nowrap; }
+.app .btn svg { color: currentColor; opacity: .8; }
+.app .btn.pri { background: var(--brand); color: #fff; }
+.app .btn.pri.hov { background: var(--brand-h); }
+.app .btn.ghost { background: transparent; color: var(--ink2); padding: 0 8px; }
+.app .btn.red { background: var(--danger); color: #fff; }
+.app .btn.dis { opacity: .45; }
+.app .btn.hov { background: var(--btnh); }
+.app .btn.focus { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--brand); }
+.app .sel { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 10px; border-radius: 6px; background: var(--btn); font-size: 13px; color: var(--ink); }
+.app .sel svg { color: var(--ink3); }
+.app .kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 13px; color: var(--ink3); min-height: 32px; }
+.app .kv + .kv { border-top: 1px solid var(--line); padding-top: 4px; }
+.app .kv > :last-child { justify-self: start; color: var(--ink); }
+.app .plan .ph { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.app .live { display: flex; flex-direction: column; gap: 8px; }
+.app .lh { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.app .steps { list-style: none; margin: 0; padding: 0 0 0 2px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink3); }
+.app .steps li { display: flex; align-items: center; gap: 8px; }
+.app .steps li.done { color: var(--ink2); } .app .steps li.done svg { color: var(--ok); }
+.app .steps li.run { color: var(--ink); }
+.app .steps li.warn { color: var(--ink); } .app .steps li.warn svg { color: var(--warn); }
+.app .spin { width: 12px; height: 12px; border-radius: 6px; border: 1.5px solid var(--fill2); border-top-color: var(--live); flex: none; }
+.app .pend { width: 12px; height: 12px; border-radius: 6px; border: 1.5px dashed var(--ink4); flex: none; }
+.app .strip { display: flex; flex-direction: column; gap: 6px; }
+.app .strip .sl { font-size: 12px; color: var(--ink3); display: flex; justify-content: space-between; }
+.app .tip { position: absolute; background: var(--pop); box-shadow: var(--elev); border-radius: 6px; padding: 4px 8px; font-size: 12px; line-height: 16px; white-space: nowrap; color: var(--ink); z-index: 4; }
+.app .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; line-height: 19px; }
+.app .rec { background: var(--fill); border-radius: 6px; padding: 8px 12px; color: var(--ink2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.app .diff { border-radius: 6px; overflow: hidden; background: var(--fill); }
+.app .diff div { padding: 3px 12px; white-space: pre-wrap; }
+.app .diff .a { background: var(--add); color: var(--add-t); } .app .diff .d { background: var(--del); color: var(--del-t); } .app .diff .c { color: var(--ink3); }
+.app .rows { display: flex; flex-direction: column; }
+.app .rows .rw { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; font-size: 13px; border-top: 1px solid var(--line); }
+.app .rows .rw:first-child { border-top: 0; }
+.app .rows .rw small { color: var(--ink3); font-size: 12px; }
+.app .rows .rw .v { color: var(--ink3); font-size: 12px; text-align: right; }
+.app .rows .rw .v.w { color: var(--warn); }
+.app .rows .rw svg.okc { color: var(--ok); } .app .rows .rw svg.wc { color: var(--warn); }
+.app .line1 { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink3); padding: 2px 0; }
+.app .line1 .t { color: var(--ink2); }
+.app .line1 .r { margin-left: auto; }
+.app .agent { display: flex; flex-direction: column; gap: 10px; }
+.app .agh { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink2); }
+.app .logo { width: 18px; height: 18px; border-radius: 5px; background: #d97757; display: grid; place-items: center; color: #fff; }
+.app .files .rw { grid-template-columns: 16px minmax(0, 1fr) auto; }
+.app .add { color: var(--add-t); } .app .del { color: var(--del-t); }
+.app .menu { position: absolute; background: var(--pop); border-radius: 10px; box-shadow: var(--elev); padding: 4px; min-width: 180px; z-index: 6; display: flex; flex-direction: column; }
+.app .mi { height: 28px; padding: 0 8px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--ink); white-space: nowrap; }
+.app .mi svg { color: var(--ink3); }
+.app .mi.hl { background: var(--fill2); }
+.app .mi.red, .app .mi.red svg { color: var(--danger); }
+.app .mi .k { margin-left: auto; color: var(--ink3); font-size: 12px; padding-left: 16px; }
+.app .mi.chk svg.c { margin-left: auto; color: var(--brand-text); }
+.app .msep { height: 1px; background: var(--line); margin: 4px 6px; }
+.app.dark .msep { background: rgb(255 255 255 / .08); }
+.app .mlabel { font-size: 12px; color: var(--ink3); padding: 4px 8px 2px; }
+.app .scrim { position: absolute; inset: 0; background: var(--overlay); z-index: 8; display: grid; place-items: center; }
+.app .dialog { width: 380px; background: var(--pop); border-radius: 16px; box-shadow: var(--elev); padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+.app .dialog h5 { margin: 0; font-size: 15px; line-height: 22px; }
+.app .dialog p { font-size: 13px; line-height: 18px; color: var(--ink3); margin: 0; }
+.app .dialog .acts { justify-content: flex-end; margin-top: 10px; }
+.app .panel { position: absolute; background: var(--pop); border-radius: 10px; box-shadow: var(--elev); padding: 14px 16px; width: 380px; z-index: 6; display: flex; flex-direction: column; gap: 6px; }
+.app .panel .kv { grid-template-columns: 96px minmax(0, 1fr); }
+.app .field { height: 28px; border-radius: 6px; background: var(--fill); box-shadow: inset 0 0 0 1px var(--line2); padding: 0 10px; display: flex; align-items: center; font-size: 13px; color: var(--ink); width: 240px; }
+.app.dark .field { box-shadow: none; background: var(--btn); }
+.app .field.focus { box-shadow: inset 0 0 0 1px var(--brand), 0 0 0 3px var(--brand-soft); }
+.app .hint { font-size: 12px; line-height: 16px; color: var(--ink3); }
+.app .undo { color: var(--brand-text); font-size: 13px; }
+/* macOS desktop, for notifications and the quick bar */
+.app .desk { position: absolute; inset: 0; background: var(--desk); }
+.app .mb { height: 26px; background: var(--menubar); display: flex; align-items: center; gap: 18px; padding: 0 14px; font-size: 13px; color: var(--notif-ink); }
+.app .mb .rt { margin-left: auto; display: flex; gap: 14px; align-items: center; font-variant-numeric: tabular-nums; }
+.app .other { position: absolute; left: 90px; top: 70px; width: 760px; height: 560px; border-radius: 12px; background: var(--deskwin); box-shadow: 0 0 0 1px rgb(0 0 0 / .08), 0 20px 50px -20px rgb(0 0 0 / .35); padding: 52px 40px; display: flex; flex-direction: column; gap: 14px; }
+.app .other i { display: block; height: 10px; border-radius: 5px; background: var(--fill2); }
+.app .nt { position: absolute; right: 14px; width: 360px; border-radius: 16px; background: var(--notif); box-shadow: 0 0 0 .5px rgb(0 0 0 / .12), 0 10px 30px -10px rgb(0 0 0 / .35); padding: 12px 14px; display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 10px; color: var(--notif-ink); font-size: 13px; line-height: 17px; z-index: 5; backdrop-filter: blur(20px); }
+.app .nt .ai { width: 38px; height: 38px; border-radius: 9px; background: #0b0d18; display: grid; place-items: center; }
+.app .nt b { font-weight: 600 !important; display: flex; justify-content: space-between; gap: 8px; }
+.app .nt b span { font-weight: 400 !important; color: var(--notif-ink2); font-size: 12px; }
+.app .nt p { margin: 1px 0 0; color: var(--notif-ink); }
+.app .nt .na { grid-column: 1 / -1; display: flex; gap: 6px; margin-top: 4px; }
+.app .nt .na span { flex: 1; height: 28px; border-radius: 8px; background: rgb(128 128 128 / .16); display: grid; place-items: center; font-size: 12.5px; }
+.app .nt.stack { box-shadow: 0 0 0 .5px rgb(0 0 0 / .12), 0 6px 0 -3px var(--notif), 0 10px 30px -10px rgb(0 0 0 / .35); }
+.app .ncl { position: absolute; right: 14px; top: 38px; width: 360px; font-size: 13px; color: var(--notif-ink); display: flex; justify-content: space-between; padding: 0 6px; z-index: 5; }
+.app .qb { position: absolute; left: 245px; top: 170px; width: 750px; border-radius: 16px; background: var(--pop); box-shadow: 0 0 0 .5px rgb(0 0 0 / .15), 0 30px 70px -20px rgb(0 0 0 / .5); z-index: 5; overflow: hidden; }
+.app .qbi { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 16px; font-size: 17px; color: var(--ink); }
+.app .qbi .ph { color: var(--ink3); }
+.app .qbb { border-top: 1px solid var(--line); padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.app .qbf { border-top: 1px solid var(--line); height: 36px; display: flex; align-items: center; gap: 12px; padding: 0 16px; font-size: 12px; color: var(--ink3); }
+.app .qbf .rt { margin-left: auto; display: flex; gap: 12px; }
+.app kbd { font: inherit; font-size: 11.5px; padding: 1px 5px; border-radius: 4px; background: var(--fill2); color: var(--ink2); }
+.app .qrow { height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 6px; color: var(--ink); }
+.app .qrow.hl { background: var(--fill2); }
+.app .qrow small { margin-left: auto; color: var(--ink3); font-size: 12px; }
+.app .sumcard { display: flex; flex-direction: column; gap: 6px; }
+.app .sumcard .sh { display: flex; align-items: center; gap: 8px; }
+.app .sumcard .sh .x { margin-left: auto; color: var(--ink3); }
+.app .sumlist { display: flex; flex-direction: column; }
+.app .sumlist .wr { padding: 7px 8px; }
+.app .sumlist .wr .n { font-size: 13px; line-height: 18px; }
+.app .sumlist .wr .l { font-size: 12px; line-height: 16px; }
+.app .sumlist .wr + .wr::before { left: 46px; }
+.app .sumlist .tile { width: 24px; height: 24px; }
+.app .sumlist .wr { grid-template-columns: 24px minmax(0, 1fr) auto; }
+.app .folderpick .rw { grid-template-columns: 16px minmax(0, 1fr) auto; cursor: default; }
+.app .sbonly { position: absolute; inset: 0; display: flex; }
+.app .sbonly .sb { height: 100%; }
+.app .callouts { flex: 1; padding: 40px 48px; display: flex; flex-direction: column; gap: 18px; color: var(--ink2); font-size: 13px; }
+.app .callouts .cbox { background: var(--tile); box-shadow: var(--edge); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.app .callouts .cbox b { color: var(--ink); font-size: 15px; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <div>
+      <div class="eyebrow">Axe AI for desktop &nbsp;/&nbsp; Watching &nbsp;/&nbsp; for approval, 31 Oct 2026</div>
+      <h1 style="margin-top:12px">Watching, designed end to end</h1>
+      <p class="lede">A watch checks one thing on a schedule and stays quiet until something is wrong. This book has every screen and state for every starter, in Paper and in dark, with the final copy and what each part does. The architecture and the owner's decisions follow the screens. Nothing here is built yet.</p>
+    </div>
+    <div>
+      <div class="eyebrow" style="margin-bottom:8px">Five decisions that keep it small</div>
+      <ol class="five">
+        <li><span class="n">01</span><span><b>A starter fills in what kind of watch it is.</b><small>Clicking one puts a chip in the composer, and you type only the address. Free text goes to your model once, and Axe never guesses the kind from keywords.</small></span></li>
+        <li><span class="n">02</span><span><b>Setting up a watch has one button.</b><small>The plan shows two dropdowns (how often, when to tell you) and Start watching. A threshold comes from the site's own history, and you can change it in a reply.</small></span></li>
+        <li><span class="n">03</span><span><b>A quiet watch says nothing.</b><small>No "All fine", no run counts. Quiet runs fold into one strip of ticks. Only an orange problem or a blue unread change asks for attention.</small></span></li>
+        <li><span class="n">04</span><span><b>Editing is four fields with no Save button.</b><small>Target, how often, when to tell you, model. Each one saves as you change it. Pause, rename and delete live in the title's chevron menu.</small></span></li>
+        <li><span class="n">05</span><span><b>No extra surfaces.</b><small>No Today strip, no "While you're away" cards, no summary watch to set up. The sidebar lists only watches with a problem. The morning summary comes built in and appears only when there's news.</small></span></li>
+        <li><span class="n">06</span><span><b>One composer, the chat’s own.</b><small>Same + menu, @ and / menus, mic and model picker everywhere. Watching adds a kind chip, a Watch section in +, Watches in @ and four / commands, and changes nothing else.</small></span></li>
+      </ol>
+    </div>
+  </header>
+
+  <section class="viewer" id="screens" aria-label="Screens">
+    <nav class="rail" id="rail" aria-label="Screen picker"></nav>
+    <div class="stage">
+      <label class="eyebrow" for="picksel" style="display:none" id="picklabel">Screen</label>
+      <select class="picksel" id="picksel" aria-label="Screen"></select>
+      <div class="bar">
+        <div class="ttl"><span class="eyebrow" id="sgroup"></span><h3 id="sname"></h3><small id="sdesc"></small></div>
+        <div class="ctrls">
+          <div class="seg" role="group" aria-label="App theme"><button type="button" data-th="light" aria-pressed="true">Light</button><button type="button" data-th="dark" aria-pressed="false">Dark</button></div>
+          <button type="button" class="nb" id="prev" aria-label="Previous screen">←</button>
+          <span class="mono" id="count" style="color:var(--muted);font-size:12px;min-width:56px;text-align:center"></span>
+          <button type="button" class="nb" id="next" aria-label="Next screen">→</button>
+        </div>
+      </div>
+      <div class="frame" id="frame"><div class="scale" id="scale"><div class="app" id="app"></div></div></div>
+      <div class="spec">
+        <div><h4>Copy, every string</h4><table id="copyT"></table></div>
+        <div><h4>What it does</h4><table id="noteT"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="doc" id="arch">
+    <div class="eyebrow">Architecture</div>
+    <h2>How it works under the screens</h2>
+    <p>Written for the person who builds it end to end. It reuses what already works in <code>next/</code> (the agent chat, the plan card, the changes panel, the quick bar, notifications, the power keeper) and replaces the routine engine that Watching was built on.</p>
+
+    <h3>Data model</h3>
+    <pre class="code" id="types"></pre>
+    <div class="tbl"><table>
+      <thead><tr><th>Kind</th><th>Target</th><th>Default</th><th>Plain check (no model)</th><th>Model used</th><th>Speaks up when</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>uptime</td><td>Site URL</td><td>Every 5 minutes</td><td>GET with timing; on failure, one retry after 60 s. Full page load in a hidden, cookie-free window, at most 15 s, for load time and the largest files</td><td>Never</td><td>Problem: down twice in a row, or load time above 2&times; usual and over 2 s for two runs. News: never</td><td>Status strip, load-time chart with threshold, largest files</td></tr>
+        <tr><td>page</td><td>Page URL</td><td>Every hour</td><td>Load, extract the readable text, normalise whitespace, diff against the last copy</td><td>Never</td><td>News: the text changed (outside what you said to ignore)</td><td>Line diff, first added line as the headline</td></tr>
+        <tr><td>price</td><td>Product URL</td><td>Every hour</td><td>Read price and stock from schema.org Product, microdata or og:price. Otherwise use a saved selector</td><td>Once at setup, and only if the page has no structured price: the model picks a selector. Again only if that selector breaks</td><td>News: the price or the stock changed</td><td>Price step chart, stock</td></tr>
+        <tr><td>security</td><td>Domain</td><td>Every morning, 7:30</td><td>SPF and DMARC (TXT), DKIM on common selectors, certificate days and TLS version, five security headers, a connect check on 12 common ports</td><td>Never</td><td>Problem: a finding that wasn't open before</td><td>The record or header as found, the fix as a record diff</td></tr>
+        <tr><td>repo</td><td>GitHub repo and/or local folder</td><td>Every morning, 7:30</td><td><code>gh api</code> for Dependabot, code scanning and secret scanning alerts. In the folder: the package manager's audit and a key scan of tracked files</td><td>Never</td><td>Problem: a new alert or finding</td><td>The alert list with package, version, severity and the fixed version</td></tr>
+        <tr><td>custom</td><td>Page URL plus your sentence</td><td>Every hour</td><td>Load the page text</td><td>Every run: your model reads the text against your sentence and returns structured output</td><td>News or problem, as the model's structured output says</td><td>The model's one line plus the quoted text it relied on</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>How a sentence becomes a watch</h3>
+    <ol>
+      <li><b>A starter</b> sets <code>kind</code> explicitly. The composer only asks for the target, and the sentence in the bubble is written from a template, for example "Tell me if {site} goes down or gets slow."</li>
+      <li><b>Free text</b> goes once to the model picked in the composer, with structured output: <code>{ kind, target, every?, notify?, condition? }</code>, where <code>kind</code> is one of the six or <code>unclear</code>. Axe models use their JSON mode. CLI agents get a one-shot prompt in plan mode with a JSON-only reply that is validated against the schema. Local models use their JSON format option.</li>
+      <li><b>The deterministic fallback</b> runs when there is no model or the reply doesn't validate. It extracts the first URL or domain with the same parser the chat already uses. If it finds one, Axe asks "What should I watch on {target}?" and offers the five starters. If not, it asks "What should I watch?" It never maps words to a kind.</li>
+      <li><b>A missing target</b> becomes the question "Which site?" (or page, product page, domain, repo), asked inline with the kind already set.</li>
+      <li><b>Validation</b> runs the kind's plain check once before the plan appears. It catches a domain that doesn't exist, a 404, a page that needs a sign-in, no price, or a repo Axe can't see. The plan shows real numbers from that check ("It's $48 and in stock"). That check is also the first run, so it isn't repeated after Start.</li>
+    </ol>
+
+    <h3>The run pipeline</h3>
+    <div class="flow" aria-label="Run pipeline diagram"><svg id="flowsvg" viewBox="0 0 940 210" width="940" height="210" role="img"></svg></div>
+    <ul>
+      <li><b>Compare with the previous run.</b> Each check returns findings with a stable <code>key</code> (<code>down</code>, <code>slow:/</code>, <code>dmarc:none</code>, <code>alert:GHSA-…</code>, <code>page:hash</code>). A key that isn't open yet opens a finding and notifies once. A key that's already open stays quiet. A finding resolves after one clean run for uptime and two for the rest. If it comes back later, it's a new finding.</li>
+      <li><b>Run status</b> is <code>quiet</code>, <code>news</code>, <code>problem</code> or <code>failed</code>. A failed run means Axe couldn't check (offline, timeout, model missing), so it is never shown as a problem the first time. Three failed runs in a row become a "Couldn't reach" problem. When the Mac is offline, nothing runs and nothing fails.</li>
+      <li><b>The notify rule</b> applies to new findings and news only. It doesn't apply to snoozed or expected findings, to the first run, to the watch you are looking at, or when the watch is set to "In the morning summary". "Back to normal" is sent only for a problem that notified and then cleared by itself.</li>
+      <li><b>Thresholds</b> come from history. Usual is the 7-day median, and slow means above 2&times; usual and over 2 s. A reply like "tell me above 3 s" sets a fixed one. "That's expected" adds the finding's key to <code>expected</code>, or for slow it raises usual to the current value.</li>
+      <li><b>The morning summary</b> is plain text from a template, with no model. It covers findings opened or cleared since the last summary, unread news, and watches that couldn't run. It is shown at 8:00 (Settings, Notifications) and only if that list isn't empty.</li>
+    </ul>
+
+    <h3>Scheduling</h3>
+    <p class="callout">Real today: watches run on this Mac, while it is awake and Axe is open. Cloud runs are not real: <code>runs/cloud.ts</code> gets a 403 because axeai.com accepts cloud agents only from browser sign-ins. This design leaves the cloud out.</p>
+    <ul>
+      <li>One scheduler in the main process ticks every 30 s and runs due watches, three at a time, with up to 10% jitter so they don't all start together.</li>
+      <li>After sleep (<code>powerMonitor</code> resume), each overdue watch runs once. Missed times are skipped, never replayed.</li>
+      <li>Closing the window keeps Axe running, as Mac apps do. The first watch turns on Open at login (decision 1) so watches survive a restart.</li>
+      <li>The existing power keeper stays, set to "while something runs", so a run that starts can finish. It can't wake a sleeping Mac. Watches don't claim "24/7".</li>
+      <li>Later, if axeai.com runs plain checks server-side, uptime, page, price and security could run there too. Repo folders and local models never can.</li>
+    </ul>
+
+    <h3>The fix handoff</h3>
+    <ol>
+      <li>A finding carries <code>fix: "agent" | "record" | "none"</code>. Speed, headers and repo alerts are agent fixes. DNS records are record fixes. Page and price changes have no fix.</li>
+      <li><b>Agent:</b> "Fix with Claude Code" (the CLI the user has, else Do it with their Axe model) starts a turn in the watch's own thread. On the first fix, Axe asks which folder holds the code and remembers it on the watch. The brief is built from the evidence, not by a model: the problem, the numbers, the files, and "Make the smallest change that fixes this. Don't commit or deploy." It starts in plan mode, so the existing plan card (Start) and changes panel (Keep all, Undo all) appear.</li>
+      <li><b>Re-verify:</b> repo fixes re-run the folder checks right away. Site fixes need a deploy, so the thread says so and offers Check now. The finding moves to <code>fixed</code> only when a run shows it is gone. If it's still there, the thread says "Still {headline}" and offers Try again.</li>
+      <li><b>Record:</b> Copy record, then Check now. DNS can take a while, so the next scheduled run also checks.</li>
+    </ol>
+
+    <h3>One composer</h3>
+    <ul>
+      <li>Watching renders the chat's <code>Composer</code>, never its own box. The page uses <code>&lt;Composer variant="start" surface="watching" /&gt;</code> (docked once there are watches) and a watch uses <code>&lt;Composer variant="docked" threadId={watch.threadId} /&gt;</code>. Both get the + menu, @ and / menus, paste and drop, the mic with <code>DictationStrip</code>, and <code>ModelPicker</code> in the toolbar under the box.</li>
+      <li><code>surface="watching"</code> changes four things only. The placeholder. A kind chip slot in the text row. Send calls <code>watching:draft</code> with the picked answerer instead of starting a chat turn. The menus add Watching items.</li>
+      <li>The + menu gets a <b>Watch</b> section with the five starters, on both surfaces. In chat, picking one opens Watching with that chip.</li>
+      <li><code>lib/mentions</code> gets a <code>watch</code> kind, listed from <code>watching:list</code>. On the Watching page a message naming one watch is routed to that watch's thread. In a chat, a watch reference attaches <code>{ name, kind, target, latest, open findings }</code> as context, the same way a file is attached.</li>
+      <li>The / menu gets a <b>Watching</b> group: <code>/check</code>, <code>/pause</code>, <code>/resume</code>, <code>/summary</code>. A fix turn is an agent turn, so it also shows the agent's commands, folder chip, mode menu and context ring.</li>
+      <li>The model picked on the page is the default for the next watch. Each watch stores its own <code>answerer</code>, which Edit changes. The picker never shows prices or plans.</li>
+    </ul>
+
+    <h3>Storage and IPC</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Where</th><th>What</th></tr></thead>
+      <tbody>
+        <tr><td><code>&lt;data&gt;/watching/watches.json</code></td><td>Every watch: one file, versioned, written atomically</td></tr>
+        <tr><td><code>&lt;data&gt;/watching/&lt;id&gt;/runs.jsonl</code></td><td>Runs, append-only. Keeps 90 days or 5,000 runs</td></tr>
+        <tr><td><code>&lt;data&gt;/watching/&lt;id&gt;/thread.json</code></td><td>Your replies, Axe's replies, fix turns (pointers to agent chat sessions), findings</td></tr>
+        <tr><td><code>&lt;data&gt;/watching/&lt;id&gt;/page.txt</code></td><td>Page and custom kinds: the last two copies of the text</td></tr>
+        <tr><td><code>src/shared/watching/</code></td><td>Types, schedule maths, status and notify rules, finding diff, copy builders, fallback parser. Pure, unit tested</td></tr>
+        <tr><td><code>src/main/watching/</code></td><td><code>store</code>, <code>scheduler</code>, <code>pipeline</code>, <code>checks/{uptime,page,price,security,repo,custom}</code>, <code>draft</code>, <code>notify</code>, <code>summary</code>, <code>fix</code></td></tr>
+        <tr><td><code>src/renderer/src/screens/</code></td><td><code>Watching.tsx</code> (the page), <code>Watch.tsx</code> (one watch), <code>components/watching/*</code></td></tr>
+      </tbody>
+    </table></div>
+    <pre class="code">// src/shared/api.ts, Commands
+"watching:list": () =&gt; WatchList
+"watching:get": (id: string) =&gt; WatchView
+"watching:draft": (input: { kind?: Kind; target?: string; text?: string; answerer: Answerer }) =&gt; Draft | Ask
+"watching:create": (draft: Draft) =&gt; WatchView
+"watching:update": (id: string, patch: WatchPatch) =&gt; WatchView      // target, every, notify, answerer, name, paused
+"watching:delete": (id: string) =&gt; WatchList
+"watching:checkNow": (id: string) =&gt; WatchView
+"watching:act": (findingId: string, act: "expected" | "snooze1h" | "snoozeDay" | "snoozeWeek" | "unsnooze") =&gt; WatchView
+"watching:reply": (id: string, text: string) =&gt; WatchView           // a change Axe understood, or a normal answer
+"watching:fix": (findingId: string, folder?: string) =&gt; WatchView
+// Events
+"watching": WatchList        // any change to the list
+"watching:run": RunProgress  // live steps of a run in progress</pre>
+    <p>The renderer never runs a check or opens a network connection. The main process owns the store, the scheduler and the checks. Checks get injected <code>deps</code> (fetch, dns, tls, net, exec, clock) so tests run offline. The mock bridge serves every screen in this book by id: <code>?mock=watching&amp;screen=&lt;id&gt;</code>.</p>
+
+    <h3>What to delete before writing it clean</h3>
+    <p>All paths are under <code>axe-mac/next/</code> on <code>master</code>. Close PR #96 unmerged. Build on a fresh branch that removes these in its first commit.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Path</th><th>Why</th></tr></thead>
+      <tbody id="deltbody"></tbody>
+    </table></div>
+
+    <h3>Testing</h3>
+    <ul>
+      <li><b>Unit (vitest):</b> schedule maths, including sleep and wake. The status and notify rule tables. Finding open, resolve and reopen. Thresholds from history. Summary text. Fallback parser: "lane-ceramics.com" gives an ask, "keep an eye on things" gives an unclear, and no keyword ever picks a kind. Each check against fake <code>deps</code>: 502, timeout, NXDOMAIN, 404, sign-in wall, JSON-LD price, missing DKIM, gh not signed in. Reply parsing ("every hour", "above 3 s", "ignore /blog"). Store migration.</li>
+      <li><b>One composer:</b> an e2e check that the Watching page, a watch and a new chat render the same Composer DOM: + button, mic, send, and the model button in the toolbar. Unit tests for the <code>watch</code> mention kind, routing a one-watch message to its thread, and the context a watch reference attaches in chat.</li>
+      <li><b>Engine:</b> the pipeline on a fake clock with a stubbed agent, from a run through a finding and a notification to a fix, a re-check, fixed and quiet.</li>
+      <li><b>E2E screenshots (Playwright):</b> one baseline per screen id in this book, light and dark: <span id="shotcount"></span> images. Look at each one at full size before accepting it.</li>
+      <li><b>Real app:</b> a local test server that can be up, slow (big images), down (502), change its pricing text or price, and serve weak headers. Uptime, page and price watches run against it. Claude Code fixes a real temp repo with an old <code>express</code>. Notifications are checked through the self-test hook.</li>
+    </ul>
+    <h3>Click-through checklist</h3>
+    <div class="check" id="checklist"></div>
+
+    <h3>Build order</h3>
+    <ol>
+      <li>Delete the old code (table above). Add shared types, the store and the scheduler, with unit tests.</li>
+      <li>Uptime and speed end to end: starter, ask, validate, plan, first run, thread, problem card, notification, sidebar and badge. Ship nothing until this one is right in both themes.</li>
+      <li>Page changes, then Price and stock, which reuse the thread and add their evidence.</li>
+      <li>Security, then Repo alerts, with the fix handoff (agent and record) and re-verify.</li>
+      <li>Free text with the model and the fallback, then the unclear, no-target and can't-reach states. Then custom.</li>
+      <li>Edit popover, chevron menu, pause, delete, replies that change a watch.</li>
+      <li>Morning summary (card and notification), overnight behaviour, offline banner.</li>
+      <li>⌥Space <code>/watch</code>.</li>
+      <li>The click-through checklist on the real built app, then the website copy below, together with the release.</li>
+    </ol>
+
+    <h3>Website: what to change on axeai.com/download</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Now</th><th>Change to</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>"Watch any website, 24/7." and "reads the pages you choose around the clock"</td><td>"Watch any website on a local model." and "…reads the pages you choose while your Mac is awake."</td><td>Watches run on this Mac while it's awake. There is no cloud run.</td></tr>
+        <tr><td>"Security checks that never sleep."</td><td>"Security checks every morning."</td><td>Same reason.</td></tr>
+        <tr><td>"Email spoofing, packages, leaked keys, TLS and headers, open ports, certificates" in one watch</td><td>Security covers email records, certificate, TLS and headers, and open ports. Packages and leaked keys move to Repo alerts.</td><td>They need code, not a domain (decision 2).</td></tr>
+        <tr><td>Mockup names "Is lane-ceramics.com up and fast", "Security check, lane-ceramics.com"</td><td>"lane-ceramics.com", "lane-ceramics.com security"</td><td>Names are the target, not a question.</td></tr>
+        <tr><td>"Checkout got slow", "4.1 s to load, up from 1.2 s. Six new photos are 6 MB each."</td><td>"lane-ceramics.com is slow", "The home page takes 4.1 s, up from 1.2 s."</td><td>Matches the notification in this design.</td></tr>
+        <tr><td>"…like an OWASP Top 10 scan of your own site…" (⌥Space)</td><td>"Press ⌥Space over any app, type /watch and one sentence."</td><td>A one-off OWASP scan isn't part of Watching.</td></tr>
+        <tr><td>"Watches are free on your own coding agent or a local model."</td><td>"Every watch is free. Most checks use no model at all."</td><td>Every feature is free. Credits only apply to Axe models.</td></tr>
+        <tr><td>"Seen 3:42 am, while you were asleep. Ollama on this Mac."</td><td>"3:42 am. It's in your morning summary."</td><td>The model name doesn't belong in a status line.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="doc" id="decide">
+    <div class="eyebrow">For the owner</div>
+    <h2>Decided, Oct 31</h2>
+    <p>All ten go with the recommendation. Building started on <code>feat/watching-v3</code>.</p>
+    <ol class="decisions">
+      <li><span><b>Turn on Open at login with the first watch?</b><small><b class="dec">Decided: yes.</b> Without it, watches stop after a restart until you open Axe. A one-time line in the thread says so: "Axe now opens at login so your watches keep running. You can change this in Settings."</small></span></li>
+      <li><span><b>Move packages and leaked keys from Security to Repo alerts.</b><small><b class="dec">Decided: yes.</b> A domain doesn't tell Axe where the code is. The website needs the matching change.</small></span></li>
+      <li><span><b>Overnight: rely on macOS Focus only, with no quiet hours in Axe.</b><small><b class="dec">Decided: yes.</b> That means one less setting, and the morning summary leads with anything that happened at night.</small></span></li>
+      <li><span><b>Morning summary on by default at 8:00, shown only when there's news.</b><small><b class="dec">Decided: only with news.</b> No "Nothing new" summaries.</small></span></li>
+      <li><span><b>Stay awake and Remote control leave the Watching page and go to Settings.</b><small><b class="dec">Decided: yes.</b> They aren't watches.</small></span></li>
+      <li><span><b>Port checks on any domain, or only domains you've verified?</b><small><b class="dec">Decided: any domain, Security watches only.</b> The check is light: 12 ports, once a day.</small></span></li>
+      <li><span><b>Keep cloud runs out until axeai.com accepts desktop sign-ins for cloud agents.</b><small><b class="dec">Decided: yes.</b> The design then only promises "while your Mac is awake".</small></span></li>
+      <li><span><b>Replace the shipped code instead of polishing it.</b><small><b class="dec">Decided: yes.</b> Close PR #96. Build the new feature on a fresh branch that deletes the old code first, then release Watching and the website copy together.</small></span></li>
+      <li><span><b>Snooze options: 1 hour, until tomorrow, a week.</b><small><b class="dec">Decided: all three,</b> in one compact menu.</small></span></li>
+      <li><span><b>Show the Watch section in the chat's + menu too, and let @ attach a watch's evidence in a chat?</b><small><b class="dec">Decided: yes.</b> The composer is the same everywhere, so starting or asking about a watch works from any chat. Without it, Watching is the only way in.</small></span></li>
+    </ol>
+  </section>
+</div>
+
+<script>
+/* ---------- Icons ---------- */
+const P = {
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  pulse: '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+  page: '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>',
+  tag: '<path d="M20.5 13.5l-7 7a1.8 1.8 0 0 1-2.5 0L3 12.5V3h9.5l8 8a1.8 1.8 0 0 1 0 2.5z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
+  shield: '<path d="M12 3l7.5 3v5.5c0 4.7-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.8-7.5-9.5V6z"/>',
+  branch: '<circle cx="6.5" cy="5.5" r="2"/><circle cx="6.5" cy="18.5" r="2"/><circle cx="17.5" cy="7.5" r="2"/><path d="M6.5 7.5v9M17.5 9.5c0 4.5-6 3.5-10 7.2"/>',
+  spark: '<path d="M12 3.5l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/>',
+  chev: '<path d="M7 10l5 5 5-5"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  x: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  up: '<path d="M12 19V5.5M6.5 11L12 5.5 17.5 11"/>',
+  more: '<circle cx="5.5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18.5" cy="12" r="1.2" fill="currentColor"/>',
+  side: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/>',
+  folder: '<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
+  copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>',
+  pause: '<path d="M9 6v12M15 6v12"/>',
+  play: '<path d="M8 5.5l10.5 6.5L8 18.5z"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5"/>',
+  type: '<path d="M5 7V5h14v2M12 5v14M9.5 19h5"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  moon: '<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/>',
+  wifioff: '<path d="M3 3l18 18"/><path d="M8.5 16a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 4.5-2.5M14.5 10a10 10 0 0 1 4.5 2.5M2 9a15 15 0 0 1 4-2.6M11 5.6A15 15 0 0 1 22 9"/>',
+  bell: '<path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  ext: '<path d="M14 4.5h5.5V10M19.5 4.5L11 13"/><path d="M17.5 13.5v5a1.5 1.5 0 0 1-1.5 1.5H6a1.5 1.5 0 0 1-1.5-1.5V8.5A1.5 1.5 0 0 1 6 7h5"/>',
+  alert: '<path d="M12 4l9 15.5H3z"/><path d="M12 10v4M12 17v.5"/>',
+  circle: '<circle cx="12" cy="12" r="7"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  mic: '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>',
+  chat: '<path d="M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-4 3.5v-3.5h0a2 2 0 0 1-1.5-2z"/>',
+  plug: '<path d="M9 3.5v4M15 3.5v4M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0zM12 16v4.5"/>',
+  file: '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5"/>',
+}
+const ico = (n, s = 16, cls = "") => `<svg class="${cls}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`
+const axeMark = (s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L12 5l7 14" fill="none" stroke="#7d81ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 14h7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/></svg>`
+const spin = '<i class="spin"></i>', pend = '<i class="pend"></i>'
+
+/* ---------- Data ---------- */
+const KINDS = ["uptime", "page", "price", "security", "repo"]
+const K = {
+  uptime: { label: "Uptime and speed", icon: "pulse", ask: "Site address, like lane-ceramics.com", typed: "lane-ceramics.com", sentence: "Tell me if lane-ceramics.com goes down or gets slow.", name: "lane-ceramics.com",
+    plan: "I’ll load lane-ceramics.com every 5 minutes and tell you if it goes down or gets much slower than usual.", often: "Every 5 minutes", noun: "site",
+    bad: { typed: "lane-ceramcs.com", msg: "lane-ceramcs.com doesn’t exist. Check the spelling." },
+    bads: [["Not an address", "That doesn’t look like a site address."], ["Domain doesn’t exist", "lane-ceramcs.com doesn’t exist. Check the spelling."], ["Not answering", "lane-ceramics.com isn’t answering right now. Button: Watch it anyway"], ["While checking", "Checking lane-ceramics.com…"]],
+    steps: [["done", "Loading lane-ceramics.com"], ["run", "Timing the page"]],
+    first: "lane-ceramics.com is up and loads in 0.9 s. I’ll check every 5 minutes and stay quiet unless that changes.",
+    facts: [["Status", "200 OK"], ["Loads in", "0.9 s"], ["Largest file", "hero.jpg, 240 KB"]] },
+  page: { label: "Page changes", icon: "page", ask: "Page link, like lane-ceramics.com/pricing", typed: "lane-ceramics.com/pricing", sentence: "Tell me when lane-ceramics.com/pricing changes.", name: "lane-ceramics.com/pricing",
+    plan: "I’ll read this page every hour and tell you what changed, in one line.", often: "Every hour", noun: "page",
+    bad: { typed: "lane-ceramics.com/prices", msg: "That page returns Not found (404)." },
+    bads: [["Not a link", "That doesn’t look like a link."], ["404", "That page returns Not found (404)."], ["Needs a sign-in", "That page needs a sign-in, so Axe can’t read it."], ["No text", "That page has no text Axe can read."], ["While checking", "Reading the page…"]],
+    steps: [["done", "Loading the page"], ["run", "Saving its text"]],
+    first: "Saved a copy of the page: 412 words. I’ll compare it every hour.",
+    facts: [["Words", "412"], ["Title", "Pricing, Lane Ceramics"], ["Last changed", "Unknown"]] },
+  price: { label: "Price and stock", icon: "tag", ask: "Product page link", typed: "northclay.com/stoneware-25", sentence: "Tell me when the price or stock changes on northclay.com/stoneware-25.", name: "Stoneware clay, 25 lb",
+    plan: "Stoneware clay, 25 lb is $48 and in stock. I’ll check every hour and tell you when either changes.", often: "Every hour", noun: "product page",
+    bad: { typed: "northclay.com/about", msg: "There’s no price on that page that Axe can read.", btn: "Watch the page instead" },
+    bads: [["Not a link", "That doesn’t look like a link."], ["No price", "There’s no price on that page that Axe can read. Button: Watch the page instead"], ["404", "That page returns Not found (404)."], ["While checking", "Finding the price…"]],
+    steps: [["done", "Loading the page"], ["run", "Finding the price"]],
+    first: "$48, in stock. I’ll check every hour.",
+    facts: [["Price", "$48.00"], ["Stock", "In stock"], ["Found in", "Product data"]] },
+  security: { label: "Security", icon: "shield", ask: "Domain, like lane-ceramics.com", typed: "lane-ceramics.com", sentence: "Check lane-ceramics.com for security problems.", name: "lane-ceramics.com security",
+    plan: "Every morning I’ll check lane-ceramics.com’s email records, certificate, TLS and headers, and open ports.", often: "Every morning", noun: "domain",
+    bad: { typed: "lane-ceramcs.com", msg: "lane-ceramcs.com doesn’t exist. Check the spelling." },
+    bads: [["Domain doesn’t exist", "lane-ceramcs.com doesn’t exist. Check the spelling."], ["A full link", "No message. Axe keeps the domain and drops the path."], ["While checking", "Checking lane-ceramics.com…"]],
+    steps: [["done", "Email records"], ["done", "Certificate"], ["run", "TLS and headers"], ["pend", "Open ports"]] },
+  repo: { label: "Repo alerts", icon: "branch", ask: "Repo or folder, like mia/shop-web", typed: "mia/shop-web", sentence: "Tell me about new security alerts in shop-web.", name: "shop-web",
+    plan: "Every morning I’ll check shop-web for new GitHub security alerts, vulnerable packages and leaked keys.", often: "Every morning", noun: "repo",
+    bad: { typed: "mia/shop-api", msg: "Axe can’t see mia/shop-api. Check the name, or sign in with gh auth login." },
+    bads: [["Can’t see the repo", "Axe can’t see mia/shop-api. Check the name, or sign in with gh auth login."], ["Folder isn’t a repo", "That folder isn’t a git repo."], ["No GitHub CLI", "Install the GitHub CLI to read GitHub alerts. Axe can still check the folder."], ["While checking", "Looking at shop-web…"]],
+    steps: [["done", "GitHub alerts"], ["run", "Packages"], ["pend", "Leaked keys"]],
+    first: "No open alerts. 214 packages, none with known problems. No keys in the code.",
+    facts: [["GitHub alerts", "None open"], ["Packages", "214, none affected"], ["Keys", "None found"]] },
+}
+const CHATS = ["Two days in Lisbon", "Refund for a double charge", "Gift ideas for Sam", "Pricing page copy", "Glaze recipes for stoneware", "Shipping rates for David"]
+const W = {
+  site: { k: "uptime", name: "lane-ceramics.com", line: "Up. Loads in 0.9 s.", r: "3 min ago" },
+  sec: { k: "security", name: "lane-ceramics.com security", line: "No issues found.", r: "7:30 am" },
+  pg: { k: "page", name: "lane-ceramics.com/pricing", line: "No changes since Oct 24.", r: "52 min ago" },
+  price: { k: "price", name: "Stoneware clay, 25 lb", line: "$48. In stock.", r: "52 min ago" },
+  repo: { k: "repo", name: "shop-web", line: "No open alerts.", r: "7:30 am" },
+}
+
+/* ---------- Building blocks ---------- */
+const tile = (k, s = 15) => `<span class="tile">${ico((K[k] || { icon: "spark" }).icon, s)}</span>`
+function sb(o = {}) {
+  const probs = o.probs || []
+  return `<aside class="sb">
+    <div class="lights"><i></i><i></i><i></i><span class="tg">${ico("side", 16)}</span></div>
+    <div class="nav ${o.active === "chat" ? "on" : ""}">${ico("pen")}<span>New chat</span></div>
+    <div class="nav ${o.active === "watching" ? "on" : ""} ${o.hovW ? "hov" : ""}">${ico("eye")}<span>Watching</span>${probs.length ? `<span class="badge">${probs.length}</span>` : ""}</div>
+    ${probs.slice(0, 3).map((p) => `<div class="sub ${o.cur === p ? "on" : ""}"><i class="dot warn"></i><span>${p}</span></div>`).join("")}
+    ${probs.length > 3 ? `<div class="sub more"><span>${probs.length - 3} more</span></div>` : ""}
+    ${o.cur && !probs.includes(o.cur) ? `<div class="sub on"><span>${o.cur}</span></div>` : ""}
+    <div class="sbh">Recents</div>
+    ${CHATS.map((c) => `<div class="cr">${c}</div>`).join("")}
+    <div class="me"><span class="av">M</span><span>Mia Lane</span></div>
+  </aside>`
+}
+const tb = (name, o = {}) => `<div class="tb"><span class="tbn ${o.open ? "open" : ""}">${name}${o.chev ? ico("chev", 14) : ""}</span>${o.right ? `<span class="tbr">${o.right}</span>` : ""}</div>`
+// The chat's own Composer: + inside the box on the left, mic and send on the right,
+// and the toolbar under the box with the model picker on the right. Watching only
+// changes the placeholder, the kind chip and what the menus list.
+const WAVE = [5, 9, 14, 8, 17, 12, 6, 15, 19, 10, 7, 13, 18, 9, 5, 11, 16, 8, 12, 6, 14, 9, 4, 10]
+function composer(o = {}) {
+  const text = o.text ? `<span>${o.text}</span>${o.focus ? '<i class="caret"></i>' : ""}` : `<span class="ph">${o.ph || "Say what to watch"}</span>`
+  const send = o.busy ? `<span class="send busy">${spin}</span>` : `<span class="send ${o.text ? "" : "off"}">${ico("up", 16)}</span>`
+  const strip = o.voice === "listening"
+    ? `<div class="dstrip"><span class="wave">${WAVE.map((h) => `<i style="height:${h}px"></i>`).join("")}</span><span class="tm">0:04</span><span class="sp"></span><span class="sb2">${ico("x", 13)}</span><span class="sb2 pri">${ico("check", 13)}</span></div>`
+    : o.voice === "writing" ? `<div class="dstrip"><span class="tm" style="font-size:13px">Writing it down</span></div>` : ""
+  return `<div class="cwrap">
+    <div class="composer ${o.focus ? "focus" : ""}">${strip}
+      <div class="cline"><span class="rb ${o.plusOpen ? "on" : ""}">${ico("plus", 20)}</span>
+        <div class="ctext">${o.kind ? `<span class="chip kind">${ico(K[o.kind].icon, 14)}${K[o.kind].label}${ico("x", 12)}</span>` : ""}${text}</div>
+        <span class="rb ${o.voice === "listening" ? "hot" : ""}">${ico("mic", 18)}</span>${send}</div>
+    </div>
+    <div class="ctool">${o.left || ""}<span class="sp"></span><span class="chip ${o.modelOpen ? "open" : ""}">${o.model || "Claude Code"}${ico("chev", 12)}</span>${o.ring ? '<span class="ring"></span>' : ""}</div>
+    ${o.pop || ""}
+  </div>`
+}
+const starters = (hov) => `<div class="starters">${KINDS.map((k) => `<span class="pill ${hov === k ? "hov" : ""}">${ico(K[k].icon, 14)}${K[k].label}</span>`).join("")}</div>`
+const below = (html, cls = "") => `<div class="below ${cls}">${html}</div>`
+const dock = (inner) => `<div class="dock">${inner}</div>`
+function row(w, o = {}) {
+  const st = o.st || ""
+  const dot = st === "prob" ? '<i class="dot warn"></i>' : st === "news" ? '<i class="dot news"></i>' : ""
+  const right = o.hov ? `<span class="more">${ico("more", 16)}</span>` : (o.r ?? w.r)
+  return `<div class="wr ${st} ${o.hov ? "hov" : ""}">${tile(w.k)}<span class="t"><span class="n">${dot}<span>${o.name || w.name}</span></span><span class="l">${o.line ?? w.line}</span></span><span class="r">${right}</span></div>`
+}
+const bub = (t) => `<div class="bub">${t}</div>`
+const act = (t, i) => `<div class="bub act">${i ? ico(i, 13) : ""}${t}</div>`
+const btn = (t, c = "", i) => `<span class="btn ${c}">${i ? ico(i, 14) : ""}${t}</span>`
+const sel = (t) => `<span class="sel">${t}${ico("chev", 12)}</span>`
+const kv = (k, v) => `<div class="kv"><span>${k}</span>${v}</div>`
+const meta = (h) => `<div class="meta">${h}</div>`
+const facts = (f, warnIdx = -1) => `<div class="facts">${f.map(([a, b], i) => `<div><span>${a}</span><span class="${i === warnIdx ? "w" : ""}">${b}</span></div>`).join("")}</div>`
+const menu = (items, style) => `<div class="menu" style="${style}">${items.map((m) => (m === "-" ? '<div class="msep"></div>' : typeof m === "string" ? `<div class="mlabel">${m}</div>` : `<div class="mi ${m.c || ""}">${m.i ? ico(m.i, 15) : ""}<span>${m.t}</span>${m.k ? `<span class="k">${m.k}</span>` : ""}${m.chk ? ico("check", 14, "c") : ""}</div>`)).join("")}</div>`
+function stepsList(steps) {
+  return `<ul class="steps">${steps.map(([s, t]) => `<li class="${s === "pend" ? "todo" : s}">${s === "done" ? ico("check", 13) : s === "run" ? spin : s === "warn" ? ico("alert", 13) : pend}${t}</li>`).join("")}</ul>`
+}
+function planCard(k, o = {}) {
+  const d = K[k] || o.d
+  return `<div class="card plan">
+    <div class="ph">${tile(k)}<span>${o.name || d.name}</span></div>
+    <div class="p" style="color:var(--ink)">${o.plan || d.plan}</div>
+    <div>${kv("How often", sel(o.often || d.often))}${kv("Tell me", sel("Right away"))}${o.runsOn ? kv("Runs on", `<span class="chip fill">${ico("spark", 14)}${o.runsOn}${ico("chev", 12)}</span>`) : ""}</div>
+    <div class="acts">${btn("Start watching", "pri " + (o.hov ? "hov" : ""))}</div>
+  </div>`
+}
+const folded = (k, t) => `<div class="line1">${ico("eye", 14)}<span class="t">${t}</span></div>`
+
+/* Charts */
+function rnd(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647) }
+function series(n, base, jit, seed) { const r = rnd(seed); return Array.from({ length: n }, () => +(base + (r() - 0.5) * jit).toFixed(2)) }
+function ticks(n, marks = {}, o = {}) {
+  const Wd = 736, gap = Wd / n
+  let b = ""
+  for (let i = 0; i < n; i++) {
+    const m = marks[i]
+    const c = m === "w" ? "var(--warn)" : m === "f" ? "var(--ink4)" : m === "g" ? "var(--ok)" : m === "b" ? "var(--brand)" : "var(--line2)"
+    const h = m && m !== "f" ? 16 : 12
+    if (n < 30) { b += `<rect x="${i * gap + 2}" y="${m ? 5 : 7}" width="${gap - 4}" height="${m ? 10 : 6}" rx="3" fill="${c}"/>`; continue }
+    b += m === "f" ? `<rect x="${i * gap + 0.5}" y="4.5" width="2" height="11" rx="1" fill="none" stroke="${c}"/>` : `<rect x="${i * gap}" y="${16 - h + 2}" width="2.5" height="${h}" rx="1.25" fill="${c}"/>`
+  }
+  if (o.hover != null) b += `<rect x="${o.hover * gap - 3}" y="0" width="8.5" height="20" rx="3" fill="var(--fill2)"/>`
+  return `<svg width="${Wd}" height="20" viewBox="0 0 ${Wd} 20">${b}</svg>`
+}
+function strip(label, right, n, marks, o = {}) {
+  return `<div class="strip" style="position:relative"><div class="sl"><span>${label}</span><span>${right}</span></div>${ticks(n, marks, o)}${o.tip ? `<div class="tip" style="left:${o.tipX}px;top:-6px">${o.tip}</div>` : ""}</div>`
+}
+function speedChart(o = {}) {
+  const Wd = 704, H = 168, L = 34, T = 18, B = 26, R = 10, ih = H - T - B
+  const v = o.v, max = 5, n = v.length
+  const x = (i) => L + (i / (n - 1)) * (Wd - L - R), y = (n2) => T + (1 - n2 / max) * ih
+  let b = ""
+  for (const g of [1, 2, 3, 4, 5]) b += `<line x1="${L}" x2="${Wd - R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--grid)"/><text x="${L - 8}" y="${y(g) + 4}" text-anchor="end" font-size="11" fill="var(--ink3)">${g} s</text>`
+  const d = v.map((n2, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(n2).toFixed(1)}`).join(" ")
+  b += `<path d="${d} L${x(n - 1)} ${y(0)} L${L} ${y(0)} Z" fill="var(--area)"/>`
+  if (o.th) b += `<line x1="${L}" x2="${Wd - R}" y1="${y(o.th)}" y2="${y(o.th)}" stroke="var(--warn)" stroke-dasharray="4 4" opacity=".75"/><text x="${L + 6}" y="${y(o.th) - 6}" font-size="11" fill="var(--warn)">${o.thLabel}</text>`
+  b += `<path d="${d}" fill="none" stroke="var(--chart)" stroke-width="1.5" stroke-linejoin="round"/>`
+  if (o.ev != null) { const ex = x(o.ev); b += `<line x1="${ex}" x2="${ex}" y1="${T}" y2="${y(0)}" stroke="var(--ink3)" stroke-dasharray="2 3"/><text x="${ex - 6}" y="${T + 10}" text-anchor="end" font-size="11" fill="var(--ink2)">${o.evLabel}</text>` }
+  if (o.fixAt != null) { const ex = x(o.fixAt); b += `<line x1="${ex}" x2="${ex}" y1="${T}" y2="${y(0)}" stroke="var(--ok)" stroke-dasharray="2 3"/><text x="${ex + 6}" y="${T + 10}" font-size="11" fill="var(--ok)">${o.fixLabel}</text>` }
+  const lc = o.endColor || "var(--warn)"
+  b += `<circle cx="${x(n - 1)}" cy="${y(v[n - 1])}" r="3.5" fill="${lc}"/><text x="${x(n - 1) - 8}" y="${y(v[n - 1]) - 9}" text-anchor="end" font-size="12" fill="${lc}">${v[n - 1].toFixed(1)} s</text>`
+  o.xl.forEach((t, i) => (b += `<text x="${L + (i / (o.xl.length - 1)) * (Wd - L - R)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === o.xl.length - 1 ? "end" : "middle"}" font-size="11" fill="var(--ink3)">${t}</text>`))
+  return `<svg width="${Wd}" height="${H}" viewBox="0 0 ${Wd} ${H}" role="img" aria-label="Load time">${b}</svg>`
+}
+const slowV = [...series(56, 1.15, 0.35, 7), 1.2, 3.9, 4.0, 4.2, 4.1, 4.1]
+const fixedV = [...series(40, 1.15, 0.35, 7), 1.2, 3.9, 4.0, 4.2, 4.1, 4.1, 4.0, 4.2, 4.1, 3.0, 1.2, 1.1, 1.1, 1.2, 1.1, 1.1]
+function priceChart() {
+  const Wd = 704, H = 130, L = 40, T = 14, B = 24, R = 12, ih = H - T - B
+  const pts = [[0, 48], [0.62, 48], [0.62, 45], [0.86, 45], [0.86, 42], [1, 42]]
+  const y = (p) => T + (1 - (p - 38) / 14) * ih, x = (f) => L + f * (Wd - L - R)
+  let b = ""
+  for (const g of [40, 44, 48, 52]) b += `<line x1="${L}" x2="${Wd - R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--grid)"/><text x="${L - 8}" y="${y(g) + 4}" text-anchor="end" font-size="11" fill="var(--ink3)">$${g}</text>`
+  b += `<path d="${pts.map(([f, p], i) => `${i ? "L" : "M"}${x(f)} ${y(p)}`).join(" ")}" fill="none" stroke="var(--chart)" stroke-width="1.5"/>`
+  b += `<circle cx="${x(1)}" cy="${y(42)}" r="3.5" fill="var(--brand)"/><text x="${x(1) - 8}" y="${y(42) - 9}" text-anchor="end" font-size="12" fill="var(--brand-text)">$42</text>`
+  b += `<text x="${x(0.62) + 6}" y="${y(45) - 6}" font-size="11" fill="var(--ink3)">$45</text>`
+  ;["Oct 1", "Oct 11", "Oct 21", "Today"].forEach((t, i) => (b += `<text x="${L + (i / 3) * (Wd - L - R)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : i === 3 ? "end" : "middle"}" font-size="11" fill="var(--ink3)">${t}</text>`))
+  return `<svg width="${Wd}" height="${H}" viewBox="0 0 ${Wd} ${H}" role="img" aria-label="Price over 30 days">${b}</svg>`
+}
+function upStrip() {
+  const Wd = 704, n = 96, g = Wd / n
+  let b = ""
+  for (let i = 0; i < n; i++) { const down = i >= 88; b += `<rect x="${i * g}" y="${down ? 0 : 4}" width="${g - 2}" height="${down ? 18 : 14}" rx="1.5" fill="${down ? "var(--warn)" : "var(--line2)"}"/>` }
+  ;["7 am", "11 am", "3 pm"].forEach((t, i) => (b += `<text x="${[0, Wd / 2, Wd][i]}" y="34" text-anchor="${["start", "middle", "end"][i]}" font-size="11" fill="var(--ink3)">${t}</text>`))
+  return `<svg width="${Wd}" height="38" viewBox="0 0 ${Wd} 38" role="img" aria-label="Last 8 hours">${b}</svg>`
+}
+const secRows = (o = {}) => `<div class="rows">
+  <div class="rw">${ico(o.emailOk ? "check" : "alert", 14, o.emailOk ? "okc" : "wc")}<span>Email records <small>SPF, DKIM, DMARC</small></span><span class="v ${o.emailOk ? "" : "w"}">${o.emailOk ? "Protected" : "Spoofable"}</span></div>
+  <div class="rw">${ico("check", 14, "okc")}<span>Certificate <small>lane-ceramics.com</small></span><span class="v">74 days left</span></div>
+  <div class="rw">${ico("check", 14, "okc")}<span>TLS and headers</span><span class="v">TLS 1.3</span></div>
+  <div class="rw">${ico("check", 14, "okc")}<span>Open ports <small>12 checked</small></span><span class="v">80 and 443 only</span></div></div>`
+const alerts = (fixed) => `<div class="rows">
+  <div class="rw">${ico(fixed ? "check" : "alert", 14, fixed ? "okc" : "wc")}<span>express 4.18.2 <small>Open redirect, high. Fixed in 4.19.2</small></span><span class="v">${fixed ? "Fixed" : "GHSA-rv95-896h-c2vc"}</span></div>
+  <div class="rw">${ico(fixed ? "check" : "alert", 14, fixed ? "okc" : "wc")}<span>semver 7.5.1 <small>Slow regex, moderate. Fixed in 7.5.2</small></span><span class="v">${fixed ? "Fixed" : "GHSA-c2qf-rxjj-qqgw"}</span></div></div>`
+
+/* ---------- Screens ---------- */
+const S = []
+const add = (g, id, t, d, view, copy, notes) => S.push({ g, id, t, d, view, copy, notes })
+const win = (o) => `<div class="win">${o.side ?? sb(o.sbo)}<div class="main">${o.tb ?? ""}<div class="body">${o.body ?? ""}</div>${o.dock ?? ""}${o.over ?? ""}</div></div>${o.scrim ?? ""}`
+const col = (h, style = "") => `<div class="col" style="${style}">${h}</div>`
+const ALLW = [W.site, W.sec, W.pg, W.price, W.repo]
+
+/* A. Watching page */
+const G1 = "Watching page"
+add(G1, "page-empty", "Empty, first time", "What you see before any watch exists.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: `<div class="hero"><h1>What should Axe watch?</h1><p>It checks on a schedule and tells you only when something’s wrong.</p>${composer({ ph: "Say what to watch" })}${starters()}</div>` }),
+  [["Title bar", "Watching"], ["Heading", "What should Axe watch?"], ["Line", "It checks on a schedule and tells you only when something’s wrong."], ["Composer placeholder", "Say what to watch"], ["Model picker", "Under the box on the right, as in chat, for example Claude Code"], ["Starters", "Uptime and speed / Page changes / Price and stock / Security / Repo alerts"], ["Sidebar", "New chat / Watching / Recents"]],
+  [["Starters", "Click: the starter becomes a chip in the composer and the composer asks for the target. Hover: tile-hover fill. Focus: 2 px brand ring. Tab moves through them after the composer."], ["Composer", "Focused on open. Enter sends free text. The send button is disabled and grey while empty. Shift+Enter adds a line."], ["Composer", "The chat’s own Composer, not a copy: + menu, @ and / menus, mic and the model picker under the box. See the Composer section."], ["Model picker", "The chat’s ModelPicker. It reads free text, runs custom watches and does fixes. Plain checks never use it."], ["Sidebar Watching", "Active row. No badge while nothing is wrong."], ["What’s missing on purpose", "No Today strip, no stats, no Stay awake or Remote control cards (decision 5)."]])
+
+add(G1, "page-few", "A few watches", "Five quiet watches. The usual day.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl">${ALLW.map((w) => row(w)).join("")}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Row name", "lane-ceramics.com / lane-ceramics.com security / lane-ceramics.com/pricing / Stoneware clay, 25 lb / shop-web"], ["Row line, uptime", "Up. Loads in 0.9 s."], ["Row line, security", "No issues found."], ["Row line, page", "No changes since Oct 24."], ["Row line, price", "$48. In stock."], ["Row line, repo", "No open alerts."], ["Row time", "Last check: 3 min ago / 52 min ago / 7:30 am / Yesterday / Oct 24"], ["Composer placeholder", "Watch something else"]],
+  [["Order", "Problems first (newest first), then unread news, then the rest by name. Quiet rows keep their place, so the list doesn’t jump."], ["Row", "Click opens the watch. Hover: fill, and the time becomes a ⋯ button (menu: Check now, Pause, Delete). Focus: brand ring, Enter opens it."], ["Row icon", "The kind’s icon. It’s the only place the kind shows, and it needs no label."], ["Row line", "The latest fact, never a verdict. No “All fine”, no run counts."], ["Composer", "Docked like a chat. Focusing it while empty shows the five starters above it."]])
+
+add(G1, "page-many", "Many watches", "Fourteen watches. The list scrolls under the composer.", () => {
+  const many = [W.site, { k: "uptime", name: "lane-ceramics.com/checkout", line: "Up. Loads in 1.2 s.", r: "3 min ago" }, W.sec, W.pg, { k: "page", name: "clayandco.com/pricing", line: "No changes since Oct 12.", r: "52 min ago" }, { k: "page", name: "craftfair.org/2027", line: "No changes since Sep 30.", r: "12 min ago" }, { k: "price", name: "Celadon glaze, 1 pt", line: "$19. In stock.", r: "52 min ago" }, { k: "price", name: "Kiln element, 240 V", line: "$86. Out of stock.", r: "52 min ago" }, W.price, { k: "repo", name: "lane-admin", line: "No open alerts.", r: "7:30 am" }, W.repo, { k: "uptime", name: "studio-booking.com", line: "Up. Loads in 0.6 s.", r: "1 min ago" }, { k: "security", name: "studio-booking.com security", line: "No issues found.", r: "7:30 am" }, { k: "spark", name: "Saturday glaze workshop seats", line: "Full. 0 of 8 seats left.", r: "40 min ago" }]
+  return win({ sbo: { active: "watching" }, tb: tb("Watching"), body: col(`<div class="wl">${many.map((w) => row(w)).join("")}</div>`), dock: dock(composer({ ph: "Watch something else" })) }) },
+  [["Rows", "As on the few-watches screen, with more names: lane-ceramics.com/checkout, clayandco.com/pricing, craftfair.org/2027, Celadon glaze, 1 pt, Kiln element, 240 V, lane-admin, studio-booking.com, studio-booking.com security, Saturday glaze workshop seats"], ["Out-of-stock line", "$86. Out of stock."], ["Custom line", "Full. 0 of 8 seats left."]],
+  [["Scale", "No groups, headings, search or filters. ⌘K finds a watch by name. Problems still sort to the top, so a long list never hides one."], ["Scroll", "The list scrolls under the docked composer, which keeps a soft fade above it."], ["Same target, two kinds", "The kind icon tells lane-ceramics.com and lane-ceramics.com security apart."]])
+
+add(G1, "page-problem", "One problem", "One watch has a problem. It moves to the top.", () => win({ sbo: { active: "watching", probs: ["lane-ceramics.com"] }, tb: tb("Watching"),
+  body: col(`<div class="wl">${row(W.site, { st: "prob", name: "lane-ceramics.com", line: "Slow: the home page takes 4.1 s.", r: "Since 2:41 pm" })}${row(W.repo)}${row(W.sec)}${row(W.pg)}${row(W.price)}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Problem line", "Slow: the home page takes 4.1 s."], ["Problem time", "Since 2:41 pm"], ["Sidebar badge", "1"], ["Sidebar sub-row", "lane-ceramics.com"], ["Badge, screen reader", "Watching, 1 problem"]],
+  [["Problem row", "Orange dot before the name, line in full ink, time in orange. That’s the only orange on the page."], ["Sidebar", "The problem watch appears under Watching, so it’s one click from anywhere in the app. Quiet watches never appear there."], ["Badge", "Counts open problems that aren’t snoozed. It never counts news."]])
+
+add(G1, "page-problems", "Several problems", "Three problems and one unread change.", () => win({ sbo: { active: "watching", probs: ["studio-booking.com", "shop-web", "lane-ceramics.com security", "lane-ceramics.com"] }, tb: tb("Watching"),
+  body: col(`<div class="wl">
+    ${row({ k: "uptime", name: "studio-booking.com" }, { st: "prob", line: "Down. It returns 502 Bad Gateway.", r: "Since 3:05 pm" })}
+    ${row(W.repo, { st: "prob", line: "2 new security alerts.", r: "Since 7:30 am" })}
+    ${row(W.sec, { st: "prob", line: "Anyone can send email as lane-ceramics.com.", r: "Since 7:30 am" })}
+    ${row(W.site, { st: "prob", line: "Slow: the home page takes 4.1 s.", r: "Since 2:41 pm" })}
+    ${row(W.pg, { st: "news", line: "New line: “Free shipping on orders over $50.”", r: "10:05 am" })}
+    ${row(W.price)}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Down line", "Down. It returns 502 Bad Gateway."], ["Repo line", "2 new security alerts."], ["Security line", "Anyone can send email as lane-ceramics.com."], ["News line", "New line: “Free shipping on orders over $50.”"], ["Sidebar", "studio-booking.com / shop-web / lane-ceramics.com security / 1 more"], ["Badge", "4"]],
+  [["Order", "Problems by when they started, newest first. Then unread news (blue dot). Then quiet rows by name."], ["News", "Blue dot until you open the watch. It doesn’t count in the badge and never turns orange."], ["Sidebar", "At most three problem rows, then “1 more”, which opens Watching."]])
+
+add(G1, "page-paused", "A watch paused", "One paused watch among quiet ones.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl">${row(W.site)}${row(W.sec)}${row(W.pg, { st: "paused", line: "Paused since Oct 28.", r: "Paused" })}${row(W.price)}${row(W.repo)}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Paused line", "Paused since Oct 28."], ["Paused time", "Paused"]],
+  [["Paused row", "Icon and name at half strength, so it reads as off. It keeps its place by name. Hover ⋯ shows Resume in place of Pause."], ["Paused problems", "Pausing a watch with an open problem removes it from the badge and sidebar until you resume."]])
+
+add(G1, "page-failed", "Last run failed", "Two watches couldn’t run: one couldn’t reach its page, one is missing its model.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl">${row(W.site)}${row(W.sec)}${row(W.pg, { line: "Couldn’t reach the page at 10:05 am. Trying again at 11:05 am.", r: "10:05 am" })}${row({ k: "spark", name: "Saturday glaze workshop seats" }, { line: "Claude Code isn’t signed in, so this can’t run.", r: "9:40 am" })}${row(W.price)}${row(W.repo)}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Couldn’t reach", "Couldn’t reach the page at 10:05 am. Trying again at 11:05 am."], ["Model unavailable", "Claude Code isn’t signed in, so this can’t run."], ["Local model off", "Ollama isn’t running, so this can’t run."], ["After 3 failed runs (becomes a problem)", "Couldn’t reach the page since 8:05 am."]],
+  [["Failed run", "Muted, no dot, no badge. One timeout isn’t news. Three in a row turn into a problem with the orange treatment."], ["Model unavailable", "Only kinds that need a model can hit this (custom, or price when its selector breaks). Opening the watch shows a banner with a model picker."], ["Uptime is different", "For an uptime watch, not reaching the site is the problem itself: “Down”, after a retry."]])
+
+add(G1, "page-offline", "No network", "The Mac is offline. Nothing runs and nothing is marked failed.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="banner">${ico("wifioff", 16)}<span>This Mac is offline. Watches pick up again when it’s back.</span></div><div class="wl">${ALLW.map((w) => row(w)).join("")}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Banner", "This Mac is offline. Watches pick up again when it’s back."]],
+  [["Banner", "Shows after 30 s offline and goes away by itself when the network returns. Then overdue watches run once. No button."], ["Rows", "Keep their last facts. No “couldn’t reach” lines while offline, because that would be false."], ["Notifications", "None while offline, and none on return unless a run then finds a problem."]])
+
+/* B. Creating */
+const G1b = "The composer"
+const HERO = (c, after = "") => `<div class="hero"><h1>What should Axe watch?</h1><p>It checks on a schedule and tells you only when something’s wrong.</p>${c}${after}</div>`
+const above = (w) => `left:0;bottom:calc(100% + 8px);width:${w}px`
+add(G1b, "cm-same", "Same composer as chat", "Watching uses the chat’s Composer itself. Only the placeholder and what the menus list change.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: HERO(composer({ ph: "Say what to watch", focus: true }), starters()) }),
+  [["Placeholder, Watching page", "Say what to watch"], ["Placeholder, docked on the page", "Watch something else"], ["Placeholder, a watch’s thread", "Reply to change this watch"], ["Placeholder, a fix turn", "Reply to Claude Code"], ["+ button label", "Add files, tools and connectors"], ["Mic label", "Dictate (hold {your dictation shortcut})"], ["Send label", "Send"]],
+  [["One component", "Watching.tsx renders <Composer surface=\"watching\">, and a watch renders <Composer variant=\"docked\" threadId>. The separate WatchComposer and its empty spacer row go."], ["Inside the box", "+ on the left, then the text, then the mic and send on the right. Same sizes, same keys, same paste and drop of files."], ["Under the box", "The toolbar row: the model picker on the right. In a fix turn the folder chip, mode menu and context ring show on the left too, as in any agent chat."], ["What Watching adds", "A kind chip in the text row, a Watch section in the + menu, Watches in @, and Watching commands in /. Nothing else differs."]])
+add(G1b, "cm-plus", "+ menu", "The chat’s + menu, with the five starters as a Watch section.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl">${ALLW.map((w) => row(w)).join("")}</div>`), dock: dock(composer({ ph: "Watch something else", focus: true, plusOpen: true,
+    pop: menu([{ t: "Add files or photos", i: "file" }, "-", "Watch", { t: "Uptime and speed", i: "pulse", c: "hl" }, { t: "Page changes", i: "page" }, { t: "Price and stock", i: "tag" }, { t: "Security", i: "shield" }, { t: "Repo alerts", i: "branch" }, "-", { t: "Connectors", i: "plug", k: "2 on" }], above(260)) })) }),
+  [["Item", "Add files or photos"], ["Section", "Watch"], ["Items", "Uptime and speed / Page changes / Price and stock / Security / Repo alerts"], ["Item", "Connectors (hint: 2 on)"]],
+  [["Watch section", "Each item does what its starter pill does: it puts the kind chip in the box and asks for the target."], ["In chat too", "The chat’s + menu shows the same Watch section. Picking one there opens Watching with that chip, so a watch never starts from a guess."], ["Files", "A dropped or pasted file is kept on the watch as a reference, for example a screenshot of what the page should look like for a custom watch."], ["Connectors", "The chat’s own row. Custom watches can use connected apps the same way a chat can."]])
+add(G1b, "cm-mention", "@ for a watch", "Type @ to refer to a watch, a folder or a chat. Watches come first.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl">${ALLW.map((w) => row(w)).join("")}</div>`), dock: dock(composer({ text: "Check @lane", focus: true,
+    pop: menu(["Watches", { t: "lane-ceramics.com", i: "pulse", k: "Uptime and speed", c: "hl" }, { t: "lane-ceramics.com security", i: "shield", k: "Security" }, { t: "lane-ceramics.com/pricing", i: "page", k: "Page changes" }, "Folders", { t: "~/Code/lane-theme", i: "folder" }, "Chats", { t: "Pricing page copy", i: "chat" }], above(420)) })) }),
+  [["Groups", "Watches / Folders / Apps / Chats"], ["Watch detail", "The kind, for example Uptime and speed"], ["Nothing found", "Nothing by that name. Type ~/ for a folder."]],
+  [["Order", "Watches first on the Watching page, then the chat’s groups in their usual order. In a chat, Watches comes after Folders."], ["Keys", "The same as today’s @ menu: arrows, Return or Tab picks, Esc closes."], ["Matching", "By name and target. The kind icon tells two watches on one site apart."]])
+add(G1b, "cm-ref", "A reference, sent", "A message to one watch, written from the page.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl">${ALLW.map((w) => row(w)).join("")}</div>`), dock: dock(composer({ text: 'Check <span class="ref">lane-ceramics.com</span> every minute until 6 pm', focus: true })) }),
+  [["Reference", "lane-ceramics.com, shown as a brand-tinted token"], ["After sending", "Opens lane-ceramics.com with your message, then: Every minute until 6:00 pm, then every 5 minutes again."]],
+  [["Where it goes", "A message that names one watch goes to that watch’s thread and is read like any reply there. It never creates a new watch."], ["Two or more watches", "“Pause @a and @b until Monday” changes both and answers once on the page, under the composer."], ["In chat", "@ a watch in a chat attaches its latest result and open problems, so “Why is @lane-ceramics.com slow?” starts with the evidence."]])
+add(G1b, "cm-slash", "/ commands", "Watching’s commands in the chat’s / menu.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl">${ALLW.map((w) => row(w)).join("")}</div>`), dock: dock(composer({ text: "/", focus: true,
+    pop: menu(["Watching", { t: "/check", k: "Check a watch now", c: "hl" }, { t: "/pause", k: "Pause a watch" }, { t: "/resume", k: "Start a paused watch again" }, { t: "/summary", k: "Show the morning summary now" }], above(400)) })) }),
+  [["Group", "Watching"], ["Commands", "/check Check a watch now / /pause Pause a watch / /resume Start a paused watch again / /summary Show the morning summary now"]],
+  [["Picking one", "/check and /pause then ask for a watch with the @ list. In a watch’s thread they apply to that watch straight away."], ["Fix turns", "The agent’s own Commands and Skills groups show as in any agent chat, under Watching."], ["Quick bar", "/watch stays the way into Watching from ⌥Space."]])
+add(G1b, "cm-model", "Model picker", "The chat’s ModelPicker, opened from the toolbar under the box.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: HERO(composer({ ph: "Say what to watch", focus: true, modelOpen: true,
+    pop: menu(["On this computer", { t: "Claude Code", i: "spark", chk: true, c: "chk hl" }, { t: "Llama 3.2", i: "spark", k: "Ollama" }, "Axe AI", { t: "Axe Auto", i: "spark" }], "right:0;bottom:calc(100% - 26px);width:240px") }), starters()) }),
+  [["Sections", "On this computer / Axe AI"], ["Rows", "Claude Code / Llama 3.2 (Ollama) / Axe Auto"]],
+  [["Same picker", "The chat’s ModelPicker with the same sections, install rows and keys. No prices or plans."], ["What it sets", "The model for the next watch you start here. Each watch keeps its own, which Edit shows and changes."], ["When it runs", "Reading free text, custom watches, a price page with no structured price, and fixes. Uptime, page, security and repo checks never call it."]])
+add(G1b, "cm-voice", "Dictating", "The mic works as in chat: the strip shows inside the box while you talk.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: HERO(composer({ ph: "Say what to watch", focus: true, voice: "listening" }), starters()) }),
+  [["Mic label while listening", "Stop and write it down"], ["Strip", "Wave / 0:04 / Cancel / Write it down"], ["Then", "Writing it down"], ["Mic blocked", "Axe can’t hear you. Allow the microphone in System Settings. Button: Open Settings"]],
+  [["Same strip", "The chat’s DictationStrip and MicButton, unchanged. Hold the dictation shortcut to talk, and let go to write it down."], ["After writing", "The words land in the box and wait for Return, as in chat. Speech never starts a watch on its own."], ["With a kind chip", "Dictating after a starter fills in only the target, so “lane ceramics dot com” becomes lane-ceramics.com."]])
+add(G1b, "cm-voice-done", "Dictated", "The words are in the box, ready to send.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: HERO(composer({ text: "Tell me if lane-ceramics.com goes down or gets slow", focus: true }), starters()) }),
+  [["Text", "Tell me if lane-ceramics.com goes down or gets slow"]],
+  [["Send", "Return sends it as free text to the picked model, as on the free-text screen."]])
+add(G1b, "cm-chat", "Watches in a chat", "The same composer in a new chat, with a watch picked from @.", () => win({ sbo: { active: "chat" }, tb: tb("New chat"),
+  body: `<div class="hero"><h1 style="font-size:30px;line-height:38px">Good afternoon, Mia</h1>${composer({ text: 'Why is <span class="ref">lane-ceramics.com</span> slow today?', focus: true })}</div>` }),
+  [["Greeting", "Good afternoon, Mia"], ["Text", "Why is lane-ceramics.com slow today?"]],
+  [["Evidence", "The reference attaches the watch’s latest result and open problems to the message, the same as an attached file."], ["Same box", "Nothing about the chat composer changes except the extra Watches group in @ and the Watch section in +."]])
+
+const G2 = "Creating a watch"
+add(G2, "c-starter-hover", "Starters, hover and focus", "The empty page with a starter hovered and the composer focused.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: `<div class="hero"><h1>What should Axe watch?</h1><p>It checks on a schedule and tells you only when something’s wrong.</p>${composer({ ph: "Say what to watch", focus: true })}${starters("uptime")}</div>` }),
+  [["Starter tooltip", "None. The labels say it."]],
+  [["Hover", "Pill fill steps up, text goes to full ink. No lift, no shadow (flat kit)."], ["Focus", "Composer: 2 px brand-soft ring. Pills: brand ring on keyboard focus only."], ["Docked case", "With watches, focusing the empty docked composer shows the same pills above it."]])
+for (const k of KINDS) {
+  const d = K[k]
+  const kn = d.label
+  add(G2, `c-${k}-ask`, `${kn}: ask for the target`, "Click the starter. The composer keeps the kind and asks for one thing.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+    body: `<div class="hero"><h1>What should Axe watch?</h1><p>It checks on a schedule and tells you only when something’s wrong.</p>${composer({ kind: k, ph: d.ask, focus: true, pop: k === "repo" ? menu(["Your repos", { t: "mia/shop-web", i: "branch", c: "hl" }, { t: "mia/lane-theme", i: "branch" }, "-", "Folders", { t: "~/Code/shop-web", i: "folder" }, { t: "~/Code/lane-theme", i: "folder" }, "-", { t: "Choose folder…", i: "folder" }], "left:8px;top:calc(100% + 6px);width:300px") : "" })}${k === "repo" ? "" : below("Press Return to check it. Esc to go back.")}</div>` }),
+    [["Kind chip", kn], ["Placeholder", d.ask], ["Hint", k === "repo" ? "None while the menu is open" : "Press Return to check it. Esc to go back."], ...(k === "repo" ? [["Menu headings", "Your repos / Folders"], ["Menu rows", "mia/shop-web / mia/lane-theme / ~/Code/shop-web / ~/Code/lane-theme / Choose folder…"]] : [])],
+    [["Kind chip", `Carries kind = ${k} explicitly. × or Backspace in an empty field removes it and brings back the starters.`], ["Field", `Takes only the ${d.noun}. No schedule or rules are asked here.`], ["Model picker", "Still there, the same as in chat. This check runs without a model, but replies, custom watches and fixes use the one picked here."], ...(k === "repo" ? [["Menu", "Repos come from gh repo list (when gh is signed in) and folders from recent agent chats. Typing filters the list. Arrows and Return pick. A GitHub repo with a local clone uses both."]] : [["Paste", "A full link is cleaned on Return: the scheme and www go, and for Security so does the path."]])])
+  add(G2, `c-${k}-invalid`, `${kn}: validation`, "Return checks the target first. The error replaces the hint.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+    body: `<div class="hero"><h1>What should Axe watch?</h1><p>It checks on a schedule and tells you only when something’s wrong.</p>${composer({ kind: k, text: d.bad.typed, focus: true })}${below(`${ico("alert", 13)}<span>${d.bad.msg}</span>${d.bad.btn ? `<span class="lk">${d.bad.btn}</span>` : ""}`, "err")}</div>` }),
+    d.bads,
+    [["When", "On Return, never while typing. The send button shows a spinner while it checks, with a 10 s limit."], ["Error", "Orange 12 px line under the composer. The text stays editable and the error clears on the next keystroke."], ["Fix path", "Every error says what to do. None of them is a dead end."], ...(d.bad.btn ? [["Watch the page instead", "Switches the kind to Page changes (your click, not a guess) and keeps the link."]] : [])])
+  add(G2, `c-${k}-confirm`, `${kn}: confirm`, "Your sentence as a small bubble, then the plan with one button.", () => win({ sbo: { active: "watching" }, tb: tb("New watch"),
+    body: col(`${bub(d.sentence)}${planCard(k)}`, "padding-top:24px"), dock: dock(composer({ ph: "Change anything by replying" })) }),
+    [["Title bar", "New watch"], ["Bubble", d.sentence], ["Plan name", d.name], ["Plan", d.plan], ["Row label", "How often"], ["How often options", "Every 5 minutes / Every 15 minutes / Every hour / Every morning"], ["Row label", "Tell me"], ["Tell me options", "Right away / In the morning summary"], ["Button", "Start watching"], ["Composer placeholder", "Change anything by replying"]],
+    [["Bubble", "Written from the starter’s template, so it reads like something a person would say. Right-aligned, bubble fill, 15 px."], ["Plan", "Shows real numbers from the validating check, which also counts as the first run."], ["Dropdowns", "Content-width 28 px Select. Changing one rewrites the plan sentence."], ["No Runs on row", "This kind never uses a model."], ["Start watching", "Primary and the only button. Return also starts it. While saving, the label stays and the button dims. Esc or leaving the page drops the draft."], ["Reply", "“Check every hour” or “Only tell me in the morning” changes the plan in place."]])
+  if (k !== "security") add(G2, `c-${k}-running`, `${kn}: first run`, "After Start. The thread is now the watch’s own screen.", () => win({ sbo: { active: "watching", cur: d.name }, tb: tb(d.name, { chev: true }),
+    body: col(`${bub(d.sentence)}${folded(k, `Watching. ${d.often}, tells you right away.`)}<div class="live"><div class="lh"><i class="dot live"></i>Checking now</div>${stepsList(d.steps)}</div>`, "padding-top:24px"), dock: dock(composer({ ph: "Reply to change this watch" })) }),
+    [["Title bar", d.name], ["Folded plan", `Watching. ${d.often}, tells you right away.`], ["Live label", "Checking now"], ["Steps", d.steps.map((s) => s[1]).join(" / ")], ["Composer placeholder", "Reply to change this watch"]],
+    [["Folded plan", "The plan card collapses to one line after Start. Click it to see the plan again."], ["Live", "Teal dot. Steps tick as they finish. This takes a second or two, because the validating check already ran."], ["Sidebar", "The new watch shows under Watching while it’s open."], ["Title", "Name plus chevron. The menu has Check now, Edit, Rename, Pause, Delete."]])
+  if (k !== "security") add(G2, `c-${k}-result`, `${kn}: first result`, "The first result is the only quiet run that writes a message.", () => win({ sbo: { active: "watching", cur: d.name }, tb: tb(d.name, { chev: true }),
+    body: col(`${bub(d.sentence)}${folded(k, `Watching. ${d.often}, tells you right away.`)}<div class="msg"><span>${d.first}</span>${facts(d.facts)}</div>`, "padding-top:24px"), dock: dock(composer({ ph: "Reply to change this watch" })) }),
+    [["Message", d.first], ["Facts", d.facts.map((f) => f.join(": ")).join(" / ")]],
+    [["Message", "Plain text in Axe’s voice, with no card or avatar. Later quiet runs only add a tick to the strip."], ["Facts", "Three label and value pairs over a hairline. They set the baseline later problems compare against."], ["Notification", "None. You’re looking at it."]])
+}
+add(G2, "c-security-running", "Security: first run", "Four checks, in parallel, ticking off.", () => win({ sbo: { active: "watching", cur: K.security.name }, tb: tb(K.security.name, { chev: true }),
+  body: col(`${bub(K.security.sentence)}${folded("security", "Watching. Every morning at 7:30, tells you right away.")}<div class="live"><div class="lh"><i class="dot live"></i>Checking now</div>${stepsList(K.security.steps)}</div>`, "padding-top:24px"), dock: dock(composer({ ph: "Reply to change this watch" })) }),
+  [["Folded plan", "Watching. Every morning at 7:30, tells you right away."], ["Steps", "Email records / Certificate / TLS and headers / Open ports"]],
+  [["Steps", "They run in parallel. Each ticks when done. Open ports takes the longest (12 ports, 3 s each at most)."]])
+add(G2, "c-security-result", "Security: first result", "The first run finds a real issue. It shows as a problem, but doesn’t notify.", () => win({ sbo: { active: "watching", cur: K.security.name, probs: ["lane-ceramics.com security"] }, tb: tb(K.security.name, { chev: true }),
+  body: col(`${bub(K.security.sentence)}${folded("security", "Watching. Every morning at 7:30, tells you right away.")}<div class="msg"><span>One thing to fix. Everything else looks right.</span></div>${secRows()}${secProblem()}`, "padding-top:24px"), dock: dock(composer({ ph: "Reply to change this watch" })) }),
+  [["Message", "One thing to fix. Everything else looks right."], ["Checks", "Email records, SPF, DKIM, DMARC: Spoofable / Certificate: 74 days left / TLS and headers: TLS 1.3 / Open ports, 12 checked: 80 and 443 only"], ["Then", "The problem card (see Security: problem)"], ["Clean first result", "Everything looks right. I’ll check every morning at 7:30."]],
+  [["First run", "Sets the baseline. A problem found now is real and stays open, but there’s no notification because you’re looking at it."], ["Checks list", "One row per check, a tick or an orange triangle, the value on the right. This list shows only on the first result and in the problem card."]])
+add(G2, "c-free-confirm", "Free sentence", "A typed sentence that isn’t one of the five kinds becomes a custom watch on your model.", () => win({ sbo: { active: "watching" }, tb: tb("New watch"),
+  body: col(`${bub("Tell me when a seat opens in the Saturday glaze workshop at claycollective.org/workshops.")}${planCard("spark", { d: {}, name: "Saturday glaze workshop seats", plan: "I’ll read claycollective.org/workshops every hour and tell you when the Saturday glaze workshop has a seat. It’s full now.", often: "Every hour", runsOn: "Claude Code" })}`, "padding-top:24px"), dock: dock(composer({ ph: "Change anything by replying" })) }),
+  [["Bubble", "Exactly what you typed"], ["Name", "Saturday glaze workshop seats (written by the model, 2 to 5 words)"], ["Plan", "I’ll read claycollective.org/workshops every hour and tell you when the Saturday glaze workshop has a seat. It’s full now."], ["Row label", "Runs on"], ["While reading", "Reading that…"]],
+  [["Parsing", "Sent once to the composer’s model with structured output: kind, target, often, condition. If it’s one of the five kinds, you get that kind’s plan, exactly as from a starter."], ["Runs on", "Shown only here, because this watch uses the model on every run. It defaults to the composer’s model. Picking another changes nothing else."], ["While reading", "A 13 px line with a spinner under the bubble, for about a second."]])
+add(G2, "c-free-unclear", "Unclear sentence", "The model can’t tell what to watch, so Axe asks with the starters.", () => win({ sbo: { active: "watching" }, tb: tb("New watch"),
+  body: col(`${bub("keep an eye on things for me")}<div class="msg"><span>What should I watch?</span>${starters().replace('class="starters"', 'class="starters" style="justify-content:flex-start"')}</div>`, "padding-top:24px"), dock: dock(composer({ ph: "Say what to watch" })) }),
+  [["Question", "What should I watch?"], ["Choices", "Uptime and speed / Page changes / Price and stock / Security / Repo alerts"], ["No-model fallback with no target", "What should I watch?"]],
+  [["Choices", "The same five pills. A click sets the kind and asks for the target, as a starter would."], ["Never", "Axe doesn’t guess a kind from words like “site” or “price”."]])
+add(G2, "c-free-notarget", "Sentence with no target", "The kind is clear but there’s no address, so Axe asks for one thing.", () => win({ sbo: { active: "watching" }, tb: tb("New watch"),
+  body: col(`${bub("Tell me if my site goes down.")}<div class="msg"><span>Which site?</span></div>`, "padding-top:24px"), dock: dock(composer({ kind: "uptime", ph: "Site address, like lane-ceramics.com", focus: true })) }),
+  [["Question", "Which site?"], ["Other kinds", "Which page? / Which product page? / Which domain? / Which repo?"], ["Composer", "Uptime and speed chip, placeholder Site address, like lane-ceramics.com"], ["No-model fallback, target found", "What should I watch on lane-ceramics.com?"]],
+  [["Composer", "Becomes the target ask with the model’s kind as the chip. It validates the same way."], ["Repo", "The repo menu opens straight away."]])
+add(G2, "c-free-unreachable", "A target it can’t reach", "The domain doesn’t exist. Axe offers the close match from your own watches.", () => win({ sbo: { active: "watching" }, tb: tb("New watch"),
+  body: col(`${bub("Tell me when lane-ceramics.co/pricing changes.")}<div class="msg"><span>I couldn’t reach lane-ceramics.co. That domain doesn’t exist.</span><div class="acts">${btn("Use lane-ceramics.com/pricing")}</div></div>`, "padding-top:24px"), dock: dock(composer({ kind: "page", text: "lane-ceramics.co/pricing" })) }),
+  [["Message", "I couldn’t reach lane-ceramics.co. That domain doesn’t exist."], ["Button", "Use lane-ceramics.com/pricing"], ["Not answering", "lane-ceramics.com isn’t answering right now. Try again in a minute."], ["Uptime only", "lane-ceramics.com isn’t answering right now. Button: Watch it anyway"]],
+  [["Suggestion", "Only from domains already in your watches or chats, one edit away. No button if there’s no match."], ["Composer", "Keeps the kind chip and your target so you can fix the typo."]])
+
+/* C. A watch's own screen */
+const G3 = "A watch’s screen"
+function siteProblem(o = {}) {
+  return `<div class="card ${o.settled ? "" : "warnc"}">
+    ${meta(`<i class="dot warn"></i><span class="w">2:41 pm</span>`)}
+    <div class="hl">lane-ceramics.com is slow</div>
+    <div class="p">The home page takes 4.1 s to load, up from about 1.2 s. Six photos added at 2:38 pm are 6 MB each.</div>
+    ${speedChart({ v: slowV, th: 2.4, thLabel: "Tells you above 2.4 s", ev: 56.3, evLabel: "6 photos added", xl: ["10 am", "11 am", "12 pm", "1 pm", "2 pm", "2:45 pm"] })}
+    ${facts([["Status", "200 OK"], ["Loads in", "4.1 s"], ["Largest file", "vase-blue.png, 6.2 MB"]], 1)}
+    <div class="acts">${btn("Fix with Claude Code", "pri " + (o.hovFix ? "hov" : ""))}${btn("That’s expected", o.hovExp ? "hov" : "")}${btn("Snooze", o.snoozeOpen ? "hov" : "", "")}${o.snoozeOpen ? "" : ""}</div>
+    ${o.snoozeOpen ? menu([{ t: "For 1 hour" }, { t: "Until tomorrow", c: "hl" }, { t: "For a week" }], "left:216px;bottom:-84px") : ""}
+  </div>`
+}
+const sitePre = (n = 64, m = { 63: "w" }) => strip("Quiet since Oct 24", "Today", n, m)
+const sb1 = { active: "watching", cur: "lane-ceramics.com", probs: ["lane-ceramics.com"] }
+const sbq = { active: "watching", cur: "lane-ceramics.com" }
+const replyDock = dock(composer({ ph: "Reply to change this watch" }))
+add(G3, "w-site-quiet", "Uptime: quiet history", "Days of quiet runs fold into one strip. Hover shows one run.", () => win({ sbo: sbq, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`<div class="meta" style="justify-content:center">Oct 24</div>${bub(K.uptime.sentence)}${folded("uptime", "Watching. Every 5 minutes, tells you right away.")}<div class="msg"><span>${K.uptime.first}</span>${facts(K.uptime.facts)}</div><div style="position:relative;margin-top:10px">${strip("Quiet since Oct 24", "Now", 120, {}, { hover: 104, tip: "2:45 pm, up, 0.9 s", tipX: 560 })}</div>`, "padding-top:24px"), dock: replyDock }),
+  [["Date divider", "Oct 24"], ["Strip label", "Quiet since Oct 24"], ["Strip right", "Now"], ["Tick tooltip", "2:45 pm, up, 0.9 s"]],
+  [["Strip", "One tick per run, at most the last 120, newest on the right. Grey means quiet, orange a problem, an outline a run that couldn’t check, green fixed. It’s the only thing quiet runs add."], ["Tick hover", "Tooltip with the time and one fact. Click: nothing. Runs have no detail page."], ["Scroll", "Older problems and replies stay in the thread above, in order."]])
+add(G3, "w-site-problem", "Uptime: slow", "The problem card: headline, cause, chart with threshold, three facts, three buttons.", () => win({ sbo: sb1, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`${sitePre()}${siteProblem()}`, "padding-top:20px"), dock: replyDock }),
+  [["Time", "2:41 pm"], ["Headline", "lane-ceramics.com is slow"], ["Body", "The home page takes 4.1 s to load, up from about 1.2 s. Six photos added at 2:38 pm are 6 MB each."], ["Threshold", "Tells you above 2.4 s"], ["Event", "6 photos added"], ["Now", "4.1 s"], ["Facts", "Status: 200 OK / Loads in: 4.1 s / Largest file: vase-blue.png, 6.2 MB"], ["Buttons", "Fix with Claude Code / That’s expected / Snooze"]],
+  [["Card", "Tile fill with a 3 px orange inset edge on the left. It’s the only coloured card style."], ["Cause", "From the full load: the files that grew since the last quiet run, and when. No model."], ["Chart", "Last 6 hours. The dashed threshold is 2× usual. Event line where the largest files changed. Endpoint dot and value in orange."], ["Fix with Claude Code", "The CLI you have. With no CLI it reads “Fix with Do it” and uses your Axe model. Hover: darker brand. Disabled when the watch is paused."], ["That’s expected", "Raises usual to 4.1 s. The card folds to one line with Undo."], ["Snooze", "Opens a 3-row menu."]])
+add(G3, "w-site-down", "Uptime: down", "Down is a problem with different evidence: the status strip and the response.", () => win({ sbo: { active: "watching", cur: "studio-booking.com", probs: ["studio-booking.com"] }, tb: tb("studio-booking.com", { chev: true }),
+  body: col(`${strip("Quiet since Oct 20", "Today", 64, { 61: "w", 62: "w", 63: "w" })}<div class="card warnc">${meta(`<i class="dot warn"></i><span class="w">3:05 pm</span>`)}<div class="hl">studio-booking.com is down</div><div class="p">It returns 502 Bad Gateway. Checked twice, a minute apart.</div>${upStrip()}${facts([["Status", "502 Bad Gateway"], ["Down for", "14 min"], ["Last up", "3:00 pm, 0.6 s"]], 0)}<div class="acts">${btn("Check now", "", "refresh")}${btn("Snooze")}</div></div>`, "padding-top:20px"), dock: replyDock }),
+  [["Headline", "studio-booking.com is down"], ["Body", "It returns 502 Bad Gateway. Checked twice, a minute apart."], ["Facts", "Status: 502 Bad Gateway / Down for: 14 min / Last up: 3:00 pm, 0.6 s"], ["Buttons", "Check now / Snooze"], ["No answer variant", "It doesn’t answer. Checked twice, a minute apart."], ["DNS variant", "studio-booking.com no longer resolves. Checked twice, a minute apart."]],
+  [["No Fix button", "Axe can’t fix a host from here. Check now re-runs it straight away and shows a spinner in the button."], ["Strip", "Last 8 hours, one bar per 5-minute run, the down ones taller and orange."], ["Back up", "A quiet run clears it. The card folds to “Down from 3:05 to 3:19 pm” and the notification “studio-booking.com is back up” is sent, because it had notified."]])
+add(G3, "w-site-snooze", "Uptime: snooze", "The snooze menu open on the problem card.", () => win({ sbo: sb1, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`${sitePre()}${siteProblem({ snoozeOpen: true })}`, "padding-top:20px"), dock: replyDock }),
+  [["Menu", "For 1 hour / Until tomorrow / For a week"], ["After", "Snoozed until tomorrow, 9:00 am. Undo"], ["Row line while snoozed", "Slow: the home page takes 4.1 s. Snoozed."]],
+  [["Menu", "Popover of 28 px MenuRows, opening below the button. Arrows and Return work. Esc closes it."], ["Snoozed", "No notifications for this finding until then. No badge or sidebar row. The list row loses its orange dot. A new, different finding still notifies."], ["Until tomorrow", "Means 9:00 am the next day, local time."]])
+add(G3, "w-site-expected", "Uptime: that’s expected", "The card folds to one line. Undo stays for this session.", () => win({ sbo: sbq, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`${sitePre(64, { 63: "w" })}<div class="line1"><i class="dot mute"></i><span class="t">2:41 pm. lane-ceramics.com was slow, 4.1 s.</span></div><div class="msg"><span>Okay. I’ll treat about 4 s as usual for the home page now.</span><span class="undo">Undo</span></div>`, "padding-top:20px"), dock: replyDock }),
+  [["Folded card", "2:41 pm. lane-ceramics.com was slow, 4.1 s."], ["Reply", "Okay. I’ll treat about 4 s as usual for the home page now."], ["Undo", "Undo"], ["Other kinds", "Okay. I won’t tell you about this one again."]],
+  [["Effect", "For speed: usual moves to the current value. For findings with a key: the key goes into expected. The problem closes and the badge drops."], ["Folded card", "Click expands the full card again, without buttons."], ["Undo", "Restores the problem and the old usual. It’s also available as a reply: “undo that”."]])
+add(G3, "w-site-fix-folder", "Fixing: which folder", "The first fix asks where the code is, once.", () => win({ sbo: sb1, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`${siteProblem({ settled: true }).replace(/<div class="acts">[\s\S]*?<\/div>\s*<\/div>$/, "</div>")}${act("Fix with Claude Code", "")}<div class="msg"><span>Which folder has the code for lane-ceramics.com?</span><div class="rows folderpick">
+    <div class="rw">${ico("folder", 14)}<span>~/Code/lane-theme <small>Shopify theme, changed today</small></span><span class="v"></span></div>
+    <div class="rw">${ico("folder", 14)}<span>~/Code/shop-web <small>Node app, changed yesterday</small></span><span class="v"></span></div>
+  </div><div class="acts">${btn("Choose folder…", "", "folder")}</div></div>`, "padding-top:20px"), dock: replyDock }),
+  [["Your action", "Fix with Claude Code"], ["Question", "Which folder has the code for lane-ceramics.com?"], ["Suggestions", "~/Code/lane-theme, Shopify theme, changed today / ~/Code/shop-web, Node app, changed yesterday"], ["Button", "Choose folder…"]],
+  [["Suggestions", "Folders from recent agent chats, best match first (a git remote or package name matching the domain). Click picks one."], ["Remembered", "Saved on the watch. Edit shows it as Code folder after the first fix."], ["Skipped", "If the watch already has a folder, this step doesn’t appear."]])
+add(G3, "w-site-fix-plan", "Fixing: the plan", "Claude Code proposes a plan in the watch’s thread. Start is the only button.", () => win({ sbo: sb1, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`<div class="line1"><i class="dot warn"></i><span class="t">2:41 pm. lane-ceramics.com is slow, 4.1 s.</span></div>${act("Fix with Claude Code")}<div class="agent"><div class="agh"><span class="logo">${ico("spark", 11)}</span>Claude Code in ~/Code/lane-theme</div><div class="card"><div class="meta">Plan</div>${stepsList([["pend", "Convert the 6 new photos to WebP, 2,048 px wide"], ["pend", "Swap them in on the product pages"], ["pend", "Add width and height so the page doesn’t jump"]])}<div class="acts">${btn("Start", "pri")}</div></div></div>`, "padding-top:20px"), dock: dock(composer({ ph: "Reply to Claude Code", left: `<span class="chip">${ico("folder", 14)}lane-theme</span><span class="chip">Plan${ico("chev", 12)}</span>`, ring: true })) }),
+  [["Folded problem", "2:41 pm. lane-ceramics.com is slow, 4.1 s."], ["Agent header", "Claude Code in ~/Code/lane-theme"], ["Card label", "Plan"], ["Steps", "Written by the agent"], ["Button", "Start"], ["Composer placeholder", "Reply to Claude Code"]],
+  [["Brief", "Built from the evidence, not by a model: the headline, the numbers, the six files, and “Make the smallest change that fixes this. Don’t commit or deploy.”"], ["Plan card", "The app’s existing plan card. Start runs it. Replying changes the plan, as in any agent chat."], ["Problem", "Folds to one line while the fix runs, then comes back if the fix is undone."]])
+add(G3, "w-site-fix-changes", "Fixing: keep or undo", "The agent is done. Keep or undo, then Axe explains what happens next.", () => win({ sbo: sb1, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`${act("Fix with Claude Code")}<div class="agent"><div class="agh"><span class="logo">${ico("spark", 11)}</span>Claude Code in ~/Code/lane-theme</div>${stepsList([["done", "Converted 6 photos to WebP, 6.1 MB to 290 KB each"], ["done", "Swapped them in on the product pages"], ["done", "Added width and height"]])}<div class="card"><div class="rows files">
+    <div class="rw">${ico("page", 14)}<span>assets/vase-blue.webp and 5 more</span><span class="v"><span class="add">+6</span> <span class="del">−6</span></span></div>
+    <div class="rw">${ico("page", 14)}<span>sections/product-media.liquid</span><span class="v"><span class="add">+4</span> <span class="del">−1</span></span></div></div>
+    <div class="acts">${btn("Keep all", "pri")}${btn("Undo all")}</div></div></div>
+    <div class="msg"><span class="sub2">After you keep them: deploy the change, and the next check will see it.</span></div>`, "padding-top:20px"), dock: dock(composer({ ph: "Reply to Claude Code", left: `<span class="chip">${ico("folder", 14)}lane-theme</span><span class="chip">Plan${ico("chev", 12)}</span>`, ring: true })) }),
+  [["Steps", "Converted 6 photos to WebP, 6.1 MB to 290 KB each / Swapped them in on the product pages / Added width and height"], ["Files", "assets/vase-blue.webp and 5 more +6 −6 / sections/product-media.liquid +4 −1"], ["Buttons", "Keep all / Undo all"], ["Note", "After you keep them: deploy the change, and the next check will see it."], ["After Keep all", "Kept. Deploy it, then I’ll see it on the next check. Button: Check now"], ["After Undo all", "Undone. The problem is still open."]],
+  [["Files", "The existing changes panel rows. Click opens the diff. Per-file keep or undo is in the panel."], ["Site kinds", "A fix in code needs a deploy, so Axe says so and doesn’t claim it’s fixed. Repo fixes re-check straight away."], ["Check now", "Re-runs the watch now. Scheduled runs also keep checking."]])
+add(G3, "w-site-fixed", "Fixed, back to quiet", "A run shows the fix is live. The problem closes and the strip turns quiet again.", () => win({ sbo: sbq, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`<div class="line1"><i class="dot mute"></i><span class="t">2:41 pm. lane-ceramics.com was slow, 4.1 s.</span></div><div class="line1"><span class="logo" style="width:14px;height:14px;border-radius:4px">${ico("spark", 9)}</span><span class="t">Claude Code changed 7 files in ~/Code/lane-theme. Kept.</span></div><div class="card"><div class="meta">${ico("check", 13)}<span class="g">Fixed at 3:20 pm</span></div><div class="hl">The home page loads in 1.1 s again.</div>${speedChart({ v: fixedV, th: 2.4, thLabel: "Tells you above 2.4 s", fixAt: 55.2, fixLabel: "Deployed", endColor: "var(--ok)", xl: ["1 pm", "2 pm", "3 pm", "3:45 pm"] })}</div>${strip("Quiet since 3:20 pm", "Now", 64, { 0: "w", 1: "w", 2: "w", 3: "w", 4: "w", 5: "w", 6: "g" })}`, "padding-top:20px"), dock: replyDock }),
+  [["Folded problem", "2:41 pm. lane-ceramics.com was slow, 4.1 s."], ["Fix line", "Claude Code changed 7 files in ~/Code/lane-theme. Kept."], ["Fixed label", "Fixed at 3:20 pm"], ["Headline", "The home page loads in 1.1 s again."], ["Chart marker", "Deployed"], ["Strip label", "Quiet since 3:20 pm"], ["Still broken", "Still slow: 3.6 s. Button: Try again"]],
+  [["Fixed", "Only when a run shows it. Green tick and value. No notification, because you did it."], ["Fix line", "Opens the agent session with its diff."], ["Still broken", "If the check after a kept fix still fails, the card says “Still slow” and Try again sends the new numbers to the same agent session."]])
+add(G3, "w-site-paused", "Paused", "A paused watch: the composer gives way to a Resume line.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com" }, tb: tb("lane-ceramics.com", { chev: true }),
+  body: col(`${strip("Quiet since Oct 24", "Paused 3:20 pm", 64, {})}<div class="line1">${ico("pause", 14)}<span class="t">Paused at 3:20 pm.</span></div>`, "padding-top:20px"),
+  dock: dock(`<div class="composer" style="flex-direction:row;align-items:center;padding:10px 10px 10px 16px"><span style="color:var(--ink3);font-size:15px">This watch is paused.</span><span style="margin-left:auto">${btn("Resume", "pri", "play")}</span></div>`) }),
+  [["Thread line", "Paused at 3:20 pm."], ["Strip right", "Paused 3:20 pm"], ["Bar", "This watch is paused."], ["Button", "Resume"], ["After Resume", "Resumed. Checking now."]],
+  [["Pause", "From the chevron menu or the row’s ⋯. It stops runs and notifications. History stays."], ["Resume", "Runs once straight away, then on schedule. Also by reply: “resume”."], ["Replies", "No reply box while paused. One button, nothing else to do."]])
+
+function pageChange() {
+  return `<div class="card">${meta(`<i class="dot news"></i><span class="b">10:05 am</span>`)}<div class="hl">The pricing page changed</div><div class="p">New line about shipping, and the old one is gone.</div><div class="diff mono"><div class="c">  Wheel-thrown mugs, $38</div><div class="d">− Free shipping on orders over $75.</div><div class="a">+ Free shipping on orders over $50.</div><div class="a">+ Gift wrap is now free.</div><div class="c">  Returns within 30 days.</div></div>${facts([["Added", "2 lines"], ["Removed", "1 line"], ["Words", "412 to 419"]])}<div class="acts">${btn("Open page", "", "ext")}${btn("Ignore changes like this")}</div></div>`
+}
+add(G3, "w-page-quiet", "Page changes: quiet", "Nothing changed since the first copy.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com/pricing" }, tb: tb("lane-ceramics.com/pricing", { chev: true }),
+  body: col(`<div class="meta" style="justify-content:center">Oct 24</div>${bub(K.page.sentence)}${folded("page", "Watching. Every hour, tells you right away.")}<div class="msg"><span>${K.page.first}</span></div><div style="margin-top:10px">${strip("No changes since Oct 24", "Now", 120, {})}</div>`, "padding-top:24px"), dock: replyDock }),
+  [["Strip label", "No changes since Oct 24"]],
+  [["Strip", "Quiet runs only. A change adds a blue tick."]])
+add(G3, "w-page-change", "Page changes: changed", "A change is news (blue), shown as a line diff.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com/pricing" }, tb: tb("lane-ceramics.com/pricing", { chev: true }),
+  body: col(`${strip("No changes since Oct 24", "Today", 64, { 63: "b" })}${pageChange()}`, "padding-top:20px"), dock: replyDock }),
+  [["Time", "10:05 am"], ["Headline", "The pricing page changed"], ["Body", "New line about shipping, and the old one is gone."], ["Diff", "− Free shipping on orders over $75. / + Free shipping on orders over $50. / + Gift wrap is now free."], ["Facts", "Added: 2 lines / Removed: 1 line / Words: 412 to 419"], ["Buttons", "Open page / Ignore changes like this"], ["List line", "New line: “Free shipping on orders over $50.”"]],
+  [["Body", "Plain words from a template: the first added and removed lines decide the sentence. No model."], ["Diff", "Two lines of context. Long diffs show the first 12 lines and “18 more lines”, which expands them."], ["Ignore changes like this", "Adds the changed block (by its heading or position) to expected. The reply is “Okay. I’ll ignore changes in that part of the page.” with Undo."], ["Open page", "Opens the link in the browser."], ["No Fix", "A change isn’t a fault."]])
+add(G3, "w-page-reply", "Replying to change it", "A reply that changes the watch: Axe confirms in one line with Undo.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com/pricing" }, tb: tb("lane-ceramics.com/pricing", { chev: true }),
+  body: col(`${strip("No changes since Oct 24", "Today", 64, { 63: "b" })}${pageChange().replace(/<div class="acts">[\s\S]*?<\/div><\/div>$/, "</div>")}${bub("only check this once a day, and ignore the date at the bottom")}<div class="msg"><span>Done. I’ll check every morning at 7:30 and ignore the date line at the bottom.</span><span class="undo">Undo</span></div>`, "padding-top:20px"), dock: replyDock }),
+  [["Your reply", "only check this once a day, and ignore the date at the bottom"], ["Axe", "Done. I’ll check every morning at 7:30 and ignore the date line at the bottom."], ["Undo", "Undo"], ["Not a change", "A question like “what changed last week?” gets a normal answer from your model."], ["Can’t do it", "I can’t check more often than every 5 minutes."]],
+  [["How", "The reply goes to your model with the watch as structured context. It returns a WatchPatch or null. With no model, a small set of plain phrases still works: every N minutes, every hour, every morning, above N s, pause, resume."], ["Undo", "Reverts the patch."]])
+add(G3, "w-price-quiet", "Price and stock: quiet", "Same price for weeks. The strip and a sparkline of the price.", () => win({ sbo: { active: "watching", cur: "Stoneware clay, 25 lb" }, tb: tb("Stoneware clay, 25 lb", { chev: true }),
+  body: col(`<div class="meta" style="justify-content:center">Oct 1</div>${bub(K.price.sentence)}${folded("price", "Watching. Every hour, tells you right away.")}<div class="msg"><span>${K.price.first}</span>${facts(K.price.facts)}</div><div style="margin-top:10px">${strip("$48, in stock, since Oct 1", "Now", 120, {})}</div>`, "padding-top:24px"), dock: replyDock }),
+  [["Strip label", "$48, in stock, since Oct 1"], ["Found in", "Product data (or: The page, when a saved selector is used)"]],
+  [["Strip label", "For price, the label carries the current value. It’s still not a verdict."]])
+add(G3, "w-price-change", "Price and stock: changed", "A price drop as a step chart.", () => win({ sbo: { active: "watching", cur: "Stoneware clay, 25 lb" }, tb: tb("Stoneware clay, 25 lb", { chev: true }),
+  body: col(`${strip("$48, in stock, since Oct 1", "Today", 64, { 40: "b", 63: "b" })}<div class="card">${meta(`<i class="dot news"></i><span class="b">9:00 am</span>`)}<div class="hl">Down to $42</div><div class="p">Stoneware clay, 25 lb went from $45 to $42. Still in stock.</div>${priceChart()}${facts([["Price", "$42.00"], ["30-day low", "$42.00"], ["Stock", "In stock"]])}<div class="acts">${btn("Open page", "", "ext")}</div></div>`, "padding-top:20px"), dock: replyDock }),
+  [["Headline, drop", "Down to $42"], ["Headline, rise", "Up to $51"], ["Headline, stock", "Out of stock / Back in stock"], ["Body", "Stoneware clay, 25 lb went from $45 to $42. Still in stock."], ["Facts", "Price: $42.00 / 30-day low: $42.00 / Stock: In stock"], ["Button", "Open page"], ["List line", "Down to $42 from $45."]],
+  [["Chart", "30-day step chart. A dot and value on today’s price in brand blue. Labels only on changes."], ["Rule", "Notifies on any price change or stock change. Reply “only tell me under $40” to set a condition."], ["Selector broke", "If the price can’t be found two runs in a row, your model picks a new selector once. If that fails: “I can’t find the price on this page anymore.” as a problem."]])
+function secProblem(o = {}) {
+  return `<div class="card ${o.settled ? "" : "warnc"}">${meta(`<i class="dot warn"></i><span class="w">7:30 am</span>`)}<div class="hl">Anyone can send email as lane-ceramics.com</div><div class="p">DMARC is set to none and there’s no DKIM record, so mail that fakes your address still gets delivered.</div><div class="rec mono">_dmarc.lane-ceramics.com  TXT  "v=DMARC1; p=none"</div><div class="p" style="font-size:13px;color:var(--ink3)">Turn on DKIM with your mail provider. Then change this record:</div><div class="diff mono"><div class="d">− v=DMARC1; p=none</div><div class="a">+ v=DMARC1; p=quarantine; rua=mailto:dmarc@lane-ceramics.com</div></div>${o.after || `<div class="acts">${btn("Copy record", "pri", "copy")}${btn("That’s expected")}${btn("Snooze")}</div>`}</div>`
+}
+add(G3, "w-sec-quiet", "Security: quiet", "Every check passes. One line per morning in the strip.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com security" }, tb: tb("lane-ceramics.com security", { chev: true }),
+  body: col(`${strip("No issues since Oct 24", "This morning", 7, {})}${secRows({ emailOk: true })}`, "padding-top:20px"), dock: replyDock }),
+  [["Strip label", "No issues since Oct 24"], ["Strip right", "This morning"], ["Checks", "Email records: Protected / Certificate: 74 days left / TLS and headers: TLS 1.3 / Open ports: 80 and 443 only"]],
+  [["Checks list", "For a daily watch, the latest check list stays under the strip, because the four values are what you’d come to see."], ["Certificate", "Becomes a problem at 14 days left: “The certificate for lane-ceramics.com ends in 13 days.”"]])
+add(G3, "w-sec-problem", "Security: problem", "The record as found and the fix as a record diff.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com security", probs: ["lane-ceramics.com security"] }, tb: tb("lane-ceramics.com security", { chev: true }),
+  body: col(`${strip("No issues since Oct 24", "This morning", 7, { 6: "w" })}${secProblem()}`, "padding-top:20px"), dock: replyDock }),
+  [["Headline", "Anyone can send email as lane-ceramics.com"], ["Body", "DMARC is set to none and there’s no DKIM record, so mail that fakes your address still gets delivered."], ["Record", "_dmarc.lane-ceramics.com TXT \"v=DMARC1; p=none\""], ["Fix line", "Turn on DKIM with your mail provider. Then change this record:"], ["Diff", "− v=DMARC1; p=none / + v=DMARC1; p=quarantine; rua=mailto:dmarc@lane-ceramics.com"], ["Buttons", "Copy record / That’s expected / Snooze"], ["Other findings", "Port 3306 (MySQL) is open to anyone. / lane-ceramics.com sends no HSTS header. / The certificate ends in 13 days. / TLS 1.0 is still allowed."]],
+  [["Copy record", "Copies the new TXT value. The card adds “Copied. When you’ve changed it, I’ll check again.” and a Check now button."], ["Header findings", "Their fix is code, so they get Fix with Claude Code, like speed."], ["Ports", "Only from this Mac, 12 common ports, once a day (decision 6)."]])
+add(G3, "w-sec-fix", "Security: after copying", "Record fixes are done by you at your DNS host, then checked again.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com security", probs: ["lane-ceramics.com security"] }, tb: tb("lane-ceramics.com security", { chev: true }),
+  body: col(`${strip("No issues since Oct 24", "This morning", 7, { 6: "w" })}${secProblem({ after: `<div class="msg"><span class="sub2">Copied. When you’ve changed it, I’ll check again. DNS can take an hour.</span></div><div class="acts">${btn("Check now", "pri", "refresh")}${btn("That’s expected")}${btn("Snooze")}</div>` })}`, "padding-top:20px"), dock: replyDock }),
+  [["Note", "Copied. When you’ve changed it, I’ll check again. DNS can take an hour."], ["Buttons", "Check now / That’s expected / Snooze"], ["Still the same", "The record hasn’t changed yet. I’ll check again in an hour."]],
+  [["Check now", "Re-reads the record. After you copy, Axe also re-checks every hour for 24 hours, then goes back to the daily schedule."]])
+add(G3, "w-sec-fixed", "Security: fixed", "The record changed. The check list is all clear again.", () => win({ sbo: { active: "watching", cur: "lane-ceramics.com security" }, tb: tb("lane-ceramics.com security", { chev: true }),
+  body: col(`<div class="line1"><i class="dot mute"></i><span class="t">7:30 am. Anyone could send email as lane-ceramics.com.</span></div><div class="card">${meta(`${ico("check", 13)}<span class="g">Fixed at 11:02 am</span>`)}<div class="hl">Mail that fakes lane-ceramics.com now goes to spam.</div><div class="rec mono">_dmarc.lane-ceramics.com  TXT  "v=DMARC1; p=quarantine; rua=mailto:dmarc@…"</div></div>${secRows({ emailOk: true })}`, "padding-top:20px"), dock: replyDock }),
+  [["Folded problem", "7:30 am. Anyone could send email as lane-ceramics.com."], ["Fixed label", "Fixed at 11:02 am"], ["Headline", "Mail that fakes lane-ceramics.com now goes to spam."]],
+  [["Fixed", "Detected by the next check. No notification."]])
+const repoCard = (o = {}) => `<div class="card ${o.done ? "" : "warnc"}">${meta(`<i class="dot warn"></i><span class="w">7:30 am</span>`)}<div class="hl">2 new security alerts in shop-web</div><div class="p">Both are in packages with a fixed version out.</div>${alerts()}${o.after ?? `<div class="acts">${btn("Fix with Claude Code", "pri")}${btn("That’s expected")}${btn("Snooze")}</div>`}</div>`
+add(G3, "w-repo-quiet", "Repo alerts: quiet", "No alerts. The folder checks pass.", () => win({ sbo: { active: "watching", cur: "shop-web" }, tb: tb("shop-web", { chev: true }),
+  body: col(`<div class="meta" style="justify-content:center">Oct 24</div>${bub(K.repo.sentence)}${folded("repo", "Watching. Every morning at 7:30, tells you right away.")}<div class="msg"><span>${K.repo.first}</span>${facts(K.repo.facts)}</div><div style="margin-top:10px">${strip("No alerts since Oct 24", "This morning", 7, {})}</div>`, "padding-top:24px"), dock: replyDock }),
+  [["Strip label", "No alerts since Oct 24"], ["Facts", "GitHub alerts: None open / Packages: 214, none affected / Keys: None found"]],
+  [["Sources", "GitHub alerts need gh signed in. Packages and keys need a local folder. The facts show only the sources this watch has."]])
+add(G3, "w-repo-problem", "Repo alerts: problem", "The alert list with versions and the fixed version.", () => win({ sbo: { active: "watching", cur: "shop-web", probs: ["shop-web"] }, tb: tb("shop-web", { chev: true }),
+  body: col(`${strip("No alerts since Oct 24", "This morning", 7, { 6: "w" })}${repoCard()}`, "padding-top:20px"), dock: replyDock }),
+  [["Headline", "2 new security alerts in shop-web"], ["Body", "Both are in packages with a fixed version out."], ["Alerts", "express 4.18.2: Open redirect, high. Fixed in 4.19.2 / semver 7.5.1: Slow regex, moderate. Fixed in 7.5.2"], ["Buttons", "Fix with Claude Code / That’s expected / Snooze"], ["Leaked key", "A key that looks like a Stripe secret is in config/dev.env, committed Oct 30."], ["No fix out", "No fixed version yet. I’ll tell you when there is one."]],
+  [["Alert row", "Package and version, the problem and severity in plain words, the fixed version. The GHSA id on the right links to the advisory."], ["That’s expected", "Dismisses that alert in Axe only, not on GitHub."], ["Leaked keys", "Never shown in full: the first 4 characters and the file."]])
+add(G3, "w-repo-fix", "Repo alerts: fixed by the agent", "The agent bumps both packages. Axe re-checks the folder straight away.", () => win({ sbo: { active: "watching", cur: "shop-web" }, tb: tb("shop-web", { chev: true }),
+  body: col(`<div class="line1"><i class="dot mute"></i><span class="t">7:30 am. 2 new security alerts in shop-web.</span></div>${act("Fix with Claude Code")}<div class="agent"><div class="agh"><span class="logo">${ico("spark", 11)}</span>Claude Code in ~/Code/shop-web</div>${stepsList([["done", "Updated express to 4.19.2 and semver to 7.5.2"], ["done", "Ran the tests: 142 passed"]])}<div class="line1">${ico("page", 14)}<span class="t">package.json, pnpm-lock.yaml</span><span class="r"><span class="add">+3</span> <span class="del">−3</span></span></div><div class="line1">${ico("check", 14)}<span class="t">Kept</span></div></div><div class="card">${meta(`${ico("check", 13)}<span class="g">Fixed at 9:14 am</span>`)}<div class="hl">No open alerts in shop-web.</div>${alerts(true)}</div>`, "padding-top:20px"), dock: replyDock }),
+  [["Steps", "Updated express to 4.19.2 and semver to 7.5.2 / Ran the tests: 142 passed"], ["Files", "package.json, pnpm-lock.yaml +3 −3"], ["Kept line", "Kept"], ["Fixed label", "Fixed at 9:14 am"], ["Headline", "No open alerts in shop-web."], ["Note on GitHub", "GitHub closes its alerts when you push. Axe checks again tomorrow."]],
+  [["Re-verify", "Straight after Keep all: the package audit in the folder. GitHub alerts follow after a push, and the morning check confirms them."], ["Agent", "Asked not to commit or push. You do that."]])
+add(G3, "w-custom", "Custom: news", "A watch from a free sentence reports what your model found, quoting the page.", () => win({ sbo: { active: "watching", cur: "Saturday glaze workshop seats" }, tb: tb("Saturday glaze workshop seats", { chev: true }),
+  body: col(`${strip("Full since Oct 29", "Today", 64, { 63: "b" })}<div class="card">${meta(`<i class="dot news"></i><span class="b">11:00 am</span>`)}<div class="hl">A seat opened in the Saturday glaze workshop</div><div class="p">2 of 8 seats are free now.</div><div class="rec mono">“Sat 7 Nov, Glazing for stoneware, 10:00 to 13:00. 2 places left.”</div><div class="acts">${btn("Open page", "", "ext")}</div></div>`, "padding-top:20px"), dock: replyDock }),
+  [["Headline", "A seat opened in the Saturday glaze workshop"], ["Body", "2 of 8 seats are free now."], ["Quote", "“Sat 7 Nov, Glazing for stoneware, 10:00 to 13:00. 2 places left.”"], ["Button", "Open page"], ["Model missing banner", "Claude Code isn’t signed in, so this watch can’t run. Use another model: [model picker]"]],
+  [["Quote", "The text the model based its answer on, copied from the page and checked to be on the page. If it isn’t, the run counts as failed, not news."], ["Model", "Each run uses the watch’s model. Plain fetch, then one structured call."]])
+
+/* D. Editing */
+const G4 = "Editing"
+const titleMenu = (o = {}) => menu([{ t: "Check now", i: "refresh", k: "⌘R" }, { t: "Edit", i: "pen", k: "⌘E", c: o.hl === "edit" ? "hl" : "" }, { t: "Rename", i: "type" }, { t: o.paused ? "Resume" : "Pause", i: o.paused ? "play" : "pause" }, "-", { t: "Delete", i: "trash", c: "red" + (o.hl === "del" ? " hl" : "") }], "left:14px;top:44px")
+add(G4, "e-menu", "Title-bar menu", "Name plus chevron, like the Claude desktop app’s top row.", () => win({ sbo: sbq, tb: tb("lane-ceramics.com", { chev: true, open: true }),
+  body: col(`${sitePre(64, {})}`, "padding-top:20px"), dock: replyDock, over: titleMenu({ hl: "edit" }) }),
+  [["Title", "lane-ceramics.com"], ["Menu", "Check now ⌘R / Edit ⌘E / Rename / Pause / Delete"], ["Paused", "Resume in place of Pause"]],
+  [["Title button", "Hover: fill. Open: fill stays. Click or Return opens the menu. It’s the only place with every action."], ["Menu", "Compact Popover, 28 px rows, content width. Delete is red, under a hairline."], ["Rename", "Turns the title into a text field. Return saves, Esc cancels."], ["Watching page", "Its title has no chevron. There’s nothing to do on the page itself."]])
+add(G4, "e-edit", "Edit", "Four fields. Each saves as you change it. No Save button.", () => win({ sbo: sbq, tb: tb("lane-ceramics.com", { chev: true, open: true }),
+  body: col(`${sitePre(64, {})}`, "padding-top:20px"), dock: replyDock,
+  over: `<div class="panel" style="left:14px;top:44px">${kv("Watching", '<span class="field focus">lane-ceramics.com</span>')}${kv("How often", sel("Every 5 minutes"))}${kv("Tell me", sel("Right away"))}${kv("Model", `<span class="chip fill">${ico("spark", 14)}Claude Code${ico("chev", 12)}</span>`)}<div class="hint" style="padding-left:106px">Only used when a check needs one.</div></div>` }),
+  [["Labels", "Watching / How often / Tell me / Model"], ["Model hint", "Only used when a check needs one."], ["Target error", "Same messages as when creating"], ["Saved", "No toast. The value just stays."], ["After the first fix, a fifth row", "Code folder: ~/Code/lane-theme"]],
+  [["Saving", "Each field saves on change. The target saves on Return or blur, after the same validation as creating. Click outside or Esc closes the panel."], ["Changing the target", "Starts fresh: history stays, but the baseline resets and the strip gets a gap."], ["What isn’t here", "Thresholds, ignore rules, quiet hours, regions. Replies and “That’s expected” cover them."]])
+add(G4, "e-delete", "Delete with confirm", "One confirm dialog, with the consequence in one line.", () => win({ sbo: sbq, tb: tb("lane-ceramics.com", { chev: true }), body: col(`${sitePre(64, {})}`, "padding-top:20px"), dock: replyDock,
+  scrim: `<div class="scrim"><div class="dialog"><h5>Delete lane-ceramics.com?</h5><p>It stops checking, and its history is deleted. This can’t be undone.</p><div class="acts">${btn("Cancel")}${btn("Delete", "red focus")}</div></div></div>` }),
+  [["Title", "Delete lane-ceramics.com?"], ["Body", "It stops checking, and its history is deleted. This can’t be undone."], ["Buttons", "Cancel / Delete"]],
+  [["Focus", "Delete is focused, so Return confirms and Esc cancels."], ["After", "Back to Watching. The row is gone. No toast."], ["Agent changes", "Files changed by a fix stay. Only the watch and its runs go."]])
+add(G4, "e-row-menu", "Row menu on the list", "The ⋯ on a hovered row, for quick actions without opening it.", () => win({ sbo: { active: "watching" }, tb: tb("Watching"),
+  body: col(`<div class="wl" style="position:relative">${row(W.site)}${row(W.sec)}${row(W.pg, { hov: true })}${row(W.price)}${row(W.repo)}${menu([{ t: "Check now", i: "refresh" }, { t: "Pause", i: "pause", c: "hl" }, "-", { t: "Delete", i: "trash", c: "red" }], "right:10px;top:164px")}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Menu", "Check now / Pause / Delete"]],
+  [["⋯", "Shows on hover or keyboard focus of a row, in place of its time. Edit and Rename need the watch open."], ["Right-click", "Opens the same menu."]])
+
+/* E. Notifications */
+const G5 = "Notifications"
+const deskBase = (inner, time = "Sat 31 Oct  2:42 pm") => `<div class="desk"><div class="mb"><span style="font-weight:600!important"></span><span>Finder</span><span>File</span><span>Edit</span><span>View</span><span class="rt">${ico("search", 14)}<span>${time}</span></span></div><div class="other"><i style="width:40%"></i><i style="width:70%"></i><i style="width:55%"></i><i style="width:62%"></i><i style="width:30%"></i></div>${inner}</div>`
+const nt = (title, body, when, o = {}) => `<div class="nt ${o.stack ? "stack" : ""}" style="top:${o.top ?? 38}px"><span class="ai">${axeMark()}</span><div><b>${title}<span>${when}</span></b><p>${body}</p></div>${o.acts ? `<div class="na">${o.acts.map((a) => `<span>${a}</span>`).join("")}</div>` : ""}</div>`
+add(G5, "n-problem", "A problem, on the Mac", "The macOS notification for a new problem, with its actions on hover.", () => deskBase(nt("lane-ceramics.com", "Slow: the home page takes 4.1 s, up from 1.2 s.", "now", { acts: ["Fix with Claude Code", "Snooze 1 hour"] })),
+  [["App", "Axe AI"], ["Title", "lane-ceramics.com"], ["Body, slow", "Slow: the home page takes 4.1 s, up from 1.2 s."], ["Body, down", "Down. It returns 502 Bad Gateway."], ["Body, security", "Anyone can send email as lane-ceramics.com."], ["Body, repo", "2 new security alerts."], ["Body, page news", "New line: “Free shipping on orders over $50.”"], ["Body, price news", "Down to $42 from $45."], ["Body, back up", "Back up after 14 min."], ["Actions", "Fix with Claude Code / Snooze 1 hour"]],
+  [["Click", "Opens Axe on that watch, with the card in view."], ["Actions", "macOS shows them on hover. Fix starts the fix in the watch’s thread and brings the window forward. Kinds without a fix show only Snooze 1 hour. News has no actions."], ["Grouping", "threadId is the watch id, so repeats stack under one watch."], ["Sound", "The system default, only for problems. News is silent."]])
+add(G5, "n-overnight", "Overnight", "What you find in Notification Center in the morning: the night’s problem, then the summary.", () => deskBase(`<div class="ncl"><span>Notification Center</span><span>Show less</span></div>${nt("Good morning", "1 problem overnight: lane-ceramics.com is slow. The pricing page changed.", "8:00 am", { top: 62 })}${nt("lane-ceramics.com", "Slow: the home page takes 4.1 s, up from 1.2 s.", "3:12 am", { top: 146 })}`, "Sun 1 Nov  8:04 am"),
+  [["Summary title", "Good morning"], ["Summary body", "1 problem overnight: lane-ceramics.com is slow. The pricing page changed."], ["Problem", "As sent at 3:12 am"]],
+  [["At night", "Problems notify when they happen. macOS Focus or Sleep decides whether you hear them. Axe has no quiet hours (decision 3)."], ["Summary first", "At 8:00 the summary leads with what happened at night, so you can skip the rest."], ["Mac asleep", "Nothing runs, nothing is sent. On wake, one run per overdue watch, and new problems notify then."]])
+add(G5, "n-summary-notif", "Morning summary, notification", "The 8:00 notification. Sent only when there’s something to say.", () => deskBase(nt("Good morning", "2 problems: lane-ceramics.com is slow, and anyone can send email as lane-ceramics.com. Stoneware clay is down to $42.", "now"), "Sun 1 Nov  8:00 am"),
+  [["Title", "Good morning"], ["Body, problems and news", "2 problems: lane-ceramics.com is slow, and anyone can send email as lane-ceramics.com. Stoneware clay is down to $42."], ["Body, news only", "The pricing page changed, and Stoneware clay is down to $42."], ["Body, fixed overnight", "lane-ceramics.com was down from 3:05 to 3:19 am, and is back up."], ["Body, couldn’t run", "Saturday glaze workshop seats couldn’t run: Claude Code isn’t signed in."], ["Nothing new", "No notification."]],
+  [["Click", "Opens Watching with the summary card on top."], ["Text", "From a template, no model. At most two problems by name, then “and 3 more”."], ["Time", "8:00 am, set in Settings, Notifications (Morning summary: 8:00 am, or Off)."]])
+add(G5, "n-summary-app", "Morning summary, in the app", "The summary card on top of Watching, until you close it or it’s noon.", () => win({ sbo: { active: "watching", probs: ["lane-ceramics.com", "lane-ceramics.com security"] }, tb: tb("Watching"),
+  body: col(`<div class="card sumcard"><div class="sh">${ico("sun", 16)}<span>Good morning</span><span class="x">${ico("x", 14)}</span></div><div class="p">Overnight, lane-ceramics.com got slow at 3:12 am and the pricing page changed. At 7:30, the security check found one thing to fix. Stoneware clay is down to $42.</div></div><div class="wl">${row(W.site, { st: "prob", line: "Slow: the home page takes 4.1 s.", r: "Since 3:12 am" })}${row(W.sec, { st: "prob", line: "Anyone can send email as lane-ceramics.com.", r: "Since 7:30 am" })}${row(W.pg, { st: "news", line: "New line: “Free shipping on orders over $50.”", r: "5:05 am" })}${row(W.price, { st: "news", line: "Down to $42 from $45.", r: "6:00 am" })}${row(W.repo)}</div>`), dock: dock(composer({ ph: "Watch something else" })) }),
+  [["Card title", "Good morning"], ["Summary", "Overnight, lane-ceramics.com got slow at 3:12 am and the pricing page changed. At 7:30, the security check found one thing to fix. Stoneware clay is down to $42."], ["Close", "× (screen reader: Close summary)"]],
+  [["When", "From 8:00 until you close it, or until 12:00. Only if there’s something to say."], ["Below it", "The list itself, with problems and news already on top. The card adds no rows of its own."], ["Not a watch", "It isn’t a watch in the list and needs no setup (decision 4)."]])
+add(G5, "n-never", "What never notifies", "The rules, drawn as the settings row that controls them.", () => `<div class="sbonly">${sb({ active: "" })}<div class="callouts"><div class="cbox"><b>Never a notification for</b><span>A quiet run. The first run of a new watch. A problem you’ve already heard about, until it clears and comes back. Anything marked expected or snoozed. A watch set to “In the morning summary”. A run that couldn’t check (offline, asleep, a timeout, a missing model) until it fails three times in a row. The watch you have open on screen. A fix you made yourself.</span></div><div class="cbox"><b>Settings, Notifications</b>${kv("Watches", sel("On"))}${kv("Morning summary", sel("8:00 am"))}<span class="hint">Morning summary options: 7:00 am / 8:00 am / 9:00 am / Off</span></div><div class="cbox"><b>Per watch</b><span>Tell me: Right away, or In the morning summary. Nothing else.</span></div></div></div>`,
+  [["Settings labels", "Watches / Morning summary"], ["Watches options", "On / Off"], ["Morning summary options", "7:00 am / 8:00 am / 9:00 am / Off"]],
+  [["Two settings in all", "Global on and off, and the summary time. Everything else is per watch: Tell me."], ["macOS permission", "Asked the first time a watch is started, not at app launch: “Axe would like to send notifications” (system text)."]])
+
+/* F. Quick bar */
+const G6 = "⌥Space quick bar"
+const qb = (inner, foot) => `<div class="qb">${inner}${foot ?? `<div class="qbf"><span>${ico("spark", 13)}</span><span>Claude Code</span><span class="rt"><span><kbd>↵</kbd> Start</span><span><kbd>esc</kbd> Close</span></span></div>`}</div>`
+add(G6, "q-slash", "Type /watch", "The quick bar’s slash menu lists Watch.", () => deskBase(qb(`<div class="qbi">${ico("search", 18)}<span>/wa</span></div><div class="qbb"><div class="qrow hl">${ico("eye", 15)}<span>Watch</span><small>Check something on a schedule</small></div><div class="qrow">${ico("pen", 15)}<span>Write</span><small>Draft in your voice</small></div></div>`, `<div class="qbf"><span>Claude Code</span><span class="rt"><span><kbd>↵</kbd> Pick</span><span><kbd>esc</kbd> Close</span></span></div>`)),
+  [["Command", "Watch"], ["Description", "Check something on a schedule"], ["Footer", "Claude Code / ↵ Pick / esc Close"]],
+  [["Explicit", "Only /watch starts a watch from the quick bar. A plain sentence is a normal question. No guessing."], ["Menu", "The existing SlashMenu: arrows, Return or Tab."]])
+add(G6, "q-typed", "One sentence", "The Watch chip and a sentence.", () => deskBase(qb(`<div class="qbi"><span class="chip kind" style="height:26px">${ico("eye", 14)}Watch</span><span>tell me if lane-ceramics.com goes down</span></div>`)),
+  [["Chip", "Watch"], ["Footer", "Claude Code / ↵ Start / esc Close"]],
+  [["Return", "Reads the sentence as on the Watching page (model, then fallback), validates the target, and shows the plan inline."]])
+add(G6, "q-confirm", "Plan, inline", "The compact plan in the bar, with one button.", () => deskBase(qb(`<div class="qbi"><span class="chip kind" style="height:26px">${ico("eye", 14)}Watch</span><span>tell me if lane-ceramics.com goes down</span></div><div class="qbb"><div style="display:flex;align-items:center;gap:10px">${tile("uptime")}<span style="font-size:15px">lane-ceramics.com</span></div><span style="color:var(--ink2)">Up now, 0.9 s. I’ll check every 5 minutes and tell you right away if it goes down or gets much slower.</span><div class="acts">${btn("Start watching", "pri")}<span class="hint">Change it later in Watching.</span></div></div>`)),
+  [["Plan", "Up now, 0.9 s. I’ll check every 5 minutes and tell you right away if it goes down or gets much slower."], ["Button", "Start watching"], ["Hint", "Change it later in Watching."], ["Missing target", "Which site? (the bar keeps the chip and waits for it)"], ["Unclear", "What should I watch? A site, a page, a price or a repo."]],
+  [["Defaults", "The kind’s defaults, no dropdowns. Return starts it."], ["Errors", "The same validation lines as the Watching page, under the input."]])
+add(G6, "q-started", "Started", "Confirmation, then the bar closes by itself.", () => deskBase(qb(`<div class="qbi">${ico("check", 18)}<span>Watching lane-ceramics.com</span></div><div class="qbb"><span style="color:var(--ink2)">Up, 0.9 s. You’ll hear only if something’s wrong.</span><div class="acts">${btn("Open")}</div></div>`, `<div class="qbf"><span>Closes in a moment</span><span class="rt"><span><kbd>↵</kbd> Open</span><span><kbd>esc</kbd> Close</span></span></div>`)),
+  [["Line", "Watching lane-ceramics.com"], ["Detail", "Up, 0.9 s. You’ll hear only if something’s wrong."], ["Button", "Open"], ["Footer", "Closes in a moment"]],
+  [["Auto-close", "After 4 s, or straight away on Esc. Open shows the watch in the main window."]])
+
+/* G. Sidebar */
+const G7 = "Sidebar and title row"
+add(G7, "s-sidebar", "Sidebar states", "Quiet: just Watching. Problems: a count and up to three rows.", () => `<div class="sbonly">${sb({ active: "" })}<div style="width:24px"></div>${sb({ active: "", probs: ["studio-booking.com", "shop-web", "lane-ceramics.com security", "lane-ceramics.com"], hovW: true })}<div style="width:24px"></div>${sb({ active: "watching", cur: "lane-ceramics.com", probs: ["lane-ceramics.com"] })}<div class="callouts" style="padding:60px 28px"><div class="cbox"><b>Left: all quiet</b><span>Watching has no badge and no rows under it. Watches never show in Recents.</span></div><div class="cbox"><b>Middle: problems</b><span>Badge = open problems not snoozed. Up to three rows, newest problem first, then “1 more”.</span></div><div class="cbox"><b>Right: viewing a watch</b><span>The open watch is selected under Watching, quiet or not.</span></div></div></div>`,
+  [["Item", "Watching"], ["Badge", "Number of open problems"], ["Rows", "Watch names with an orange dot"], ["Overflow", "1 more / 2 more"], ["Screen reader", "Watching, 4 problems"]],
+  [["Badge", "Orange-soft pill, 11 px, tabular. Never shows a zero."], ["Rows", "Click opens the watch. They go away when the problem is fixed, expected or snoozed."], ["Hover", "The Watching row gets the sidebar hover fill (middle)."], ["⌘K", "Lists every watch by name under Watching."]])
+add(G7, "s-titlerow", "Title row", "The top row on each surface. The name, and a chevron only where there’s a menu.", () => win({ sbo: sbq, tb: tb("lane-ceramics.com", { chev: true }), body: `<div class="callouts" style="padding:30px 122px"><div class="cbox"><b>Watching page</b><span>“Watching”. No chevron, no subtitle, no buttons on the right.</span></div><div class="cbox"><b>New watch (confirm)</b><span>“New watch”. No chevron until it’s started.</span></div><div class="cbox"><b>A watch</b><span>Its name with a chevron. The menu has Check now, Edit, Rename, Pause or Resume, and Delete. No schedule or model under the title. Edit shows those.</span></div><div class="cbox"><b>Names</b><span>Uptime: the domain. Page: domain/path. Price: the product name from the page. Security: the domain + “security”. Repo: the repo name. Custom: 2 to 5 words from your model. Rename overrides it.</span></div></div>` }),
+  [["Watching page", "Watching"], ["Confirm", "New watch"], ["A watch", "{name} ⌄"], ["Security name", "{domain} security"]],
+  [["Height", "48 px row, 13 px text, 28 px button with 6 px corners, in the main column’s top-left, like the Claude desktop app."], ["Long names", "Truncate with an ellipsis at 420 px. The full name is in the tooltip."]])
+
+/* ---------- Viewer ---------- */
+const app = document.getElementById("app"), scaleEl = document.getElementById("scale"), frame = document.getElementById("frame")
+const rail = document.getElementById("rail"), picksel = document.getElementById("picksel")
+let cur = 0, theme = "light"
+try { const t = localStorage.getItem("watch-theme"); if (t === "dark" || t === "light") theme = t } catch (e) {}
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+let lastG = ""
+S.forEach((s, i) => {
+  if (s.g !== lastG) { rail.insertAdjacentHTML("beforeend", `<div class="grp">${s.g}</div>`); picksel.insertAdjacentHTML("beforeend", `<optgroup label="${s.g}"></optgroup>`); lastG = s.g }
+  rail.insertAdjacentHTML("beforeend", `<button type="button" data-i="${i}">${s.t}</button>`)
+  picksel.lastElementChild.insertAdjacentHTML("beforeend", `<option value="${i}">${s.t}</option>`)
+})
+function fit() { const w = frame.clientWidth, k = w / 1240; scaleEl.style.transform = `scale(${k})`; frame.style.height = 800 * k + "px" }
+function show(i, push) {
+  cur = (i + S.length) % S.length
+  const s = S[cur]
+  app.className = "app " + theme
+  app.innerHTML = s.view()
+  document.getElementById("sgroup").textContent = s.g
+  document.getElementById("sname").textContent = s.t
+  document.getElementById("sdesc").textContent = s.d
+  document.getElementById("count").textContent = `${cur + 1} / ${S.length}`
+  document.getElementById("copyT").innerHTML = s.copy.map(([a, b]) => `<tr><td>${esc(a)}</td><td class="s">${esc(b)}</td></tr>`).join("")
+  document.getElementById("noteT").innerHTML = s.notes.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("")
+  rail.querySelectorAll("button").forEach((b) => b.setAttribute("aria-current", +b.dataset.i === cur))
+  picksel.value = cur
+  if (push) { try { history.replaceState(null, "", "#" + s.id) } catch (e) {} }
+}
+rail.addEventListener("click", (e) => { const b = e.target.closest("button[data-i]"); if (b) show(+b.dataset.i, true) })
+picksel.addEventListener("change", () => show(+picksel.value, true))
+document.getElementById("prev").onclick = () => show(cur - 1, true)
+document.getElementById("next").onclick = () => show(cur + 1, true)
+document.querySelectorAll("[data-th]").forEach((b) => (b.onclick = () => { theme = b.dataset.th; try { localStorage.setItem("watch-theme", theme) } catch (e) {} ; document.querySelectorAll("[data-th]").forEach((x) => x.setAttribute("aria-pressed", x.dataset.th === theme)); show(cur) }))
+document.querySelectorAll("[data-th]").forEach((x) => x.setAttribute("aria-pressed", x.dataset.th === theme))
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input,select,textarea")) return
+  const r = document.getElementById("screens").getBoundingClientRect()
+  if (r.top > innerHeight || r.bottom < 0) return
+  if (e.key === "ArrowRight" || e.key === "j") show(cur + 1, true)
+  if (e.key === "ArrowLeft" || e.key === "k") show(cur - 1, true)
+})
+window.addEventListener("resize", fit)
+new ResizeObserver(fit).observe(frame)
+const fromHash = S.findIndex((s) => "#" + s.id === location.hash)
+show(fromHash >= 0 ? fromHash : 0)
+fit()
+window.__screens = S.map((s) => s.id)
+window.__show = (id, th) => { theme = th; show(S.findIndex((s) => s.id === id)) }
+
+/* ---------- Architecture extras ---------- */
+document.getElementById("types").textContent = `// src/shared/watching/types.ts
+type Kind = "uptime" | "page" | "price" | "security" | "repo" | "custom"
+
+type Target =
+  | { kind: "uptime"; url: string }                         // https://lane-ceramics.com
+  | { kind: "page"; url: string; ignore: string[] }         // blocks you said to ignore
+  | { kind: "price"; url: string; selector?: string }       // selector only when there's no product data
+  | { kind: "security"; domain: string }                    // lane-ceramics.com
+  | { kind: "repo"; github?: string; folder?: string }      // "mia/shop-web", "~/Code/shop-web"
+  | { kind: "custom"; url: string; condition: string }      // your sentence, as the model's rule
+
+type Watch = {
+  id: string; name: string; sentence: string; target: Target
+  every: "5m" | "15m" | "1h" | "morning"                    // morning = 7:30 local
+  notify: "now" | "summary"
+  answerer?: Answerer                                       // used only when a check needs a model
+  codeFolder?: string                                       // remembered after the first fix
+  usual?: { loadMs: number; since: string }                 // speed baseline, 7-day median
+  fixedThresholdMs?: number                                 // "tell me above 3 s"
+  expected: string[]                                        // finding keys you said are fine
+  paused: boolean; createdAt: string; nextAt?: string
+}
+
+type Run = {
+  id: string; watchId: string; at: string; ms: number
+  status: "quiet" | "news" | "problem" | "failed"
+  line: string                                              // "Up. Loads in 0.9 s."
+  failed?: "offline" | "timeout" | "unreachable" | "model"
+  metrics?: { loadMs?: number; httpStatus?: number; price?: number; inStock?: boolean; words?: number }
+  findingKeys: string[]
+}
+
+type Finding = {
+  id: string; watchId: string; key: string                   // "slow:/", "dmarc:none", "alert:GHSA-rv95-896h-c2vc"
+  state: "open" | "snoozed" | "expected" | "fixed" | "cleared"
+  headline: string; body: string; evidence: Evidence
+  fix: "agent" | "record" | "none"
+  openedRun: string; lastRun: string; notifiedAt?: string; snoozedUntil?: string
+}
+
+type Evidence =
+  | { kind: "speed"; series: [string, number][]; thresholdMs: number; event?: { at: string; label: string }; largest: { file: string; bytes: number }[] }
+  | { kind: "down"; status: number | "no answer" | "nxdomain"; strip: [string, boolean][]; lastUp?: string }
+  | { kind: "diff"; added: string[]; removed: string[]; context: string[]; words: [number, number] }
+  | { kind: "price"; series: [string, number][]; inStock: boolean; low30: number }
+  | { kind: "record"; name: string; type: "TXT" | "CNAME"; found: string; want: string }
+  | { kind: "header"; header: string; found: string | null; want: string }
+  | { kind: "alerts"; items: { pkg: string; version: string; summary: string; severity: string; fixedIn?: string; id: string }[] }
+  | { kind: "quote"; text: string }`
+const del = [
+  ["src/shared/watch.ts", "Replaced by src/shared/watching/*. Kind guessing, WatchPlan and routine glue go."],
+  ["src/shared/schedule.ts", "Move nextRun maths to shared/watching/schedule.ts. Delete parseRoutine, routine names and folder triggers."],
+  ["src/shared/rich.ts (watchSchema, axe-watch block)", "Runs are no longer chat blocks."],
+  ["src/shared/types.ts: Routine, RoutineTrigger, RoutineDraft, RunRecord, RunsView, CloudState", "Routine engine types. Keep InboxItem only if remote approvals still use it."],
+  ["src/shared/api.ts: runs:*, watch:*, the runs event", "Replaced by watching:* commands and events."],
+  ["src/main/runs/runner.ts", "The routine scheduler and runner that Watching was built on."],
+  ["src/main/runs/cloud.ts", "Cloud agents return 403 for desktop sign-ins. Nothing real to keep."],
+  ["src/main/runs/index.ts", "Split: remote control, phones and power wiring move to src/main/remote/index.ts. Routines go."],
+  ["src/main/runs/remote.ts", "Drop “run a routine” and routine sharing. Keep approvals and power."],
+  ["src/main/watch/run.ts", "Replaced by main/watching/pipeline.ts."],
+  ["src/main/watch/checks.ts", "Port each check into main/watching/checks/<kind>.ts with its tests, then delete."],
+  ["src/main/notify.ts (needs kind, routineId)", "Watch notices move to main/watching/notify.ts. Chat notices stay."],
+  ["src/main/quickbar.ts, renderer/screens/QuickBar.tsx (watch parts)", "Replace with /watch and the inline plan."],
+  ["src/renderer/src/screens/Watching.tsx", "Rewritten from this design."],
+  ["Watching.tsx: WatchComposer and its 34 px spacer row", "Watching renders the chat’s Composer with surface=\"watching\". There’s no second box to keep in step."],
+  ["src/renderer/src/components/WatchCharts.tsx, WatchConfirm.tsx, WatchEdit.tsx, rich/Watch.tsx", "Rewritten as components/watching/*."],
+  ["src/renderer/src/lib/runs.ts, lib/mock-runs.ts, lib/mock-watch.ts", "Store and mocks for routines. New mock is lib/mock-watching.ts, one fixture per screen id."],
+  ["src/renderer/src/components/ai/schedule-card.tsx, ai/background-runs.tsx", "Vendored Pasta cards that nothing imports now."],
+  ["TitleBar.tsx (DeleteWatch, watch titles), Sidebar.tsx (watch rows), Thread.tsx, NewChat.tsx, AgentDraft.tsx (lib/runs imports)", "Edit, not delete: remove the routine hooks."],
+  ["tests/unit/watch.test.ts, watch-runs.test.ts, runs.test.ts, renderer/watch-card.test.tsx", "Tests of the old engine."],
+  ["tests/unit/watch-checks.test.ts", "Port with the checks."],
+  ["tests/e2e/watching.spec.ts and watching.spec.ts-snapshots/", "Replaced by one baseline per screen id."],
+  ["tests/e2e/runs-run.mjs", "Real run of routines."],
+  ["../specs/2026-10-31-watching.md, -polish.md, -polish-copy.md", "Superseded by this design. Link it instead."],
+  ["Keep: components/BoardIcons.tsx, ai/board-icons.tsx", "Despite the name, chat steps and approvals use them."],
+]
+document.getElementById("deltbody").innerHTML = del.map(([a, b]) => `<tr><td><code>${esc(a)}</code></td><td>${esc(b)}</td></tr>`).join("")
+document.getElementById("shotcount").textContent = `${S.length} screens × 2 themes = ${S.length * 2}`
+document.getElementById("checklist").innerHTML = S.map((s) => `<label><input type="checkbox" id="ck-${s.id}"><span>${esc(s.g)}: ${esc(s.t)}</span></label>`).join("")
+;(function flow() {
+  const svg = document.getElementById("flowsvg")
+  const box = (x, y, w, t, s) => `<rect x="${x}" y="${y}" width="${w}" height="58" rx="10" fill="var(--bg)" stroke="var(--rule)"/><text x="${x + 12}" y="${y + 24}" font-size="13.5" fill="var(--fg)">${t}</text><text x="${x + 12}" y="${y + 43}" font-size="12" fill="var(--muted)">${s}</text>`
+  const arrow = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2 - 6}" y2="${y2}" stroke="var(--muted)" stroke-width="1.2"/><path d="M${x2 - 7} ${y2 - 4} L${x2} ${y2} L${x2 - 7} ${y2 + 4}" fill="none" stroke="var(--muted)" stroke-width="1.2"/>`
+  let b = box(0, 20, 140, "Scheduler", "every 30 s, awake") + arrow(140, 49, 168, 49)
+  b += box(168, 20, 150, "Plain check", "per kind, no model") + arrow(318, 49, 346, 49)
+  b += box(346, 20, 150, "Model, if needed", "custom, price setup") + arrow(496, 49, 524, 49)
+  b += box(524, 20, 160, "Compare", "keys vs open findings") + arrow(684, 49, 712, 49)
+  b += box(712, 20, 210, "Status", "quiet, news, problem, failed")
+  b += arrow(817, 78, 817, 120)
+  b += box(712, 122, 210, "Notify rule", "new finding or news only")
+  b += `<line x1="712" y1="151" x2="610" y2="151" stroke="var(--muted)" stroke-width="1.2"/><path d="M617 147 L610 151 L617 155" fill="none" stroke="var(--muted)" stroke-width="1.2"/>`
+  b += box(430, 122, 180, "macOS notification", "or the morning summary")
+  b += `<line x1="430" y1="151" x2="330" y2="151" stroke="var(--muted)" stroke-width="1.2"/><path d="M337 147 L330 151 L337 155" fill="none" stroke="var(--muted)" stroke-width="1.2"/>`
+  b += box(150, 122, 180, "Thread and list", "run appended, UI event")
+  b += `<text x="0" y="205" font-size="12" fill="var(--muted)">Fix: problem card, coding agent in the thread, keep or undo, the next check verifies it.</text>`
+  svg.innerHTML = b
+})()
+</script>
+
+</body></html>

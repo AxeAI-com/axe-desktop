@@ -1,0 +1,49 @@
+# Same gate as axe-web's (keep the two review-gate.mjs copies identical). A PR touching a gated
+# path (.github/review-gate.json; decided 2026-10-27) needs a clean AI code
+# review and security review of its head commit. The reviews run on the maintainer's computer with the Claude CLI
+# (node .github/review-gate.mjs review <pr>) and post one comment on the PR; this check only reads
+# that comment, so it needs no model key. The review command reruns this check when it posts.
+# pull_request_target: GitHub runs this file and the gate script as the base branch has them, so a
+# PR can't loosen the gate it is judged by. Safe because no PR code is checked out or run. (The PR
+# that added the gate had no base copy; its review comment was checked by hand.)
+name: Review gate
+on:
+  pull_request_target:
+    # Keep in step with .github/review-gate.json.
+    paths:
+      - "next/src/main/updates/**"
+      - "next/src/main/axe/**"
+      - "next/src/main/secrets.ts"
+      - "next/src/main/ipc.ts"
+      - "next/src/main/shell-env.ts"
+      - "next/src/preload/**"
+      - "next/scripts/sign-update.ts"
+      - "next/pnpm-lock.yaml"
+      - "next/pnpm-workspace.yaml"
+      - ".github/workflows/**"
+      - ".github/review-gate.*"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  # By PR: under pull_request_target github.ref is the base branch, shared by every PR.
+  group: review-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/review-gate.mjs check ${{ github.event.pull_request.number }}

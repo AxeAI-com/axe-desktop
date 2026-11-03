@@ -1,0 +1,168 @@
+import { BrowserWindow } from "electron"
+
+import { INDEX_SCRIPT, SECRET_FIELD_JS } from "./page-script"
+import type { PageBrowser } from "./toolbox"
+
+// Axe's own browser, driven by structure (links, buttons, fields), not screenshots. Real Chromium
+// in a window of its own, with its own session (not the app's), no preload and no way into the app's
+// IPC. It shows without taking focus so you can watch and take over; self-tests keep it hidden
+// (AXE_HEADLESS). Ported from desktop/src/main/agent/browser.ts; the page script is the Mac's.
+
+type PageItem = { id: number; kind: string; label: string; value: string; href: string }
+
+/** Turns "example.com" into a URL and plain words into a search. */
+export function target(text: string): string {
+  const t = text.trim()
+  if (/^(https?|file|data):/i.test(t)) return t
+  if (/^localhost(:\d+)?(\/|$)/i.test(t)) return `http://${t}`
+  if (t.includes(".") && !t.includes(" ")) return `https://${t}`
+  return `https://duckduckgo.com/html/?q=${encodeURIComponent(t)}`
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+export class OwnBrowser implements PageBrowser {
+  private win?: BrowserWindow
+
+  private get wc() {
+    if (!this.win || this.win.isDestroyed()) {
+      const win = new BrowserWindow({
+        width: 1100,
+        height: 800,
+        show: false,
+        title: "Axe browser",
+        webPreferences: { partition: "persist:axe-browser", sandbox: true, contextIsolation: true, nodeIntegration: false },
+      })
+      // Pop-ups open in the same window, so the model keeps one page to read.
+      win.webContents.setWindowOpenHandler(({ url }) => {
+        void win.webContents.loadURL(url)
+        return { action: "deny" }
+      })
+      // Its own windows never ask for the camera, location or notifications.
+      win.webContents.session.setPermissionRequestHandler((_wc, _permission, done) => done(false))
+      this.win = win
+    }
+    return this.win.webContents
+  }
+
+  /** Shows the window without taking focus (not in self-tests). */
+  private reveal() {
+    if (process.env.AXE_HEADLESS || !this.win || this.win.isDestroyed() || this.win.isVisible()) return
+    this.win.showInactive()
+  }
+
+  get url() {
+    return this.win && !this.win.isDestroyed() ? this.win.webContents.getURL() : ""
+  }
+
+  where() {
+    try {
+      return new URL(this.url).host || "the page"
+    } catch {
+      return "the page"
+    }
+  }
+
+  async open(text: string) {
+    const wc = this.wc
+    await Promise.race([wc.loadURL(target(text)).catch(() => {}), sleep(20_000)])
+    this.reveal()
+    await sleep(150)
+  }
+
+  private ensureOpen() {
+    if (!this.url) throw new Error("No page is open. Use browser_open first.")
+  }
+
+  async read(maxText = 6000): Promise<string> {
+    this.ensureOpen()
+    const page = (await this.wc.executeJavaScript(INDEX_SCRIPT, true)) as { title: string; url: string; items: PageItem[]; text: string }
+    const lines = [`Page: ${page.title}`, `Address: ${page.url}`, ""]
+    for (const e of page.items) {
+      let line = `[${e.id}] ${e.kind}`
+      if (e.label) line += ` “${e.label}”`
+      if (e.value) line += ` = ${e.value.slice(0, 80)}`
+      if (e.href) line += ` → ${e.href.slice(0, 100)}`
+      lines.push(line)
+    }
+    lines.push("", "Text:", page.text.slice(0, maxText))
+    return lines.join("\n")
+  }
+
+  async click(id: number) {
+    this.ensureOpen()
+    const ok = await this.wc.executeJavaScript(
+      `(() => { const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return false; el.scrollIntoView({block: 'center'}); el.click(); return true; })()`,
+      true,
+    )
+    if (!ok) throw new Error(`Element ${id} isn't on the page any more. Read the page again.`)
+    await this.settle()
+  }
+
+  async type(id: number, text: string, submit: boolean) {
+    this.ensureOpen()
+    const t = JSON.stringify(text)
+    const ok = await this.wc.executeJavaScript(
+      `(() => { const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return false;
+        el.focus();
+        const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (el.isContentEditable) { el.textContent = ${t}; } else if (setter) { setter.set.call(el, ${t}); } else { el.value = ${t}; }
+        el.dispatchEvent(new Event('input', {bubbles: true}));
+        el.dispatchEvent(new Event('change', {bubbles: true}));
+        if (${submit ? "true" : "false"}) {
+          el.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true}));
+          if (el.form) { el.form.requestSubmit ? el.form.requestSubmit() : el.form.submit(); }
+        }
+        return true; })()`,
+      true,
+    )
+    if (!ok) throw new Error(`Field ${id} isn't on the page any more. Read the page again.`)
+    if (submit) await this.settle()
+  }
+
+  async describe(id: number): Promise<{ label: string; isSearch: boolean }> {
+    if (!this.url) return { label: "", isSearch: false }
+    try {
+      return (await this.wc.executeJavaScript(
+        `(() => { ${SECRET_FIELD_JS}
+          const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return { label: '', isSearch: false };
+          const label = (el.getAttribute('aria-label') || el.innerText || (isSecret(el) ? '' : el.value) || el.getAttribute('placeholder') || el.getAttribute('title') || '').trim();
+          const isSearch = el.type === 'search' || el.getAttribute('role') === 'searchbox' || /search/i.test(el.name || '') || /search/i.test(label);
+          return { label: label.slice(0, 80), isSearch }; })()`,
+        true,
+      )) as { label: string; isSearch: boolean }
+    } catch {
+      return { label: "", isSearch: false }
+    }
+  }
+
+  async capture(): Promise<Buffer> {
+    this.ensureOpen()
+    return (await this.wc.capturePage()).toPNG()
+  }
+
+  /** Runs a script in the page (self-tests check the form's state with it). */
+  evaluate<T>(script: string): Promise<T> {
+    return this.wc.executeJavaScript(script, true) as Promise<T>
+  }
+
+  close() {
+    if (this.win && !this.win.isDestroyed()) this.win.destroy()
+    this.win = undefined
+  }
+
+  /** After a click: if navigation starts, wait for it; else a short pause. */
+  private async settle() {
+    await sleep(300)
+    const wc = this.wc
+    if (wc.isLoading()) {
+      await Promise.race([new Promise<void>((r) => wc.once("did-stop-loading", () => r())), sleep(20_000)])
+      await sleep(150)
+    } else {
+      await sleep(200)
+    }
+  }
+}
+
+export const browser = new OwnBrowser()

@@ -1,0 +1,362 @@
+import { expect, test, type Page } from "@playwright/test"
+
+// Watching, uptime and speed, page changes, price and stock: one picture per screen of the design book (docs/watching/design.html),
+// in Paper and dark, served by the mock engine (src/renderer/src/lib/mock-watching.ts). The clock is
+// fixed, so every time on the cards stays put. Update on purpose: pnpm exec playwright test watching --update-snapshots
+
+const NOW = new Date("2026-10-31T14:45:00Z")
+
+/** A watch's row on the dashboard (its main button). */
+const row = (page: Page, id: string) => page.getByTestId(`row-${id}`).getByRole("button").first()
+
+async function open(page: Page, theme: "dark" | "light", mock: string) {
+  await page.clock.setFixedTime(NOW)
+  await page.goto(`/?theme=${theme}&mock=${mock}`)
+  await page.evaluate(() => document.fonts.ready)
+  await page.getByRole("button", { name: /^Watching/ }).first().click()
+}
+
+async function settle(page: Page) {
+  await page.mouse.move(1420, 880)
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
+  await page.waitForTimeout(300)
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getTiming().iterations === Infinity), undefined, { timeout: 5000 })
+  await page.waitForTimeout(150)
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test.describe(`watching ${theme}`, () => {
+    test("page-empty and c-uptime-ask", async ({ page }) => {
+      await open(page, theme, "nowatches")
+      await expect(page.getByText("What should Axe watch?")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-page-empty.png`)
+      await page.getByTestId("catalogue").getByRole("button", { name: "Add Uptime and speed" }).click()
+      await expect(page.getByText("Press Return to check it. Esc to go back.")).toBeVisible()
+      await page.waitForTimeout(300)
+      await page.mouse.move(1420, 880)
+      await expect(page).toHaveScreenshot(`${theme}-c-uptime-ask.png`)
+    })
+
+    test("c-uptime-invalid keeps the address", async ({ page }) => {
+      await open(page, theme, "nowatches")
+      await page.getByTestId("catalogue").getByRole("button", { name: "Add Uptime and speed" }).click()
+      const box = page.getByRole("textbox").last()
+      await box.fill("lane-ceramcs.com")
+      await box.press("Enter")
+      await expect(page.getByText("lane-ceramcs.com doesn’t exist. Check the spelling.")).toBeVisible()
+      await expect(box).toHaveValue("lane-ceramcs.com")
+      await page.mouse.move(1420, 880)
+      await page.waitForTimeout(300)
+      await expect(page).toHaveScreenshot(`${theme}-c-uptime-invalid.png`)
+    })
+
+    test("c-uptime-confirm", async ({ page }) => {
+      await open(page, theme, "nowatches")
+      await page.getByTestId("catalogue").getByRole("button", { name: "Add Uptime and speed" }).click()
+      const box = page.getByRole("textbox").last()
+      await box.fill("lane-ceramics.com")
+      await box.press("Enter")
+      await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-c-uptime-confirm.png`)
+    })
+
+    test("w-site-quiet", async ({ page }) => {
+      await open(page, theme, "")
+      await row(page, "w-site").click()
+      await expect(page.getByTestId("watch-strip")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-site-quiet.png`)
+    })
+
+    test("page-problem, w-site-problem and its snooze menu", async ({ page }) => {
+      await open(page, theme, "watchslow")
+      await expect(page.getByRole("button", { name: "Watching, 1 problem" })).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-page-problem.png`)
+      await row(page, "w-site").click()
+      await expect(page.getByTestId("problem-slow")).toBeVisible()
+      await expect(page.getByTestId("problem-slow")).toContainText("Six photos added at 2:17 pm are 6 MB each.")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-site-problem.png`)
+      await page.getByRole("button", { name: "Snooze" }).click()
+      await page.waitForTimeout(400)
+      await expect(page).toHaveScreenshot(`${theme}-w-site-snooze.png`)
+    })
+
+    test("w-site-down", async ({ page }) => {
+      await open(page, theme, "watchdown")
+      await row(page, "w-book").click()
+      await expect(page.getByTestId("problem-down")).toContainText("Down for14 min")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-site-down.png`)
+    })
+
+    for (const [kind, label, good, bad, msg] of [
+      ["page", "Page changes", "lane-ceramics.com/pricing", "lane-ceramics.com/prices", "That page returns Not found (404)."],
+      ["price", "Price and stock", "northclay.com/stoneware-25", "northclay.com/about", "There’s no price on that page that Axe can read."],
+    ] as const) {
+      test(`c-${kind}-ask, invalid, confirm, running and result`, async ({ page }) => {
+        await open(page, theme, "nowatches")
+        await page.getByTestId("catalogue").getByRole("button", { name: `Add ${label}` }).click()
+        await expect(page.getByText("Press Return to check it. Esc to go back.")).toBeVisible()
+        await settle(page)
+        await expect(page).toHaveScreenshot(`${theme}-c-${kind}-ask.png`)
+        const box = page.getByRole("textbox").last()
+        await box.fill(bad)
+        await box.press("Enter")
+        await expect(page.getByText(msg)).toBeVisible()
+        await page.mouse.move(1420, 880)
+        await page.waitForTimeout(300)
+        await expect(page).toHaveScreenshot(`${theme}-c-${kind}-invalid.png`)
+        await box.fill(good)
+        await box.press("Enter")
+        await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+        await settle(page)
+        await expect(page).toHaveScreenshot(`${theme}-c-${kind}-confirm.png`)
+        await page.getByRole("button", { name: "Start watching" }).click()
+        await expect(page.getByText("Checking now")).toBeVisible()
+        await page.mouse.move(1420, 880)
+        await expect(page).toHaveScreenshot(`${theme}-c-${kind}-running.png`, { mask: [page.locator('[aria-hidden="true"].animate-spin')] })
+        await expect(page.getByText("Checking now")).toBeHidden()
+        await settle(page)
+        await expect(page).toHaveScreenshot(`${theme}-c-${kind}-result.png`)
+      })
+    }
+
+    test("Watch the page instead switches the kind and keeps the link", async ({ page }) => {
+      await open(page, theme, "nowatches")
+      await page.getByTestId("catalogue").getByRole("button", { name: "Add Price and stock" }).click()
+      const box = page.getByRole("textbox").last()
+      await box.fill("northclay.com/about")
+      await box.press("Enter")
+      await page.getByRole("button", { name: "Watch the page instead" }).click()
+      await expect(page.getByText("Tell me when northclay.com/about changes.")).toBeVisible()
+    })
+
+    test("the starters sit under the list, and the composer is docked", async ({ page }) => {
+      await open(page, theme, "")
+      await expect(page.getByPlaceholder("Watch something else")).toBeVisible()
+      await expect(page.getByTestId("catalogue").getByRole("button", { name: /^Add / })).toHaveCount(35)
+      await page.getByTestId("catalogue").getByRole("button", { name: "Add Price and stock" }).click()
+      await expect(page.getByText("Press Return to check it. Esc to go back.")).toBeVisible()
+    })
+
+    test("w-page-quiet", async ({ page }) => {
+      await open(page, theme, "")
+      await row(page, "w-page").click()
+      await expect(page.getByText("No changes since Oct 24")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-page-quiet.png`)
+    })
+
+    test("page-news, w-page-change, ignore and w-page-reply", async ({ page }) => {
+      await open(page, theme, "watchpage")
+      const r = row(page, "w-page")
+      await expect(r).toContainText("New line: “Free shipping on orders over $50.”")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-page-news.png`)
+      await r.click()
+      await expect(page.getByTestId("news-page")).toContainText("The pricing page changed")
+      await expect(page.getByTestId("news-page")).toContainText("New line about shipping, and the old one is gone.")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-page-change.png`)
+      await page.getByRole("button", { name: "Ignore changes like this" }).click()
+      await expect(page.getByText("Okay. I’ll ignore changes in that part of the page.")).toBeVisible()
+      await page.getByRole("button", { name: "Undo" }).click()
+      await expect(page.getByText("Undone.")).toBeVisible()
+      const box = page.getByRole("textbox").last()
+      await box.fill("only check this once a day, and ignore the date at the bottom")
+      await box.press("Enter")
+      await expect(page.getByText("Done. I’ll check every morning at 7:30 and ignore the date line at the bottom.")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-page-reply.png`)
+      // Opened: the row's blue dot is gone.
+      await page.getByRole("button", { name: /^Watching/ }).first().click()
+      await expect(r).toContainText("No changes since 10:05 am")
+    })
+
+    test("w-price-quiet", async ({ page }) => {
+      await open(page, theme, "")
+      await row(page, "w-price").click()
+      await expect(page.getByText("$48, in stock, since Oct 1")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-price-quiet.png`)
+    })
+
+    test("w-price-change", async ({ page }) => {
+      await open(page, theme, "watchprice")
+      const r = row(page, "w-price")
+      await expect(r).toContainText("Down to $42 from $45")
+      await r.click()
+      const card = page.getByTestId("news-price").last()
+      await expect(card).toContainText("Down to $42")
+      await expect(card).toContainText("Stoneware clay, 25 lb went from $45 to $42. Still in stock.")
+      await expect(card).toContainText("30-day low$42.00")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-price-change.png`)
+    })
+
+    test("c-security-ask, invalid, confirm, running and result", async ({ page }) => {
+      await open(page, theme, "nowatches")
+      await page.getByTestId("catalogue").getByRole("button", { name: "Add Security" }).click()
+      await expect(page.getByPlaceholder("Domain, like lane-ceramics.com")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-c-security-ask.png`)
+      const box = page.getByRole("textbox").last()
+      await box.fill("lane-ceramcs.com")
+      await box.press("Enter")
+      await expect(page.getByText("lane-ceramcs.com doesn’t exist. Check the spelling.")).toBeVisible()
+      await page.mouse.move(1420, 880)
+      await page.waitForTimeout(300)
+      await expect(page).toHaveScreenshot(`${theme}-c-security-invalid.png`)
+      await box.fill("https://lane-ceramics.com/pricing")
+      await box.press("Enter")
+      await expect(page.getByText("Every morning I’ll check lane-ceramics.com’s email records, certificate, TLS and headers, and open ports.")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-c-security-confirm.png`)
+      await page.getByRole("button", { name: "Start watching" }).click()
+      await expect(page.getByText("Checking now")).toBeVisible()
+      await page.mouse.move(1420, 880)
+      await expect(page).toHaveScreenshot(`${theme}-c-security-running.png`, { mask: [page.locator('[aria-hidden="true"].animate-spin')] })
+      await expect(page.getByText("One thing to fix. Everything else looks right.")).toBeVisible()
+      await expect(page.getByTestId("check-rows")).toContainText("Spoofable")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-c-security-result.png`)
+    })
+
+    test("w-sec-quiet", async ({ page }) => {
+      await open(page, theme, "")
+      await row(page, "w-sec").click()
+      await expect(page.getByText("No issues since Oct 24")).toBeVisible()
+      await expect(page.getByTestId("check-rows").last()).toContainText("Protected")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-sec-quiet.png`)
+    })
+
+    test("w-sec-problem, Copy record (w-sec-fix) and the record unchanged", async ({ page }) => {
+      await open(page, theme, "watchsec")
+      await row(page, "w-sec").click()
+      const card = page.getByTestId("problem-dmarc:none")
+      await expect(card).toContainText("Anyone can send email as lane-ceramics.com")
+      await expect(card).toContainText("Turn on DKIM with your mail provider. Then change this record:")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-sec-problem.png`)
+      await card.getByRole("button", { name: "Copy record" }).click()
+      await expect(card).toContainText("Copied. When you’ve changed it, I’ll check again. DNS can take an hour.")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-sec-fix.png`)
+      await card.getByRole("button", { name: "Check now" }).click()
+      await expect(card).toContainText("The record hasn’t changed yet. I’ll check again in an hour.")
+    })
+
+    test("c-repo-ask (the menu), c-repo-invalid and a repo watch, never security", async ({ page }) => {
+      await open(page, theme, "nowatches")
+      await page.getByTestId("catalogue").getByRole("button", { name: "Add Repo alerts" }).click()
+      const menu = page.getByRole("menu", { name: "Repos and folders" })
+      await expect(menu).toContainText("Your repos")
+      await expect(menu).toContainText("~/Code/lane-theme")
+      await expect(page.getByText("Press Return to check it. Esc to go back.")).toBeHidden()
+      await page.mouse.move(1420, 880)
+      await page.waitForTimeout(300)
+      await expect(page).toHaveScreenshot(`${theme}-c-repo-ask.png`)
+      const box = page.getByRole("textbox").last()
+      await box.fill("mia/shop-api")
+      await box.press("Enter")
+      await expect(page.getByText("Axe can’t see mia/shop-api. Check the name, or sign in with gh auth login.")).toBeVisible()
+      await page.mouse.move(1420, 880)
+      await page.waitForTimeout(300)
+      await expect(page).toHaveScreenshot(`${theme}-c-repo-invalid.png`)
+      // Typing filters the menu; arrows and Return pick.
+      await box.fill("lane")
+      await expect(menu).not.toContainText("mia/shop-web")
+      await box.fill("")
+      await box.press("ArrowDown")
+      await box.press("ArrowUp")
+      await box.press("Enter")
+      await expect(page.getByText("Tell me about new security alerts in shop-web.")).toBeVisible()
+      await expect(page.getByText("Every morning I’ll check shop-web for new security alerts, vulnerable packages and leaked keys.")).toBeVisible()
+      await expect(page.getByText(/email records/)).toBeHidden()
+      await page.getByRole("button", { name: "Start watching" }).click()
+      await expect(page.getByText("No open alerts. 214 packages, none with known problems. No keys in the code.")).toBeVisible()
+    })
+
+    test("w-repo-quiet", async ({ page }) => {
+      await open(page, theme, "")
+      await row(page, "w-repo").click()
+      await expect(page.getByText("No alerts since Oct 24")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-repo-quiet.png`)
+    })
+
+    test("page-problems row, w-repo-problem and the folder question", async ({ page }) => {
+      await open(page, theme, "watchrepo")
+      const r = row(page, "w-repo")
+      await expect(r).toContainText("2 new security alerts")
+      await r.click()
+      const card = page.getByTestId("problem-repo")
+      await expect(card).toContainText("2 new security alerts in shop-web")
+      await expect(card).toContainText("Both are in packages with a fixed version out.")
+      await expect(card).toContainText("Open redirect, high. Fixed in 4.19.2")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-repo-problem.png`)
+      await card.getByRole("button", { name: /^Fix with / }).click()
+      await expect(page.getByText("Which folder has the code for shop-web?")).toBeVisible()
+      await expect(page.getByText("Shopify theme, changed today")).toBeVisible()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-repo-fix-folder.png`)
+    })
+  })
+
+  test.describe(`watching dashboard ${theme}`, () => {
+    test("dash-wide: ten watches like an owner's, two need a look, links checking", async ({ page }) => {
+      await open(page, theme, "watchdash")
+      await expect(page.getByTestId("dash-status")).toContainText("8 of 10 healthy, 2 need a look")
+      await expect(page.getByTestId("metric-response")).toContainText("575")
+      await expect(page.getByTestId("metric-certificate")).toContainText("days left")
+      await expect(page.getByTestId("metric-disk")).toContainText("382")
+      await expect(page.getByTestId("metric-tests")).toContainText("Passing")
+      await expect(page.getByTestId("dashboard")).toHaveAttribute("data-wide", "true")
+      await expect(page.getByTestId("row-d-links")).toContainText("Checking")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-dash-wide.png`)
+    })
+
+    test("dash-narrow: the Narrow board's one column", async ({ page }) => {
+      await page.setViewportSize({ width: 1180, height: 900 })
+      await open(page, theme, "watchdash")
+      await expect(page.getByTestId("dashboard")).not.toHaveAttribute("data-wide", "true")
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-dash-narrow.png`)
+    })
+
+    test("dash-opened: Show packages, then the pencil opens the chat and Esc folds it back", async ({ page }) => {
+      await open(page, theme, "watchdash")
+      await page.getByRole("button", { name: "Show packages" }).click()
+      await expect(page.getByTestId("look-outdated").getByRole("table")).toContainText("electron")
+      await page.getByTestId("look-outdated").scrollIntoViewIfNeeded()
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-dash-opened.png`)
+      await page.getByTestId("row-d-dns").getByRole("button", { name: "Open axeai.com DNS" }).click()
+      await expect(page.getByTestId("watch-strip")).toBeVisible()
+      await page.keyboard.press("Escape")
+      await expect(page.getByTestId("dashboard")).toBeVisible()
+      await row(page, "d-seo").click()
+      await page.getByRole("button", { name: "Back to Watching" }).click()
+      await expect(page.getByTestId("dashboard")).toBeVisible()
+    })
+
+    test("dash-collapsed: a section folds and stays folded", async ({ page }) => {
+      await open(page, theme, "watchdash")
+      await page.getByTestId("group-site").getByRole("button", { name: /^Site/ }).click()
+      await expect(page.getByTestId("row-d-links")).toHaveCount(0)
+      await page.reload()
+      await page.getByRole("button", { name: /^Watching/ }).first().click()
+      await expect(page.getByTestId("group-site")).toContainText("4 watches, all healthy")
+      await expect(page.getByTestId("row-d-links")).toHaveCount(0)
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-dash-collapsed.png`)
+    })
+  })
+}

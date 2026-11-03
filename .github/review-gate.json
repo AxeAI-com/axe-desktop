@@ -1,0 +1,18 @@
+{
+  "reviewers": ["amitbtcai"],
+  "workflow": "review-gate.yml",
+  "paths": [
+    "next/src/main/updates/",
+    "next/src/main/axe/",
+    "next/src/main/secrets.ts",
+    "next/src/main/ipc.ts",
+    "next/src/main/shell-env.ts",
+    "next/src/preload/",
+    "next/scripts/sign-update.ts",
+    "next/pnpm-lock.yaml",
+    "next/pnpm-workspace.yaml",
+    ".github/workflows/",
+    ".github/review-gate.mjs",
+    ".github/review-gate.json"
+  ]
+}

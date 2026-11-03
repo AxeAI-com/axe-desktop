@@ -1,0 +1,96 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "files": {
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/out",
+      "!**/node_modules",
+      "!**/target",
+      "!resources",
+      "!**/*-snapshots",
+      "!tmp",
+      "!playwright-report",
+      "!test-results",
+      "!src/renderer/public",
+      "!src/renderer/src/components/evilcharts"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn",
+        "noFocusedTests": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn",
+        "useHookAtTopLevel": "off"
+      },
+      "complexity": {
+        "noCommaOperator": "warn",
+        "useOptionalChain": "warn",
+        "useArrowFunction": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "useTemplate": "warn",
+        "noDescendingSpecificity": "warn",
+        "useExponentiationOperator": "warn"
+      },
+      "a11y": {
+        "noAutofocus": "warn",
+        "noLabelWithoutControl": "warn",
+        "noStaticElementInteractions": "warn",
+        "noSvgWithoutTitle": "warn",
+        "useAriaPropsSupportedByRole": "warn",
+        "useButtonType": "warn",
+        "useFocusableInteractive": "warn",
+        "useKeyWithClickEvents": "warn",
+        "useMediaCaption": "warn",
+        "useSemanticElements": "warn"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "src/renderer/**"
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useHookAtTopLevel": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "tests/**",
+        "**/*.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noFocusedTests": "error"
+          }
+        }
+      }
+    }
+  ],
+  "assist": {
+    "enabled": false
+  }
+}

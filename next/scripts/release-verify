@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# Checks a published Mac release the way a user meets it (the "After" checks in
+# the release checklist). next/scripts/release runs it after publishing.
+#
+#   next/scripts/release-verify <version> [--prev <x.y.z>]   the published release
+#   next/scripts/release-verify <version> --dmg <file.dmg>     only the fresh install, from a local build (dry runs)
+#
+# 1. https://axeai.com/api/downloads/desktop reports <version> (it caches for up to 5 minutes, so this waits).
+# 2. Fresh install: the .dmg from axeai.com, copied out to a temp folder, starts, stays up 60 seconds without a
+#    crash report, and quits cleanly when asked.
+# 3. Update (with --prev): <prev>'s zip from axeai.com, started, finds <version> on the real feed, downloads it,
+#    and once quit puts <version> in its own place. The swapped app then starts and stays up.
+#
+# Every copy runs from a temp folder with its own --user-data-dir, never the user's own app or its data. AXE_SELFTEST
+# keeps it off the Keychain, the axedesktop:// handler, the menu bar and notifications (the updater still reads
+# the real feed: its test hooks never apply to a packaged app); AXE_HEADLESS keeps its window off the screen.
+# The update is only ever installed by quitting (kill -TERM of our own pid): "Restart to update" reopens the app
+# with `open`, without --user-data-dir, which would reach a running copy.
+set -euo pipefail
+
+usage() { echo "usage: next/scripts/release-verify <x.y.z> [--prev <x.y.z>] [--dmg file.dmg]" >&2; exit 2; }
+VERSION="${1:-}"
+PREV="" DMG=""
+[ $# -gt 0 ] && shift
+while [ $# -gt 0 ]; do
+  case $1 in
+    --prev) [ $# -ge 2 ] || usage; PREV=$2; shift ;;
+    --dmg) [ $# -ge 2 ] || usage; DMG=$2; shift ;;
+    *) usage ;;
+  esac
+  shift
+done
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || usage
+[ -z "$PREV" ] || [[ "$PREV" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || usage
+[ -z "$DMG" ] || [ -f "$DMG" ] || { echo "release-verify: no file $DMG" >&2; exit 2; }
+[ -z "$DMG" ] || [ -z "$PREV" ] || { echo "release-verify: --dmg checks a local build only, without --prev" >&2; exit 2; }
+[ "$(uname)" = Darwin ] || { echo "release-verify: runs on a Mac" >&2; exit 2; }
+
+FEED_URL="https://axeai.com/downloads/desktop"
+API_URL="https://axeai.com/api/downloads/desktop"
+ARCH="$(uname -m)"
+[ "$ARCH" = x86_64 ] && ARCH=x64
+APP="Axe AI.app"
+BIN="Contents/MacOS/Axe AI"
+CRASHES="$HOME/Library/Logs/DiagnosticReports"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/axe-verify-$VERSION.XXXX")"
+START=$SECONDS
+MOUNT="" FAILED=0
+
+say() { printf '%4ds  %s\n' $((SECONDS - START)) "$*"; }
+pass() { say "PASS  $*"; }
+fail() { say "FAIL  $*"; FAILED=1; }
+
+cleanup() {
+  local code=$?
+  stop_ours
+  [ -n "$MOUNT" ] && hdiutil detach -quiet "$MOUNT" 2>/dev/null || true
+  # Launch Services learns of every app that starts; forget the temp copies again.
+  find "$WORK" -maxdepth 3 -name "$APP" -type d -exec "$LSREGISTER" -u {} \; 2>/dev/null || true
+  if [ $code -eq 0 ] && [ $FAILED = 0 ]; then rm -rf "$WORK"; else echo "release-verify: logs in $WORK" >&2; fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+# Stops any copy still running from $WORK: only the apps this script started (a unique temp path), never by name.
+stop_ours() {
+  pkill -TERM -f "$WORK/[a-z]*/$APP/" 2>/dev/null || return 0
+  for _ in $(seq 1 50); do pgrep -f "$WORK/[a-z]*/$APP/" >/dev/null || return 0; sleep 0.2; done
+  pkill -KILL -f "$WORK/[a-z]*/$APP/" 2>/dev/null || true
+}
+
+version_of() { /usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$1/Contents/Info.plist" 2>/dev/null || true; }
+
+# Starts the app at $1 with its own data folder $2; its output goes to $3. Sets LAUNCHED to its pid.
+launch() {
+  local app=$1 data=$2 log=$3
+  mkdir -p "$data"
+  AXE_SELFTEST=1 AXE_HEADLESS=1 AXE_NOTIFY_LOG="$data.notices" "$app/$BIN" --user-data-dir="$data" >"$log" 2>&1 &
+  LAUNCHED=$!
+}
+
+# Asks the app (pid $1) to quit and waits up to 20 seconds. Fails if it doesn't.
+quit_app() {
+  local pid=$1
+  kill -TERM "$pid" 2>/dev/null || return 1
+  for _ in $(seq 1 100); do kill -0 "$pid" 2>/dev/null || { wait "$pid" 2>/dev/null || true; return 0; }; sleep 0.2; done
+  return 1
+}
+
+# The app at $1 (pid $2, data $3) runs $4 seconds: alive the whole time, its renderer up, its data folder used,
+# and no new crash report. Prints the reason and returns 1 otherwise.
+stays_up() {
+  local pid=$2 data=$3 secs=$4 marker="$WORK/since-$2"
+  touch "$marker"
+  for _ in $(seq 1 "$secs"); do
+    kill -0 "$pid" 2>/dev/null || { echo "it quit by itself within $secs seconds (log: $data.log)"; return 1; }
+    sleep 1
+  done
+  pgrep -P "$pid" -f "Renderer" >/dev/null || { echo "no renderer process after $secs seconds (the window never loaded)"; return 1; }
+  [ -f "$data/Local State" ] || { echo "nothing written to its own --user-data-dir"; return 1; }
+  local crash
+  crash="$(find "$CRASHES" -maxdepth 1 -name "Axe AI*" -newer "$marker" 2>/dev/null | head -1)"
+  [ -z "$crash" ] || { echo "crash report $crash"; return 1; }
+}
+
+say "verifying Axe AI $VERSION ($ARCH${PREV:+, update from $PREV}${DMG:+, local build $DMG}), work in $WORK"
+
+# ---- 1. The download API ---------------------------------------------------------------------------------
+if [ -z "$DMG" ]; then
+  api=""
+  for _ in $(seq 1 20); do
+    api="$(curl -fsS "$API_URL?t=$SECONDS" 2>/dev/null | /usr/bin/plutil -extract version raw -o - - 2>/dev/null || true)"
+    [ "$api" = "$VERSION" ] && break
+    sleep 20
+  done
+  if [ "$api" = "$VERSION" ]; then pass "$API_URL reports $VERSION"; else fail "$API_URL reports ${api:-nothing} after 6 minutes, not $VERSION"; fi
+fi
+
+# ---- 2. Fresh install --------------------------------------------------------------------------------------
+fresh() {
+  local dmg=$DMG
+  if [ -z "$dmg" ]; then
+    dmg="$WORK/Axe-AI-$VERSION-$ARCH.dmg"
+    curl -fsS -o "$dmg" "$FEED_URL/Axe-AI-$VERSION-$ARCH.dmg" || { echo "can't download $FEED_URL/Axe-AI-$VERSION-$ARCH.dmg"; return 1; }
+  fi
+  MOUNT="$WORK/mnt"
+  mkdir -p "$MOUNT" "$WORK/fresh"
+  hdiutil attach -quiet -nobrowse -readonly -noautoopen -mountpoint "$MOUNT" "$dmg" || { MOUNT=""; echo "the .dmg doesn't open"; return 1; }
+  [ -d "$MOUNT/$APP" ] || { echo "no $APP in the .dmg"; return 1; }
+  ditto "$MOUNT/$APP" "$WORK/fresh/$APP" || { echo "can't copy the app out of the .dmg"; return 1; }
+  hdiutil detach -quiet "$MOUNT" && MOUNT=""
+  [ "$(version_of "$WORK/fresh/$APP")" = "$VERSION" ] || { echo "the .dmg holds $(version_of "$WORK/fresh/$APP"), not $VERSION"; return 1; }
+  codesign --verify --deep --strict "$WORK/fresh/$APP" 2>/dev/null || { echo "codesign --verify fails on the app"; return 1; }
+  launch "$WORK/fresh/$APP" "$WORK/fresh-data" "$WORK/fresh-data.log"
+  local pid=$LAUNCHED
+  stays_up "$WORK/fresh/$APP" "$pid" "$WORK/fresh-data" 60 || return 1
+  quit_app "$pid" || { echo "it didn't quit within 20 seconds of being asked"; return 1; }
+}
+if why="$(fresh)"; then pass "fresh install of $VERSION starts, stays up 60s with no crash, quits cleanly"; else fail "fresh install: $why"; fi
+# fresh runs in a subshell: its mount and any copy it left running are cleaned up here.
+[ -d "$WORK/mnt" ] && hdiutil detach -quiet "$WORK/mnt" 2>/dev/null || true
+stop_ours
+
+# ---- 3. Update from the previous version -----------------------------------------------------------------
+update() {
+  local zip="$WORK/Axe-AI-$PREV-$ARCH-mac.zip" app="$WORK/update/$APP" data="$WORK/update-data"
+  curl -fsS -o "$zip" "$FEED_URL/Axe-AI-$PREV-$ARCH-mac.zip" || { echo "can't download $FEED_URL/Axe-AI-$PREV-$ARCH-mac.zip"; return 1; }
+  mkdir -p "$WORK/update"
+  ditto -x -k "$zip" "$WORK/update" || { echo "can't unpack $PREV's zip"; return 1; }
+  [ "$(version_of "$app")" = "$PREV" ] || { echo "$PREV's zip holds $(version_of "$app")"; return 1; }
+  launch "$app" "$data" "$data.log"
+  local pid=$LAUNCHED
+  # The first check runs 10 seconds after launch; "update ready" is noted once the new app is unpacked and checked.
+  local ready=0
+  for _ in $(seq 1 600); do
+    grep -q "update ready" "$data.notices" 2>/dev/null && { ready=1; break; }
+    kill -0 "$pid" 2>/dev/null || { echo "$PREV quit by itself while updating (log: $data.log)"; return 1; }
+    sleep 1
+  done
+  [ $ready = 1 ] || { echo "$PREV didn't get $VERSION ready within 10 minutes (log: $data.log)"; return 1; }
+  grep -q "Version $VERSION " "$data.notices" || { echo "$PREV got a different version ready: $(cat "$data.notices")"; return 1; }
+  # Quitting with an update ready starts the swap (relaunch off), which waits for this pid to exit.
+  quit_app "$pid" || { echo "$PREV didn't quit within 20 seconds of being asked"; return 1; }
+  for _ in $(seq 1 120); do
+    [ "$(version_of "$app")" = "$VERSION" ] && [ ! -e "$app.new" ] && [ ! -e "$app.old" ] && break
+    sleep 1
+  done
+  [ "$(version_of "$app")" = "$VERSION" ] ||
+    { echo "after quitting, the app is still $(version_of "$app") ($(cat "$data/updates/install.log" 2>/dev/null))"; return 1; }
+  launch "$app" "$WORK/updated-data" "$WORK/updated-data.log"
+  pid=$LAUNCHED
+  stays_up "$app" "$pid" "$WORK/updated-data" 20 || return 1
+  quit_app "$pid" || { echo "the updated app didn't quit within 20 seconds of being asked"; return 1; }
+}
+if [ -n "$PREV" ]; then
+  if why="$(update)"; then pass "$PREV updates itself to $VERSION from the real feed, and $VERSION starts"; else fail "update from $PREV: $why"; fi
+  stop_ours
+elif [ -z "$DMG" ]; then
+  say "skip  the update check (no --prev)"
+fi
+
+echo
+if [ $FAILED = 0 ]; then echo "Axe AI $VERSION verified in $((SECONDS - START))s."; else echo "Axe AI $VERSION: verification FAILED." >&2; exit 1; fi

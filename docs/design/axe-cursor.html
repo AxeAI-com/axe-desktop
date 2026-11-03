@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Axe cursor directions</title>
+<style>
+  /* Three directions for Axe's on-screen pointer, each shown over a light and a dark window.
+     Open this file in a browser. The logo is the real mark from next/resources/icon.icon/Assets/mark.svg
+     and the app icon from next/src/renderer/src/assets/logos/axe-app-icon.svg, inlined as is. */
+  :root { --blue: #060ae6; --glow: #3438ff; }
+  body { margin: 0; padding: 32px 16px 64px; background: #f4f4f6; color: #111; font: 400 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-weight: 400; font-size: 26px; margin: 0 0 4px; letter-spacing: -.01em; }
+  h2 { font-weight: 400; font-size: 18px; margin: 40px 0 4px; }
+  p { margin: 0 0 12px; color: #555; max-width: 70ch; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  .stage { position: relative; height: 170px; border-radius: 12px; overflow: hidden; }
+  .light { background: #fff; box-shadow: inset 0 0 0 1px #e3e3e8; }
+  .light::before { content: ""; position: absolute; inset: 24px 24px auto; height: 10px; border-radius: 5px; background: #ececf0; box-shadow: 0 22px 0 #ececf0, 0 44px 0 #f2f2f5; }
+  .dark { background: #1c1c1f; }
+  .dark::before { content: ""; position: absolute; inset: 24px 24px auto; height: 10px; border-radius: 5px; background: #2c2c31; box-shadow: 0 22px 0 #2c2c31, 0 44px 0 #26262a; }
+  .cur { position: absolute; left: 38%; top: 52px; }
+  .cur svg.arrow { display: block; width: 20px; height: 24px; }
+  .pill { position: absolute; left: 18px; top: 22px; display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px 0 4px; border-radius: 999px; white-space: nowrap; font-size: 12.5px; letter-spacing: -.005em; }
+  .pill .badge { width: 18px; height: 18px; border-radius: 5px; overflow: hidden; flex: none; }
+  .pill .badge svg, .pill .mark svg { display: block; width: 100%; height: 100%; }
+  .pill .mark { width: 16px; height: 14px; flex: none; margin-left: 5px; }
+  .pill .sep { width: 1px; height: 12px; }
+  /* A: glass */
+  .a .arrow { filter: drop-shadow(0 0 6px rgba(52, 56, 255, .55)); }
+  .a .pill { background: rgba(255, 255, 255, .72); backdrop-filter: blur(14px); color: var(--blue); box-shadow: 0 0 0 .5px rgba(0, 0, 0, .12), 0 4px 14px rgba(6, 10, 230, .18); }
+  .a .pill .sep { background: rgba(6, 10, 230, .25); }
+  .a .pill .act { color: #4a4a55; }
+  /* B: solid brand blue */
+  .b .arrow { filter: drop-shadow(0 0 5px rgba(52, 56, 255, .6)); }
+  .b .pill { background: var(--blue); color: #fff; box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .28), 0 0 0 .5px rgba(0, 0, 0, .18), 0 0 16px rgba(52, 56, 255, .55); }
+  .b .pill .sep { background: rgba(255, 255, 255, .32); }
+  .b .pill .act { color: rgba(255, 255, 255, .78); }
+  /* C: ink */
+  .c .arrow { filter: drop-shadow(0 0 6px rgba(52, 56, 255, .5)); }
+  .c .pill { background: rgba(18, 18, 24, .86); color: #fff; box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .14), 0 4px 14px rgba(0, 0, 0, .25); }
+  .c .pill .sep { background: rgba(255, 255, 255, .2); }
+  .c .pill .act { color: #9ea1ff; }
+  .pick { margin-top: 48px; padding: 18px 20px; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px #e3e3e8; }
+  .pick h2 { margin-top: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Axe cursor</h1>
+  <p>Three directions for the pointer Do it shows while it works in other apps. Each is shown over a light and a dark window, with the action word it carries while it works.</p>
+
+  <template id="arrow"><svg class="arrow" viewBox="0 0 20 24"><path d="M2 1.6v17.6l4.7-4.5 3 7.1 3.1-1.3-3-7h6.6z" fill="#060ae6" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></template>
+  <template id="icon"><svg viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#060AE6"/><g transform="translate(188.4 240.2) scale(3.3)"><path d="M1.57 169.21 L153.42 145.22 L138.73 104.91 L194.09 169.21Z M96.26 0.23 L41.12 143.74 L83.37 151.17 L0.00 166.97Z M195.25 166.73 L98.55 47.22 L70.99 80.10 L98.99 0.00Z" fill="#FFFFFF"/></g></svg></template>
+  <template id="mark"><svg viewBox="188 240 648 563"><g transform="translate(188.4 240.2) scale(3.3)"><path d="M1.57 169.21 L153.42 145.22 L138.73 104.91 L194.09 169.21Z M96.26 0.23 L41.12 143.74 L83.37 151.17 L0.00 166.97Z M195.25 166.73 L98.55 47.22 L70.99 80.10 L98.99 0.00Z" fill="#FFFFFF"/></g></svg></template>
+
+  <h2>A. Glass</h2>
+  <p>Frosted white pill, app icon badge, blue wordmark. Calm and native, but it fades into white pages, which is most of what Do it works over.</p>
+  <div class="row a" data-logo="icon"><div class="stage light"></div><div class="stage dark"></div></div>
+
+  <h2>B. Brand blue</h2>
+  <p>Solid #060ae6 pill with the white mark, a soft #3438ff glow and a hairline ring. Reads on white and on black alike, and nobody would mistake it for anything but Axe.</p>
+  <div class="row b" data-logo="mark"><div class="stage light"></div><div class="stage dark"></div></div>
+
+  <h2>C. Ink</h2>
+  <p>Near black glass with the app icon badge and a blue action word. Sharp on light windows, but on dark apps only the glow separates it from the window.</p>
+  <div class="row c" data-logo="icon"><div class="stage light"></div><div class="stage dark"></div></div>
+
+  <section class="pick">
+    <h2>Pick: B, brand blue</h2>
+    <p>It is the only one that holds contrast over both light and dark windows without leaning on a shadow, so it stays legible in a demo video whatever app is behind it. The blue pill with the white mark is the Axe app icon stretched into a label, so it is unmistakably the brand. The glow does the separating, the hairline ring keeps the edge crisp at 2x, and the action word sits behind a thin divider instead of a dot.</p>
+  </section>
+</main>
+<script>
+  const words = ["Clicking", "Typing", "Scrolling", "Looking"]
+  let i = 0
+  for (const row of document.querySelectorAll(".row")) {
+    const logo = row.dataset.logo
+    for (const stage of row.querySelectorAll(".stage")) {
+      const cur = document.createElement("div")
+      cur.className = "cur"
+      cur.append(document.getElementById("arrow").content.cloneNode(true))
+      const pill = document.createElement("div")
+      pill.className = "pill"
+      const holder = document.createElement("span")
+      holder.className = logo === "icon" ? "badge" : "mark"
+      holder.append(document.getElementById(logo).content.cloneNode(true))
+      pill.append(holder, Object.assign(document.createElement("span"), { textContent: "Axe AI" }),
+        Object.assign(document.createElement("span"), { className: "sep" }),
+        Object.assign(document.createElement("span"), { className: "act", textContent: words[i++ % 4] }))
+      cur.append(pill)
+      stage.append(cur)
+    }
+  }
+</script>
+</body>
+</html>

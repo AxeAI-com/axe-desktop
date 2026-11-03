@@ -1,0 +1,53 @@
+// Renovate keeps every dependency up to date through PRs, so nobody updates
+// packages by hand. Covers the Axe desktop app in next/ (pnpm), the old Swift
+// packages (Packages/ImperiumKit) and GitHub Actions.
+//
+// - Nothing newer than 3 days is proposed. Hijacked releases are usually
+//   caught and pulled within hours. (next/pnpm-workspace.yaml also refuses
+//   anything under a day old.)
+// - next/: patch and minor updates come as one PR a week and merge themselves
+//   once every check is green (PR checks: typecheck, lint, unit tests; supply
+//   chain audits it).
+// - The old Swift app has no CI build; its updates are a weekly PR.
+// - Major updates always wait for review.
+// - Security fixes open straight away, outside the weekly schedule.
+// - GitHub Actions are pinned to exact commit digests.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommitsDisabled"],
+  schedule: ["before 6am on monday"],
+  minimumReleaseAge: "3 days",
+  internalChecksFilter: "strict",
+  prConcurrentLimit: 5,
+  labels: ["dependencies"],
+  automerge: false,
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on monday"],
+  },
+  osvVulnerabilityAlerts: true,
+  vulnerabilityAlerts: {
+    labels: ["security"],
+    schedule: ["at any time"],
+    minimumReleaseAge: "1 day",
+  },
+  packageRules: [
+    {
+      description: "Mac app and Actions, patch and minor: one weekly PR.",
+      matchUpdateTypes: ["patch", "minor", "digest", "pin", "pinDigest"],
+      groupName: "weekly dependency updates",
+    },
+    {
+      description: "next/ (the Axe desktop app), patch and minor: one weekly PR that merges itself once PR checks and supply chain are green.",
+      matchFileNames: ["next/**"],
+      matchUpdateTypes: ["patch", "minor", "digest", "pin", "pinDigest"],
+      groupName: "weekly desktop dependency updates",
+      automerge: true,
+    },
+    {
+      description: "Major updates: one PR each, always reviewed.",
+      matchUpdateTypes: ["major"],
+      automerge: false,
+    },
+  ],
+}

@@ -1,0 +1,66 @@
+name: Supply chain
+# Blocks known-vulnerable packages in the Axe desktop app (next/): every npm package at high or
+# critical, dev dependencies included, because Electron is a dev dependency that ships inside
+# every build (its eMudhra certificate fix in 44.9.1 went unseen by a --prod audit). Also fails
+# if the pnpm guards in next/pnpm-workspace.yaml are removed. Runs on PRs that change the
+# lockfile, on master, and every night, so an advisory published after a merge still turns
+# master red. A failing nightly run opens (or updates) a "security" issue.
+#
+# It only reads
+# lockfiles, nothing is installed, built or run. Same check locally from next/:
+#   pnpm audit --audit-level high
+on:
+  pull_request:
+    paths: ["next/package.json", "next/pnpm-lock.yaml", "next/pnpm-workspace.yaml", ".github/workflows/supply-chain.yml"]
+  push:
+    branches: [master]
+    paths: ["next/package.json", "next/pnpm-lock.yaml", "next/pnpm-workspace.yaml"]
+  schedule:
+    - cron: "37 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: 10
+      - name: No high or critical advisories (dev dependencies too)
+        run: pnpm audit --audit-level high
+      - name: Supply-chain settings are still in pnpm-workspace.yaml
+        run: |
+          for key in "minimumReleaseAge:" "trustPolicy: no-downgrade" "blockExoticSubdeps: true" "onlyBuiltDependencies:"; do
+            grep -q "^${key}" pnpm-workspace.yaml || { echo "::error::next/pnpm-workspace.yaml lost '${key}'"; exit 1; }
+          done
+
+  report:
+    # Nightly failures become an issue, so they don't sit unseen in the Actions tab.
+    needs: audit
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Security: dependency audit is failing on master"
+          body="The nightly supply-chain check failed: ${RUN_URL}"
+          existing=$(gh issue list --state open --search "in:title \"${title}\"" --json number --jq '.[0].number')
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body "${body}"
+          else
+            gh label create security --color B60205 --force >/dev/null
+            gh issue create --title "${title}" --label security --body "${body}"
+          fi

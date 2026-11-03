@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- A sealed frame for visuals a model writes: its own scripts and styles only, no network at all.
+         The window loads it with sandbox="allow-scripts" (no same-origin), so it can't reach the app. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; worker-src blob:"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: transparent;
+        color: var(--ink);
+        font: 14px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        overflow: hidden;
+      }
+      svg,
+      canvas {
+        display: block;
+        max-width: 100%;
+      }
+    </style>
+    <script>
+      ;(function () {
+        var root = document.documentElement
+        var ran = false
+        var last = -1
+        function size() {
+          var h = Math.ceil(Math.max(document.body.scrollHeight, document.body.offsetHeight))
+          if (h !== last) {
+            last = h
+            parent.postMessage({ axeVisual: "size", height: h }, "*")
+          }
+        }
+        function run() {
+          // Scripts set with innerHTML don't run; fresh copies do, in order.
+          var scripts = document.body.querySelectorAll("script")
+          for (var i = 0; i < scripts.length; i++) {
+            var old = scripts[i]
+            var s = document.createElement("script")
+            if (old.type && old.type !== "module" && old.type !== "text/javascript") s.type = old.type
+            s.textContent = old.textContent
+            old.replaceWith(s)
+          }
+        }
+        window.addEventListener("message", function (e) {
+          if (e.source !== parent) return
+          var d = e.data
+          if (!d || d.axeVisual !== "render") return
+          var vars = d.vars || {}
+          for (var k in vars) root.style.setProperty("--" + k, vars[k])
+          root.setAttribute("data-theme", d.theme || "dark")
+          // Matching the window's scheme keeps the frame see-through instead of painting it white.
+          root.style.colorScheme = d.theme === "light" ? "light" : "dark"
+          // Once its scripts run, a visual keeps its own state; only the colours change after that.
+          if (ran) return
+          document.body.innerHTML = d.html || ""
+          if (d.run) {
+            ran = true
+            run()
+          }
+          size()
+        })
+        window.addEventListener("load", function () {
+          new ResizeObserver(size).observe(document.body)
+          parent.postMessage({ axeVisual: "ready" }, "*")
+        })
+        window.addEventListener("error", function (e) {
+          parent.postMessage({ axeVisual: "error", message: String((e && e.message) || "Script error") }, "*")
+        })
+      })()
+    </script>
+  </head>
+  <body></body>
+</html>
