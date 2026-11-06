@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, isAbsolute, relative } from "node:path"
+import { basename, isAbsolute, join, normalize, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type { Json } from "@shared/types"
 
-import { mustConfirm, protectedFolder, shortPath, userNamed } from "./guard"
+import { PROTECTED, expandHome, mustConfirm, protectedFolder, realish, shortPath, userNamed } from "./guard"
 import { deleteFile, editText, listFolder, readText, resolvePath, searchFiles, writeText } from "./files"
 import type { Check, ToolOutcome, Toolbox } from "./loop"
 import { commandReport, runCommand } from "./terminal"
@@ -59,10 +59,12 @@ const preview = (text: string, lines = 12) => {
   return all.length > lines ? `${all.slice(0, lines).join("\n")}\n…` : text
 }
 
-const inside = (p: string, folder: string) => {
+const lexicallyInside = (p: string, folder: string) => {
   const rel = relative(folder, p)
   return !rel.startsWith("..") && !isAbsolute(rel)
 }
+// With symlinks resolved: a link in the workspace that points into ~/Documents isn't "inside".
+const inside = (p: string, folder: string) => lexicallyInside(realish(p), realish(folder))
 
 const PATH_TOOLS = new Set(["read_file", "list_folder", "write_file", "edit_file", "delete_file", "search_files", "run_command"])
 
@@ -117,7 +119,8 @@ export function makeToolbox(o: ToolboxOptions): Toolbox {
     if (!PATH_TOOLS.has(name)) return []
     if (name === "search_files") return [s(input.folder)].filter(Boolean)
     if (name !== "run_command") return [s(input.path)].filter(Boolean)
-    return [s(input.cwd), ...commandPaths(s(input.command), o.home)].filter(Boolean)
+    const cwd = s(input.cwd) ? path(s(input.cwd)) : o.workspace
+    return [s(input.cwd), ...commandPaths(s(input.command), o.home, { cwd, workspace: o.workspace })].filter(Boolean)
   }
 
   async function actionCheck(name: string, input: Input): Promise<Check> {
@@ -236,14 +239,106 @@ function fileTarget(url: string): string | undefined {
   }
 }
 
-/** Paths written in a shell command: ~/…, $HOME/…, ${HOME}/… and absolute paths, quotes removed. */
-export function commandPaths(command: string, home = homedir()): string[] {
-  const out: string[] = []
-  for (const raw of command.split(/[\s|&;()<>]+/)) {
-    const word = raw.replace(/^['"]+|['"]+$/g, "").replace(/^[A-Za-z-]+=/, "")
-    if (!word) continue
-    const expanded = word.replace(/^(\$HOME|\$\{HOME\}|~)(?=\/|$)/, home)
-    if (expanded === "~" || expanded.startsWith("~/") || isAbsolute(expanded)) out.push(expanded)
+/** A shell command split into segments of words, quotes and backslash escapes removed. */
+export function shellWords(command: string, windows = process.platform === "win32"): string[][] {
+  const segments: string[][] = [[]]
+  let word: string | undefined
+  let quote: "'" | '"' | undefined
+  const end = () => {
+    if (word !== undefined) segments[segments.length - 1]!.push(word)
+    word = undefined
   }
-  return out
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]!
+    if (quote) {
+      if (c === quote) quote = undefined
+      else if (quote === '"' && c === "\\" && !windows && /["\\$`]/.test(command[i + 1] ?? "")) word += command[++i]!
+      else word += c
+    } else if (c === "'" || c === '"') {
+      quote = c
+      word ??= ""
+    } else if (c === "\\" && !windows) {
+      word = (word ?? "") + (command[++i] ?? "")
+    } else if (/\s/.test(c) && c !== "\n") {
+      end()
+    } else if (/[|&;()<>\n`]/.test(c)) {
+      end()
+      if (/[|&;\n()`]/.test(c)) segments.push([])
+    } else {
+      word = (word ?? "") + c
+    }
+  }
+  end()
+  return segments.filter((w) => w.length)
+}
+
+// A part of a path that the shell may turn into any name: a glob, a brace list or a variable.
+const WILD = /[*?[\]{}$]/
+/** A path part as a pattern, erring wide: a brace list or variable matches anything, [..] any one character. */
+function globRegex(part: string): RegExp {
+  let re = ""
+  for (let i = 0; i < part.length; i++) {
+    const c = part[i]!
+    if (c === "*") re += ".*"
+    else if (c === "?") re += "."
+    else if (c === "[" || c === "{" || c === "$") {
+      const close = c === "[" ? "]" : "}"
+      const end = c === "$" && part[i + 1] !== "{" ? i + (/^\$\w*/.exec(part.slice(i))![0].length - 1) : part.indexOf(close, i + 1)
+      re += c === "[" ? "." : ".*"
+      if (end < 0) break
+      i = end
+    } else re += c.replace(/[.+^()|\\\]}]/, "\\$&")
+  }
+  return new RegExp(`^${re}$`, "i")
+}
+/** The protected folders this one path part could name: "Documents", "documents", "D*", "$X". */
+const couldName = (part: string) => PROTECTED.filter((f) => (WILD.test(part) ? globRegex(part).test(f) : part.toLowerCase() === f.toLowerCase()))
+
+const HOME_PREFIX = /^(\$HOME|\$\{HOME\}|~)(?=[/\\]|$)/
+const CD = new Set(["cd", "pushd", "chdir", "set-location", "sl"])
+
+/**
+ * Paths a shell command could reach, for the protected-folder check: absolute and home paths as
+ * written, relative ones resolved against the command's folder (and wherever it cds), and, for each
+ * protected folder a word could name through a glob, a variable, `..` or a folder change the guard
+ * can't follow, that folder itself. Errs on asking: `cat Documents/a.txt` from outside the workspace,
+ * `cd ~ && cat Documents/a.txt` and `cat $HOME/D*` all name ~/Documents.
+ */
+export function commandPaths(command: string, home = homedir(), at: { cwd?: string; workspace?: string } = {}): string[] {
+  const out = new Set<string>()
+  const segments = shellWords(command)
+  const bases = at.cwd ? [at.cwd] : []
+  let moved = false
+  for (const [first, target] of segments) {
+    if (!CD.has(first!.toLowerCase())) continue
+    moved = true
+    bases.push(home)
+    if (target && !WILD.test(target.replace(HOME_PREFIX, ""))) for (const b of [...bases]) bases.push(resolve(b, expandHome(target.replace(HOME_PREFIX, "~"), home)))
+  }
+  // Relative words land in the workspace only when the command runs there and never changes folder.
+  const confined = !moved && !!at.cwd && !!at.workspace && relative(at.workspace, at.cwd).split(sep)[0] !== ".." && !isAbsolute(relative(at.workspace, at.cwd))
+  for (const words of segments) {
+    for (const raw of words) {
+      const word = raw.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*|--?[A-Za-z][\w-]*)=/, "")
+      if (!word || (word.startsWith("-") && word !== "-")) continue
+      const w = word.replace(HOME_PREFIX, home)
+      const parts = w.split(/[/\\:=,]/).filter(Boolean)
+      if (isAbsolute(w)) {
+        out.add(w)
+        // A glob or variable in the part of the path above a protected folder: ~/D*, /Users/*/Documents.
+        const pattern = normalize(w).split(sep).filter(Boolean)
+        for (const f of PROTECTED) {
+          const target = join(home, f).split(sep).filter(Boolean)
+          const head = pattern.slice(0, target.length)
+          if (head.length === target.length && head.some((p) => WILD.test(p)) && head.every((p, i) => (WILD.test(p) ? globRegex(p).test(target[i]!) : p.toLowerCase() === target[i]!.toLowerCase())))
+            out.add(join(home, f))
+        }
+        continue
+      }
+      for (const b of bases) out.add(resolve(b, w))
+      if (confined && !w.startsWith("$") && !parts.includes("..")) continue
+      for (const p of parts) for (const f of couldName(p)) out.add(join(home, f))
+    }
+  }
+  return [...out]
 }
