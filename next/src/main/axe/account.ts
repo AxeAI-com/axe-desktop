@@ -157,9 +157,10 @@ async function exchange(code: string, verifier: string) {
   for (const l of signedInListeners) l()
 }
 
-export function signOut() {
+/** Ends the session. `server` is the server that issued it (after a server change, the old one). */
+export function signOut(server = settings().baseURL) {
   const t = token
-  if (t) void fetch(joinURL(settings().baseURL, "api/auth/logout"), { method: "POST", headers: { Authorization: `Bearer ${t}` } }).catch(() => {})
+  if (t) void fetch(joinURL(server, "api/auth/logout"), { method: "POST", headers: { Authorization: `Bearer ${t}` } }).catch(() => {})
   token = undefined
   profile = null
   store.clear()

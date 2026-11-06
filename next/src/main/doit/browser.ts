@@ -21,6 +21,9 @@ export function target(text: string): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** The isolated world describe() runs in (any number above 0 that nothing else uses). */
+const DESCRIBE_WORLD = 1009
+
 export class OwnBrowser implements PageBrowser {
   private win?: BrowserWindow
 
@@ -121,19 +124,44 @@ export class OwnBrowser implements PageBrowser {
     if (submit) await this.settle()
   }
 
-  async describe(id: number): Promise<{ label: string; isSearch: boolean }> {
+  async describe(id: number): Promise<{ label: string; isSearch: boolean; submits?: boolean; searchOnly?: boolean }> {
     if (!this.url) return { label: "", isSearch: false }
     try {
-      return (await this.wc.executeJavaScript(
-        `(() => { ${SECRET_FIELD_JS}
+      // An isolated world: the page shares the DOM but not its JavaScript, so it can't patch what this
+      // reads. Form properties go through the prototypes, since a control named "method" or "elements"
+      // shadows them on the form itself.
+      return (await this.wc.executeJavaScriptInIsolatedWorld(DESCRIBE_WORLD, [
+        {
+          code: `(() => { ${SECRET_FIELD_JS}
+          const attr = (n, a) => Element.prototype.getAttribute.call(n, a);
           const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return { label: '', isSearch: false };
-          const label = (el.getAttribute('aria-label') || el.innerText || (isSecret(el) ? '' : el.value) || el.getAttribute('placeholder') || el.getAttribute('title') || '').trim();
-          const isSearch = el.type === 'search' || el.getAttribute('role') === 'searchbox' || /search/i.test(el.name || '') || /search/i.test(label);
-          return { label: label.slice(0, 80), isSearch }; })()`,
-        true,
-      )) as { label: string; isSearch: boolean }
+          const label = (attr(el, 'aria-label') || el.innerText || (isSecret(el) ? '' : el.value) || attr(el, 'placeholder') || attr(el, 'title') || '').trim();
+          const tag = el.tagName;
+          const form = tag === 'BUTTON' ? Object.getOwnPropertyDescriptor(HTMLButtonElement.prototype, 'form').get.call(el)
+            : tag === 'INPUT' ? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'form').get.call(el) : null;
+          const isSearch = el.type === 'search' || attr(el, 'role') === 'searchbox' || /search/i.test(el.name || '') || /search/i.test(label);
+          // Clicking it sends a form: a submit button or input (a <button> in a form submits unless typed otherwise).
+          const submits = !!form && ((tag === 'BUTTON' && (attr(el, 'type') || 'submit').toLowerCase() === 'submit') || (tag === 'INPUT' && /^(submit|image)$/i.test(el.type)));
+          // A form that is only a search, judged by what it would send, not by markers the page adds
+          // (role="search", a hidden search box): sent with GET by a button that doesn't change where
+          // or how, and holding nothing but one visible search box with the query and plain buttons.
+          let searchOnly = false;
+          if (submits) {
+            const shown = f => { const r = f.getBoundingClientRect(); const cs = getComputedStyle(f); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+            const controls = Array.from(Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form));
+            const isButton = f => f.tagName === 'BUTTON' || (f.tagName === 'INPUT' && /^(submit|button|image|reset)$/i.test(attr(f, 'type') || ''));
+            const fields = controls.filter(f => !isButton(f) && f.tagName !== 'FIELDSET' && f.tagName !== 'OUTPUT');
+            const box = fields.length === 1 ? fields[0] : null;
+            const overrides = ['formaction', 'formmethod', 'formtarget', 'formenctype'].some(a => Element.prototype.hasAttribute.call(el, a));
+            searchOnly = (attr(form, 'method') || 'get').trim().toLowerCase() === 'get' && !overrides && !!box && box.tagName === 'INPUT'
+              && (attr(box, 'type') === 'search' || attr(box, 'role') === 'searchbox') && !isSecret(box) && shown(box) && !!(box.value || '').trim();
+          }
+          return { label: label.slice(0, 80), isSearch, submits, searchOnly }; })()`,
+        },
+      ])) as { label: string; isSearch: boolean; submits?: boolean; searchOnly?: boolean }
     } catch {
-      return { label: "", isSearch: false }
+      // If the page can't be read, a click asks (it may submit something).
+      return { label: "", isSearch: false, submits: true, searchOnly: false }
     }
   }
 

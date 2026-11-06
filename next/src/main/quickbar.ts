@@ -7,6 +7,7 @@ import * as attachments from "./attachments"
 import { emit } from "./bus"
 import { isSelfTest } from "./paths"
 import { onSettingsChange, settings } from "./settings"
+import { stayOnAppPage } from "./ipc"
 
 // The quick bar: a small frameless window on a global shortcut (⌥Space on a Mac, Ctrl+Space
 // elsewhere), Spotlight-like. It is made once and kept hidden, so it opens instantly. It hides when
@@ -60,6 +61,7 @@ function create(): BrowserWindow {
   w.on("blur", () => {
     if (!holding && !headless()) w.hide()
   })
+  stayOnAppPage(w.webContents)
   w.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: "deny" }

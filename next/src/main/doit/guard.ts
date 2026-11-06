@@ -22,6 +22,10 @@ export type GuardContext = {
   where?: string
   /** For write_file: the file is already there. */
   exists?: boolean
+  /** For browser_click: clicking it submits a form (a submit button), whatever its label says. */
+  submits?: boolean
+  /** For browser_click: that form is only a search (GET, one visible search box with the query, no password). */
+  searchOnly?: boolean
 }
 
 const str = (v: Json | undefined) => (typeof v === "string" ? v : "")
@@ -33,7 +37,12 @@ export function mustConfirm(name: string, input: Input, ctx: GuardContext = {}):
     case "browser_click":
     case "click": {
       const label = ctx.label ?? ""
-      return RISKY.test(label) ? `${name === "click" ? "Press" : "Click"} “${label}” on ${where}` : undefined
+      if (RISKY.test(label)) return `${name === "click" ? "Press" : "Click"} “${label}” on ${where}`
+      // A submit button sends the form however it's labelled ("Continue", "Complete booking"), like
+      // browser_type with submit. Only a form that is plainly a search goes without asking; the
+      // page's own markers (role="search", a search box somewhere in it) don't count.
+      if (ctx.submits && !ctx.searchOnly) return `Click “${label || "Submit"}” on ${where} (this submits the form)`
+      return undefined
     }
     case "browser_type": {
       if (input.submit !== true || ctx.isSearch) return undefined
@@ -112,6 +121,11 @@ export function readOnlyCommand(command: string): boolean {
     if (cmd === "git" && !GIT_LOOK.has(args.find((a) => !a.startsWith("-")) ?? "")) return false
     if (cmd === "find" && args.some((a) => /^-(delete|exec|execdir|ok|okdir|fprint|fls)/.test(a))) return false
     if (cmd === "env" && args.length > 0) return false
+    // Read-only commands that can still write a file through their own options or operands.
+    if (cmd === "sort" && args.some((a) => /^--output(=|$)/.test(a) || /^-[a-zA-Z]*o/.test(a))) return false
+    if (cmd === "tree" && args.some((a) => /^-[a-zA-Z]*o/.test(a))) return false
+    if (cmd === "uniq" && args.filter((a) => !a.startsWith("-")).length > 1) return false
+    if (cmd === "git" && args.some((a) => /^--output(=|$)/.test(a))) return false
   }
   return true
 }

@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
+import { homedir } from "node:os"
 import { basename, isAbsolute, relative } from "node:path"
+import { fileURLToPath } from "node:url"
 
 import type { Json } from "@shared/types"
 
@@ -20,7 +22,7 @@ export type PageBrowser = {
   read(): Promise<string>
   click(element: number): Promise<void>
   type(element: number, text: string, submit: boolean): Promise<void>
-  describe(element: number): Promise<{ label: string; isSearch: boolean }>
+  describe(element: number): Promise<{ label: string; isSearch: boolean; submits?: boolean; searchOnly?: boolean }>
   /** A PNG of the page. */
   capture(): Promise<Buffer>
 }
@@ -79,21 +81,52 @@ export function makeToolbox(o: ToolboxOptions): Toolbox {
     tools: o.tools ?? ALL_TOOLS,
 
     async check(name: string, input: Input): Promise<Check> {
+      const action = await actionCheck(name, input)
       // Protected folders: asked every time, Full access or not, unless the user named the folder.
-      if (PATH_TOOLS.has(name)) {
-        const target = name === "search_files" ? s(input.folder) : name === "run_command" ? s(input.cwd) : s(input.path)
+      // Every path the step touches counts: its path argument, a shell command's cwd and the paths
+      // written in the command, and a file: address the browser opens.
+      for (const target of targetsOf(name, input)) {
         // Axe's own workspace lives in the app's data folder (under Library on the Mac): always fine.
-        if (target && !inside(path(target), o.workspace)) {
-          const folder = protectedFolder(path(target), o.home)
-          if (folder && !userNamed(folder, o.userText())) return { reason: `Use your ${folder} folder`, always: true }
-        }
+        if (inside(path(target), o.workspace)) continue
+        const folder = protectedFolder(path(target), o.home)
+        if (!folder || userNamed(folder, o.userText())) continue
+        // A step that changes or deletes something asks about that exact step: allowing the folder
+        // once (for a read) must not allow a later delete there.
+        if (action.reason) return { ...action, reason: `${action.reason} in your ${folder} folder`, always: true }
+        return { reason: `Use your ${folder} folder`, always: true }
       }
+      if (name === "browser_open") {
+        // fileTarget trims, as the browser does before it loads the address.
+        const file = fileTarget(s(input.url))
+        if (file && !inside(path(file), o.workspace)) return { reason: `Open ${shortPath(file, o.home)} in the browser` }
+      }
+      return action
+    },
+
+    async run(name, input, ctx): Promise<ToolOutcome> {
+      return runTool(name, input, ctx)
+    },
+  }
+
+  /** The paths a step reads or changes, as written (relative ones resolve in the workspace). */
+  function targetsOf(name: string, input: Input): string[] {
+    if (name === "browser_open") {
+      const file = fileTarget(s(input.url))
+      return file ? [file] : []
+    }
+    if (!PATH_TOOLS.has(name)) return []
+    if (name === "search_files") return [s(input.folder)].filter(Boolean)
+    if (name !== "run_command") return [s(input.path)].filter(Boolean)
+    return [s(input.cwd), ...commandPaths(s(input.command), o.home)].filter(Boolean)
+  }
+
+  async function actionCheck(name: string, input: Input): Promise<Check> {
       switch (name) {
         case "browser_click":
         case "browser_type": {
           const d = await o.browser.describe(n(input.element))
           const title = name === "browser_click" && d.label ? `Click “${d.label}”` : undefined
-          return { reason: mustConfirm(name, input, { label: d.label, isSearch: d.isSearch, where: o.browser.where() }), ...(title ? { title } : {}) }
+          return { reason: mustConfirm(name, input, { label: d.label, isSearch: d.isSearch, submits: d.submits, searchOnly: d.searchOnly, where: o.browser.where() }), ...(title ? { title } : {}) }
         }
         case "click": {
           const d = await o.computer.label(n(input.element))
@@ -107,9 +140,9 @@ export function makeToolbox(o: ToolboxOptions): Toolbox {
         default:
           return { reason: mustConfirm(name, input) }
       }
-    },
+  }
 
-    async run(name, input, ctx): Promise<ToolOutcome> {
+  async function runTool(name: string, input: Input, ctx: Parameters<Toolbox["run"]>[2]): Promise<ToolOutcome> {
       switch (name) {
         case "read_file": {
           const text = await readText(path(s(input.path)))
@@ -190,6 +223,27 @@ export function makeToolbox(o: ToolboxOptions): Toolbox {
         default:
           throw new Error(`There's no tool called ${name}.`)
       }
-    },
   }
+}
+
+/** The local path a file: address points at, or undefined. */
+function fileTarget(url: string): string | undefined {
+  if (!/^file:/i.test(url.trim())) return undefined
+  try {
+    return fileURLToPath(url.trim())
+  } catch {
+    return undefined
+  }
+}
+
+/** Paths written in a shell command: ~/…, $HOME/…, ${HOME}/… and absolute paths, quotes removed. */
+export function commandPaths(command: string, home = homedir()): string[] {
+  const out: string[] = []
+  for (const raw of command.split(/[\s|&;()<>]+/)) {
+    const word = raw.replace(/^['"]+|['"]+$/g, "").replace(/^[A-Za-z-]+=/, "")
+    if (!word) continue
+    const expanded = word.replace(/^(\$HOME|\$\{HOME\}|~)(?=\/|$)/, home)
+    if (expanded === "~" || expanded.startsWith("~/") || isAbsolute(expanded)) out.push(expanded)
+  }
+  return out
 }

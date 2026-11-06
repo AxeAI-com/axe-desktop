@@ -2,7 +2,7 @@ import { join } from "node:path"
 import { app, BrowserWindow, Menu, nativeImage, nativeTheme, screen, shell, Tray, type Rectangle } from "electron"
 
 import { emit } from "./bus"
-import { handle } from "./ipc"
+import { handle, stayOnAppPage } from "./ipc"
 import { isSelfTest } from "./paths"
 import { panelType, trayLogic } from "./tray-toggle"
 
@@ -62,6 +62,7 @@ function create(): BrowserWindow {
   w.on("blur", () => {
     if (!process.env.AXE_HEADLESS) hide()
   })
+  stayOnAppPage(w.webContents)
   w.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: "deny" }

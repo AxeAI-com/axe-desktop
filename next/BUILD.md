@@ -446,22 +446,23 @@ Nothing here publishes. Steps 4 and 5 put a build in front of every user: the ow
 Engine in `src/main/remote/` (it was `src/main/runs/` with the routine runner, which Watching v3 removed).
 
 - **What waits** (`remote/approvals.ts`): `chat.onTurnEvent` (ask, answered, end) feeds a list of every question any
-  chat asks, with its options. Answering in the chat or from axeai.com answers both; a chat that ends takes its
-  questions with it. Kept in memory only. The window has no screen for it: remote control reads it and answers with
-  `approvals.decide`.
+  chat asks, with its options. Answering in the chat or from a paired phone answers both; a chat that ends takes its
+  questions with it. Kept in memory only. The window has no screen for it. The axeai.com stream only reads the list:
+  it isn't sealed end to end, so a `decide` from it gets "Answer this on your Mac or from your paired phone."
+  Answers come from the Mac or a paired phone over the sealed link (`docs/remote-control-SECURITY.md`).
 - **Background**: on the Mac the app keeps running when the window closes; on Windows and Linux it stays in the tray
   while a chat works or a watch isn't paused (`keepAlive` in `remote/index.ts`). Keep-awake (`remote/power.ts`, rules
   in `shared/power.ts`): while something runs by default, plugged in, always, or off. Windows wakes for the next
   watch check (Task Scheduler, `watchesNext` in `main/watching/index.ts`).
 - **Remote control** (`remote/remote.ts`): one outbound event stream to axeai.com's `/api/remote/*`; shares what
-  waits and how many chats are working; does only three things: answer a waiting question, change keep-awake, ask
-  you to allow a browser (7 days, a dialog here). "Run a routine" is gone: it answers "Axe can't do that remotely."
+  waits and how many chats are working; does only two things: change keep-awake, and ask you to allow a browser
+  (7 days, a dialog here). It can't answer a waiting question. "Run a routine" is gone: it answers "Axe can't do that remotely."
   Once per connection it sends an empty agent list (`PUT /api/automations/device/agents`), which clears the routines
   this computer used to list on axeai.com. Self-tests connect only with `AXE_REMOTE=1`.
 - **Phones** (`remote/phones.ts`, `phone-chat.ts`, `link.ts`, `device-keys.ts`): `docs/remote-control-SECURITY.md`.
 
-Tests: `tests/unit/remote.test.ts` (approvals on the real chat engine with the fake ACP agent: a no from axeai.com and
-a yes, answered in the chat, not waiting; remote commands and the snapshot), `phones.test.ts`, `phone-chat.test.ts`.
+Tests: `tests/unit/remote.test.ts` (approvals on the real chat engine with the fake ACP agent: axeai.com can't answer,
+the Mac can; remote commands and the snapshot), `phones.test.ts`, `phone-chat.test.ts`.
 
 ## Signed-out use, composer, open-source libraries (branch fix/desktop-use-without-sign-in, local)
 
