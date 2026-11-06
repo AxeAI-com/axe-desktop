@@ -239,6 +239,9 @@ function fileTarget(url: string): string | undefined {
   }
 }
 
+// A quote or backslash ends a variable's name: $H"ments" is ${H}ments, not $Hments.
+const closeVar = (word: string) => word.replace(/\$(\w+)$/, "$${$1}")
+
 /** A shell command split into segments of words, quotes and backslash escapes removed. */
 export function shellWords(command: string, windows = process.platform === "win32"): string[][] {
   const segments: string[][] = [[]]
@@ -251,14 +254,17 @@ export function shellWords(command: string, windows = process.platform === "win3
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!
     if (quote) {
-      if (c === quote) quote = undefined
+      if (c === quote) {
+        quote = undefined
+        word = closeVar(word ?? "")
+      }
       else if (quote === '"' && c === "\\" && !windows && /["\\$`]/.test(command[i + 1] ?? "")) word += command[++i]!
       else word += c
     } else if (c === "'" || c === '"') {
       quote = c
-      word ??= ""
+      word = closeVar(word ?? "")
     } else if (c === "\\" && !windows) {
-      word = (word ?? "") + (command[++i] ?? "")
+      word = closeVar(word ?? "") + (command[++i] ?? "")
     } else if (/\s/.test(c) && c !== "\n") {
       end()
     } else if (/[|&;()<>\n`]/.test(c)) {
@@ -303,9 +309,13 @@ const DIR_OPTION = new Set(["-C", "--chdir", "--directory"])
 const DIR_TOOLS = new Set(["env", "git", "make", "gmake", "tar", "pnpm", "npm", "yarn", "bsdtar"])
 const isCd = (w: string, words: string[]) =>
   CD_WORDS.has(w.toLowerCase()) || (DIR_OPTION.has(w.split("=")[0]!) && words.some((x) => DIR_TOOLS.has(x)))
-// A variable set in the command (H=~, export, read) or a string run with eval can hold any folder.
-const DYNAMIC = new Set(["export", "read", "eval", "declare", "typeset", "local", "set", "source", "set-variable"])
-const isDynamic = (w: string) => DYNAMIC.has(w.toLowerCase()) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || /^\$[A-Za-z_][\w:]*=/.test(w)
+// Builtins that set a variable the guard can't read from the words (printf -v, read, mapfile) or run
+// a string (eval, source): after one, even a bare $f could be any folder.
+const DYNAMIC = new Set(["read", "mapfile", "readarray", "eval", "source", "set", "declare", "typeset", "local", "export", "set-variable", "invoke-expression", "iex"])
+const isDynamic = (words: string[]) =>
+  words[0] === "." || words.some((w) => DYNAMIC.has(w.toLowerCase())) || (words.includes("printf") && words.some((w) => /^-v/.test(w)))
+// A variable with more path after or around it ($H/Docu*, ${H}ments) may stand for your home.
+const BARE_VAR = /^\$(?:\w+|\{\w+\})$/
 const MENTION = /(?:^|[/\\~={},:;\s])(desktop|documents|downloads|library)(?=$|[/\\{},:;*?[\s])/gi
 
 /** Every word, with command strings (`bash -c '…'`, `eval "…"`) split into their own words too. */
@@ -337,7 +347,7 @@ export function commandPaths(command: string, home = homedir(), at: { cwd?: stri
   const out = new Set<string>()
   const segments = allWords(command)
   const bases = at.cwd ? [at.cwd] : []
-  const moved = segments.some((words) => words[0] === "." || words.some((w) => isCd(w, words) || isDynamic(w)))
+  const moved = segments.some((words) => isDynamic(words) || words.some((w) => isCd(w, words)))
   if (moved) bases.push(home)
   for (const words of segments) {
     words.forEach((w, i) => {
@@ -370,9 +380,11 @@ export function commandPaths(command: string, home = homedir(), at: { cwd?: stri
         for (const b of bases) out.add(resolve(b, w))
       }
       const parts = w.split(/[/\\:=,]/).filter(Boolean)
-      if (confined && !/[~{}]/.test(w) && !parts.includes("..")) continue
+      if (confined && !/[~{}]/.test(w) && !parts.includes("..") && !(w.includes("$") && !BARE_VAR.test(w))) continue
       // A brace list both as one pattern ({Docu,x}ments) and taken apart (~{/D*,}).
-      for (const p of [...parts, ...w.split(/[/\\:=,{}]/).filter(Boolean)]) for (const f of couldName(p)) out.add(join(home, f))
+      // In the workspace a whole-part variable ($H in $H/Docu*) is the base, not a folder name.
+      const named = confined ? (p: string) => !BARE_VAR.test(p) : () => true
+      for (const p of [...parts, ...w.replace(/\$\{(\w+)\}/g, "$$$1").split(/[/\\:=,{}]/).filter(Boolean)].filter(named)) for (const f of couldName(p)) out.add(join(home, f))
     }
   }
   return [...out]

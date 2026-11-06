@@ -97,8 +97,9 @@ describe("protected folders without the exact case, or through a link", () => {
 describe("protected folders written in ways the old check missed", () => {
   const asks = { reason: "Use your Documents folder", always: true }
   it("splits shell words the way the shell does", () => {
-    expect(shellWords(`cat "$HOME"/Documents/a.txt | wc -l`, false)).toEqual([["cat", "$HOME/Documents/a.txt"], ["wc", "-l"]])
+    expect(shellWords(`cat "$HOME"/Documents/a.txt | wc -l`, false)).toEqual([["cat", "${HOME}/Documents/a.txt"], ["wc", "-l"]])
     expect(shellWords(`cat ~/"Doc"'uments'/a\\ b.txt`, false)).toEqual([["cat", "~/Documents/a b.txt"]])
+    expect(shellWords(`cat $H"ments" $H`, false)).toEqual([["cat", "${H}ments", "$H"]])
   })
   it("asks for quotes in the middle, .., cd, globs and variables", async () => {
     for (const command of [
@@ -137,6 +138,17 @@ describe("protected folders written in ways the old check missed", () => {
       "C='cd ~'; eval $C; cat Docu*/a.txt",
       "git -C ~ ls-files Docu*",
       ". ./env.sh; ls Do*",
+      "printf -v H ~; cat $H/Docu*/a.txt",
+      "printf -v H %s ~; cat $H/Docu*/a.txt",
+      "for H in ~; do cat $H/Docu*/a.txt; done",
+      "select H in ~; do cat $H/Docu*/a.txt; done",
+      "mapfile -t H <<< ~; cat $H/Docu*",
+      "f=~/Docu; cat ${f}ments/a.txt",
+      "printf -v f %s%s ~/Docu ments; cat $f",
+      `H=~/Docu; cat $H"ments"/a.txt`,
+      "H=~/Docu; cat $H'ments'/a.txt",
+      `H=~/Docu; cat "$H"ments/a.txt`,
+      "H=~/Docu; cat $H\\ments/a.txt",
       `cat ${join(home, "..")}/*/Documents/a.txt`,
       "X=~/Documents; cat $X/a.txt",
       "cat $PWD/../Documents/a.txt",
@@ -146,17 +158,17 @@ describe("protected folders written in ways the old check missed", () => {
       expect(check.reason, command).toMatch(/your (Documents|Library|Desktop) folder$/)
     }
     expect(await toolbox().check("run_command", { command: "cat $HOME/Do*/a.txt" })).toEqual(asks)
-    // ~/documents is ~/Documents only where the disk ignores case; on Linux it's another folder.
-    const lower = await toolbox().check("run_command", { command: "rg --files ~/documents" })
-    if (process.platform === "darwin" || process.platform === "win32") expect(lower).toEqual(asks)
-    else expect(lower.always).toBeUndefined()
+    // A command naming the folder in any case asks on every system (on Linux ~/documents is another
+    // folder, but asking there is harmless); paths given to the file tools fold case only on the Mac
+    // and Windows (protectedFolder above).
+    expect(await toolbox().check("run_command", { command: "rg --files ~/documents" })).toEqual(asks)
   })
   it("asks for a relative path when the command runs outside the workspace", async () => {
     expect(await toolbox().check("run_command", { command: "cat Documents/a.txt", cwd: join(home, "Projects") })).toEqual(asks)
     expect(await toolbox().check("run_command", { command: "cat a.txt", cwd: home })).toEqual({ reason: undefined })
   })
   it("still runs plain commands in the workspace without asking", async () => {
-    for (const command of ["ls -la", "ls *", "cat notes/library.md", "grep -rn todo .", "cat Documents.md", "echo $PATH", "ls $TMPDIR", "for f in *.md; do wc -l $f; done", "uniq -c a.txt", "find . -name '*.ts'", "find . -name '*'", "ls -C *", "grep -C 3 TODO *", "rg -C 2 TODO src", `cat "${join(workspace, "notes.txt")}"`, `ls ${workspace.replace(/ /g, "\\ ")}`]) expect((await toolbox().check("run_command", { command })).always, command).toBeUndefined()
+    for (const command of ["ls -la", "ls *", "cat notes/library.md", "grep -rn todo .", "cat Documents.md", "echo $PATH", "ls $TMPDIR", "for f in *.md; do wc -l $f; done", "uniq -c a.txt", "find . -name '*.ts'", "find . -name '*'", "ls -C *", "grep a=b *", "grep -r key=value .", "cat ${PWD}/*.md", "grep -C 3 TODO *", "rg -C 2 TODO src", `cat "${join(workspace, "notes.txt")}"`, `ls ${workspace.replace(/ /g, "\\ ")}`]) expect((await toolbox().check("run_command", { command })).always, command).toBeUndefined()
   })
   it("still lets the user's named folder through", async () => {
     expect((await toolbox("summarise my documents").check("run_command", { command: "cd ~ && cat Documents/a.txt" })).always).toBeUndefined()
