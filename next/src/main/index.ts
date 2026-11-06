@@ -6,7 +6,7 @@ import { configureAccount, handleCallback, PROTOCOL } from "./axe/account"
 import { setEmitter } from "./bus"
 import { shutdown } from "./chat"
 import { applyTheme, registerCommands } from "./commands"
-import { emit, startIpc } from "./ipc"
+import { emit, startIpc, stayOnAppPage } from "./ipc"
 import { createNotifier, setNotifier } from "./notify"
 import { hub } from "./libraries"
 import { isSelfTest, setDataDir } from "./paths"
@@ -131,6 +131,7 @@ function createWindow() {
         : []
     if (items.length) Menu.buildFromTemplate(items).popup({ window: win })
   })
+  stayOnAppPage(win.webContents)
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: "deny" }

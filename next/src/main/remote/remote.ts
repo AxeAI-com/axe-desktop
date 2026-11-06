@@ -259,10 +259,11 @@ export class RemoteLink {
     let ok = false
     let text = "Axe can't do that remotely."
     try {
-      if (command.type === "decide" && command.id) {
-        const item = this.host.approvals.decide(command.id, command.approve === true)
-        ok = true
-        text = `${command.approve ? "Allowed" : "Said no to"} “${item.body}” for ${item.title}`
+      if (command.type === "decide") {
+        // This stream is not sealed end to end, so the server could send it on its own. Permission
+        // answers come only from the Mac or a paired phone over the sealed link
+        // (docs/remote-control-SECURITY.md: the server can't drive the Mac).
+        text = "Answer this on your Mac or from your paired phone."
       } else if (command.type === "keep-awake") {
         if (command.mode) {
           const m = KEEP_AWAKE_MODES.find((x) => x.value === command.mode)

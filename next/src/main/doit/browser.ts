@@ -121,17 +121,22 @@ export class OwnBrowser implements PageBrowser {
     if (submit) await this.settle()
   }
 
-  async describe(id: number): Promise<{ label: string; isSearch: boolean }> {
+  async describe(id: number): Promise<{ label: string; isSearch: boolean; submits?: boolean }> {
     if (!this.url) return { label: "", isSearch: false }
     try {
       return (await this.wc.executeJavaScript(
         `(() => { ${SECRET_FIELD_JS}
           const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return { label: '', isSearch: false };
           const label = (el.getAttribute('aria-label') || el.innerText || (isSecret(el) ? '' : el.value) || el.getAttribute('placeholder') || el.getAttribute('title') || '').trim();
-          const isSearch = el.type === 'search' || el.getAttribute('role') === 'searchbox' || /search/i.test(el.name || '') || /search/i.test(label);
-          return { label: label.slice(0, 80), isSearch }; })()`,
+          const form = el.form || null;
+          const isSearch = el.type === 'search' || el.getAttribute('role') === 'searchbox' || /search/i.test(el.name || '') || /search/i.test(label)
+            || !!(form && (form.getAttribute('role') === 'search' || form.querySelector('input[type=search],[role=searchbox]')));
+          // Clicking it sends a form: a submit button or input (a <button> in a form submits unless typed otherwise).
+          const tag = el.tagName;
+          const submits = !!form && ((tag === 'BUTTON' && (el.getAttribute('type') || 'submit').toLowerCase() === 'submit') || (tag === 'INPUT' && /^(submit|image)$/i.test(el.type)));
+          return { label: label.slice(0, 80), isSearch, submits }; })()`,
         true,
-      )) as { label: string; isSearch: boolean }
+      )) as { label: string; isSearch: boolean; submits?: boolean }
     } catch {
       return { label: "", isSearch: false }
     }

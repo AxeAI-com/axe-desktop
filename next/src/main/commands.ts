@@ -285,7 +285,7 @@ export function registerCommands() {
     emit("settings", next)
     if (next.theme !== previous.theme) applyTheme(next.theme)
     // A session belongs to one server.
-    if (next.baseURL !== previous.baseURL && account.isSignedIn()) account.signOut()
+    if (next.baseURL !== previous.baseURL && account.isSignedIn()) account.signOut(previous.baseURL)
     if (next.baseURL !== previous.baseURL) void catalog().then((c) => emit("models", c))
   })
 

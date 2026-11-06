@@ -145,7 +145,7 @@ describe("remote control", { timeout: 30_000 }, () => {
     const l = link()
     expect(await l.handle({ id: "1", command: { type: "shell", id: "rm -rf /" } as never })).toEqual({ ok: false, message: "Axe can't do that remotely." })
     expect(await l.handle({ id: "2", command: { type: "run-agent", id: "r1" } })).toEqual({ ok: false, message: "Axe can't do that remotely." })
-    expect(await l.handle({ id: "3", command: { type: "decide", id: "nope", approve: true } })).toMatchObject({ ok: false, message: "That isn't waiting anymore." })
+    expect(await l.handle({ id: "3", command: { type: "decide", id: "nope", approve: true } })).toEqual({ ok: false, message: "Answer this on your Mac or from your paired phone." })
     expect(await l.handle({ id: "4", command: { type: "keep-awake", mode: "always" } })).toMatchObject({ ok: true })
     expect(mode).toBe("always")
     expect(await l.handle({ id: "5", command: { type: "approve-browser", browser: "Safari on iPhone" } })).toEqual({ ok: false, message: "Not allowed on Mia's Mac." })
@@ -153,7 +153,7 @@ describe("remote control", { timeout: 30_000 }, () => {
     expect(l.newCode().code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/)
   })
 
-  it("shares what waits and answers it from axeai.com; it lists no agents", async () => {
+  it("shares what waits but won't answer it from axeai.com (not sealed); it lists no agents", async () => {
     const dir = join(root, "remote-folder")
     mkdirSync(dir, { recursive: true })
     const { threadId } = await chat.send({ threadId: null, text: "edit:remote.txt=phone", title: "Phone chat", answerer: { kind: "agent", agentId: "fake" }, cwd: dir })
@@ -163,7 +163,13 @@ describe("remote control", { timeout: 30_000 }, () => {
     expect(snap.agents).toEqual([])
     expect(snap.tasks.doing).toBeGreaterThanOrEqual(1)
     expect(snap.needsYou.find((n) => n.id === waitingIn(threadId)!.id)).toMatchObject({ who: "Phone chat" })
-    expect(await l.handle({ id: "6", command: { type: "decide", id: waitingIn(threadId)!.id, approve: true } })).toMatchObject({ ok: true, message: expect.stringMatching(/^Allowed .* for Phone chat$/) })
+    // The server could send this on its own, so it never answers a permission request.
+    const waiting = waitingIn(threadId)!.id
+    expect(await l.handle({ id: "6", command: { type: "decide", id: waiting, approve: true } })).toEqual({ ok: false, message: "Answer this on your Mac or from your paired phone." })
+    expect(waitingIn(threadId)?.id).toBe(waiting)
+    expect(existsSync(join(dir, "remote.txt"))).toBe(false)
+    // Answered on the Mac, it goes ahead.
+    approvals.decide(waiting, true)
     await until(() => !chat.isRunning(threadId))
     expect(readFileSync(join(dir, "remote.txt"), "utf8")).toBe("phone\n")
   })
