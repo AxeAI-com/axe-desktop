@@ -297,8 +297,15 @@ const couldName = (part: string) => PROTECTED.filter((f) => (WILD.test(part) ? g
 const HOME_PREFIX = /^(\$HOME|\$\{HOME\}|~)(?=[/\\]|$)/
 // Words that change the folder the rest runs in (`cd`, `builtin cd`, `env -C`, `git -C`). Command
 // strings (`bash -c '…'`) are read as words too, so a cd inside one counts.
-const CD_WORDS = new Set(["cd", "pushd", "popd", "chdir", "set-location", "sl", "push-location", "-C", "--chdir", "--directory"])
-const isCd = (w: string) => CD_WORDS.has(w.split("=")[0]!) || CD_WORDS.has(w.toLowerCase())
+const CD_WORDS = new Set(["cd", "pushd", "popd", "chdir", "set-location", "sl", "push-location"])
+// -C means "run in this folder" only for some tools; for ls and grep it's columns or context lines.
+const DIR_OPTION = new Set(["-C", "--chdir", "--directory"])
+const DIR_TOOLS = new Set(["env", "git", "make", "gmake", "tar", "pnpm", "npm", "yarn", "bsdtar"])
+const isCd = (w: string, words: string[]) =>
+  CD_WORDS.has(w.toLowerCase()) || (DIR_OPTION.has(w.split("=")[0]!) && words.some((x) => DIR_TOOLS.has(x)))
+// A variable set in the command (H=~, export, read) or a string run with eval can hold any folder.
+const DYNAMIC = new Set(["export", "read", "eval", "declare", "typeset", "local", "set", "source", "set-variable"])
+const isDynamic = (w: string) => DYNAMIC.has(w.toLowerCase()) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || /^\$[A-Za-z_][\w:]*=/.test(w)
 const MENTION = /(?:^|[/\\~={},:;\s])(desktop|documents|downloads|library)(?=$|[/\\{},:;*?[\s])/gi
 
 /** Every word, with command strings (`bash -c '…'`, `eval "…"`) split into their own words too. */
@@ -330,11 +337,11 @@ export function commandPaths(command: string, home = homedir(), at: { cwd?: stri
   const out = new Set<string>()
   const segments = allWords(command)
   const bases = at.cwd ? [at.cwd] : []
-  const moved = segments.some((words) => words.some(isCd))
+  const moved = segments.some((words) => words[0] === "." || words.some((w) => isCd(w, words) || isDynamic(w)))
   if (moved) bases.push(home)
   for (const words of segments) {
     words.forEach((w, i) => {
-      if (!isCd(w) || !words[i + 1] || WILD.test(words[i + 1]!)) return
+      if (!isCd(w, words) || !words[i + 1] || WILD.test(words[i + 1]!)) return
       for (const b of [...bases]) bases.push(resolve(b, expandTilde(words[i + 1]!, home)))
     })
   }

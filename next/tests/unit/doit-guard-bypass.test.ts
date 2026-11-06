@@ -131,6 +131,12 @@ describe("protected folders written in ways the old check missed", () => {
       "bash -c 'cd ~ && cat Do*/a.txt'",
       "cat Documents/a.txt",
       "cat ./DOCUMENTS/a.txt",
+      "H=~; cat $H/Docu*/a.txt",
+      "H=~; ls $H/D*",
+      "export H=~; ls $H/Do*",
+      "C='cd ~'; eval $C; cat Docu*/a.txt",
+      "git -C ~ ls-files Docu*",
+      ". ./env.sh; ls Do*",
       `cat ${join(home, "..")}/*/Documents/a.txt`,
       "X=~/Documents; cat $X/a.txt",
       "cat $PWD/../Documents/a.txt",
@@ -150,7 +156,7 @@ describe("protected folders written in ways the old check missed", () => {
     expect(await toolbox().check("run_command", { command: "cat a.txt", cwd: home })).toEqual({ reason: undefined })
   })
   it("still runs plain commands in the workspace without asking", async () => {
-    for (const command of ["ls -la", "ls *", "cat notes/library.md", "grep -rn todo .", "cat Documents.md", "echo $PATH", "ls $TMPDIR", "for f in *.md; do wc -l $f; done", "uniq -c a.txt", "find . -name '*.ts'", `cat "${join(workspace, "notes.txt")}"`, `ls ${workspace.replace(/ /g, "\\ ")}`]) expect((await toolbox().check("run_command", { command })).always, command).toBeUndefined()
+    for (const command of ["ls -la", "ls *", "cat notes/library.md", "grep -rn todo .", "cat Documents.md", "echo $PATH", "ls $TMPDIR", "for f in *.md; do wc -l $f; done", "uniq -c a.txt", "find . -name '*.ts'", "find . -name '*'", "ls -C *", "grep -C 3 TODO *", "rg -C 2 TODO src", `cat "${join(workspace, "notes.txt")}"`, `ls ${workspace.replace(/ /g, "\\ ")}`]) expect((await toolbox().check("run_command", { command })).always, command).toBeUndefined()
   })
   it("still lets the user's named folder through", async () => {
     expect((await toolbox("summarise my documents").check("run_command", { command: "cd ~ && cat Documents/a.txt" })).always).toBeUndefined()
