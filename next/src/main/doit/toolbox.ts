@@ -95,7 +95,8 @@ export function makeToolbox(o: ToolboxOptions): Toolbox {
         if (action.reason) return { ...action, reason: `${action.reason} in your ${folder} folder`, always: true }
         return { reason: `Use your ${folder} folder`, always: true }
       }
-      if (name === "browser_open" && /^file:/i.test(s(input.url))) {
+      if (name === "browser_open") {
+        // fileTarget trims, as the browser does before it loads the address.
         const file = fileTarget(s(input.url))
         if (file && !inside(path(file), o.workspace)) return { reason: `Open ${shortPath(file, o.home)} in the browser` }
       }

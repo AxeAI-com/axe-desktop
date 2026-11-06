@@ -51,6 +51,13 @@ describe("protected folders count every path a step touches", () => {
     expect(other.reason).toMatch(/^Open .*notes\.txt in the browser$/)
   })
 
+  it("still asks when the file: address starts with spaces or a newline (the browser trims them)", async () => {
+    for (const lead of [" ", "\n", "\t "]) {
+      const check = await toolbox().check("browser_open", { url: `${lead}file://${join(home, "notes.txt")}` })
+      expect(check.reason, JSON.stringify(lead)).toMatch(/^Open .*notes\.txt in the browser$/)
+    }
+  })
+
   it("still lets the user's named folder through", async () => {
     expect((await toolbox("summarise my Documents").check("run_command", { command: `cat ${join(home, "Documents", "a.txt")}` })).reason).toBeUndefined()
   })
