@@ -22,7 +22,7 @@ export type PageBrowser = {
   read(): Promise<string>
   click(element: number): Promise<void>
   type(element: number, text: string, submit: boolean): Promise<void>
-  describe(element: number): Promise<{ label: string; isSearch: boolean; submits?: boolean }>
+  describe(element: number): Promise<{ label: string; isSearch: boolean; submits?: boolean; searchOnly?: boolean }>
   /** A PNG of the page. */
   capture(): Promise<Buffer>
 }
@@ -125,7 +125,7 @@ export function makeToolbox(o: ToolboxOptions): Toolbox {
         case "browser_type": {
           const d = await o.browser.describe(n(input.element))
           const title = name === "browser_click" && d.label ? `Click “${d.label}”` : undefined
-          return { reason: mustConfirm(name, input, { label: d.label, isSearch: d.isSearch, submits: d.submits, where: o.browser.where() }), ...(title ? { title } : {}) }
+          return { reason: mustConfirm(name, input, { label: d.label, isSearch: d.isSearch, submits: d.submits, searchOnly: d.searchOnly, where: o.browser.where() }), ...(title ? { title } : {}) }
         }
         case "click": {
           const d = await o.computer.label(n(input.element))

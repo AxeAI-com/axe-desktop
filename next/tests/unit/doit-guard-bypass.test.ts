@@ -75,8 +75,12 @@ describe("allowing a protected folder once doesn't allow a later delete there", 
 describe("a click that submits a form asks, whatever its label", () => {
   it("asks for a submit button labelled Continue, not for search forms or plain links", async () => {
     expect((await toolbox().check("browser_click", { element: 3 })).reason).toBe("Click “Continue” on shop.example (this submits the form)")
-    expect(mustConfirm("browser_click", {}, { label: "Go", submits: true, isSearch: true })).toBeUndefined()
+    expect(mustConfirm("browser_click", {}, { label: "Go", submits: true, searchOnly: true })).toBeUndefined()
     expect(mustConfirm("browser_click", {}, { label: "Next page", submits: false })).toBeUndefined()
+  })
+  it("still asks when the page only marks the form as a search", () => {
+    // A checkout can add role="search" or a hidden search box; that alone must not skip the question.
+    expect(mustConfirm("browser_click", {}, { label: "Continue", submits: true, isSearch: true, where: "shop.example" })).toBe("Click “Continue” on shop.example (this submits the form)")
   })
 })
 

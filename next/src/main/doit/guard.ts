@@ -24,6 +24,8 @@ export type GuardContext = {
   exists?: boolean
   /** For browser_click: clicking it submits a form (a submit button), whatever its label says. */
   submits?: boolean
+  /** For browser_click: that form is only a search (GET, one visible search box with the query, no password). */
+  searchOnly?: boolean
 }
 
 const str = (v: Json | undefined) => (typeof v === "string" ? v : "")
@@ -37,8 +39,9 @@ export function mustConfirm(name: string, input: Input, ctx: GuardContext = {}):
       const label = ctx.label ?? ""
       if (RISKY.test(label)) return `${name === "click" ? "Press" : "Click"} “${label}” on ${where}`
       // A submit button sends the form however it's labelled ("Continue", "Complete booking"), like
-      // browser_type with submit. Search forms are harmless.
-      if (ctx.submits && !ctx.isSearch) return `Click “${label || "Submit"}” on ${where} (this submits the form)`
+      // browser_type with submit. Only a form that is plainly a search goes without asking; the
+      // page's own markers (role="search", a search box somewhere in it) don't count.
+      if (ctx.submits && !ctx.searchOnly) return `Click “${label || "Submit"}” on ${where} (this submits the form)`
       return undefined
     }
     case "browser_type": {

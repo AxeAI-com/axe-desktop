@@ -121,7 +121,7 @@ export class OwnBrowser implements PageBrowser {
     if (submit) await this.settle()
   }
 
-  async describe(id: number): Promise<{ label: string; isSearch: boolean; submits?: boolean }> {
+  async describe(id: number): Promise<{ label: string; isSearch: boolean; submits?: boolean; searchOnly?: boolean }> {
     if (!this.url) return { label: "", isSearch: false }
     try {
       return (await this.wc.executeJavaScript(
@@ -129,14 +129,25 @@ export class OwnBrowser implements PageBrowser {
           const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return { label: '', isSearch: false };
           const label = (el.getAttribute('aria-label') || el.innerText || (isSecret(el) ? '' : el.value) || el.getAttribute('placeholder') || el.getAttribute('title') || '').trim();
           const form = el.form || null;
-          const isSearch = el.type === 'search' || el.getAttribute('role') === 'searchbox' || /search/i.test(el.name || '') || /search/i.test(label)
-            || !!(form && (form.getAttribute('role') === 'search' || form.querySelector('input[type=search],[role=searchbox]')));
+          const isSearch = el.type === 'search' || el.getAttribute('role') === 'searchbox' || /search/i.test(el.name || '') || /search/i.test(label);
           // Clicking it sends a form: a submit button or input (a <button> in a form submits unless typed otherwise).
           const tag = el.tagName;
           const submits = !!form && ((tag === 'BUTTON' && (el.getAttribute('type') || 'submit').toLowerCase() === 'submit') || (tag === 'INPUT' && /^(submit|image)$/i.test(el.type)));
-          return { label: label.slice(0, 80), isSearch, submits }; })()`,
+          // A form that is only a search, judged by what it would send, not by markers the page adds
+          // (role="search", a hidden search box): sent with GET, its one visible field a search box
+          // holding the query, and no password field.
+          let searchOnly = false;
+          if (submits) {
+            const shown = f => { const r = f.getBoundingClientRect(); const cs = getComputedStyle(f); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
+            const fields = Array.from(form.elements).filter(f => /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName) && !/^(hidden|submit|button|image|reset)$/i.test(f.type || ''));
+            const visible = fields.filter(shown);
+            const box = visible.length === 1 ? visible[0] : null;
+            searchOnly = (form.method || 'get').toLowerCase() === 'get' && !fields.some(isSecret) && !!box
+              && (box.type === 'search' || box.getAttribute('role') === 'searchbox') && !!(box.value || '').trim();
+          }
+          return { label: label.slice(0, 80), isSearch, submits, searchOnly }; })()`,
         true,
-      )) as { label: string; isSearch: boolean; submits?: boolean }
+      )) as { label: string; isSearch: boolean; submits?: boolean; searchOnly?: boolean }
     } catch {
       return { label: "", isSearch: false }
     }
