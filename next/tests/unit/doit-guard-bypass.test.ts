@@ -120,13 +120,16 @@ describe("protected folders written in ways the old check missed", () => {
       `cat ${join(home, "..")}/*/Documents/a.txt`,
       "X=~/Documents; cat $X/a.txt",
       "cat $PWD/../Documents/a.txt",
-      "rg --files ~/documents",
     ]) {
       const check = await toolbox().check("run_command", { command })
       expect(check.always, command).toBe(true)
       expect(check.reason, command).toMatch(/your (Documents|Library|Desktop) folder$/)
     }
     expect(await toolbox().check("run_command", { command: "cat $HOME/Do*/a.txt" })).toEqual(asks)
+    // ~/documents is ~/Documents only where the disk ignores case; on Linux it's another folder.
+    const lower = await toolbox().check("run_command", { command: "rg --files ~/documents" })
+    if (process.platform === "darwin" || process.platform === "win32") expect(lower).toEqual(asks)
+    else expect(lower.always).toBeUndefined()
   })
   it("asks for a relative path when the command runs outside the workspace", async () => {
     expect(await toolbox().check("run_command", { command: "cat Documents/a.txt", cwd: join(home, "Projects") })).toEqual(asks)
