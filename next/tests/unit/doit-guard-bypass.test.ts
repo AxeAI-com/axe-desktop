@@ -117,6 +117,20 @@ describe("protected folders written in ways the old check missed", () => {
       "cat ~/{Documents,x}/a.txt",
       "cat ~/$X/a.txt",
       `cat ${home}/*/a.txt`,
+      "cat ~{/Documents,}/a.txt",
+      "cat {~/Documents,x}/a.txt",
+      "cat ~{/Do*,}/a.txt",
+      `cat ~${home.split("/").pop()}/Documents/a.txt`,
+      "builtin cd ~ && cat Documents/a.txt",
+      "X=1 cd ~ && cat Documents/a.txt",
+      "{ cd ~; cat Documents/a.txt; }",
+      "if cd ~; then cat Documents/a.txt; fi",
+      "env -C ~ cat Documents/a.txt",
+      "bash -c 'cd ~ && cat Documents/a.txt'",
+      "builtin cd ~ && cat D*/a.txt",
+      "bash -c 'cd ~ && cat Do*/a.txt'",
+      "cat Documents/a.txt",
+      "cat ./DOCUMENTS/a.txt",
       `cat ${join(home, "..")}/*/Documents/a.txt`,
       "X=~/Documents; cat $X/a.txt",
       "cat $PWD/../Documents/a.txt",
@@ -136,7 +150,7 @@ describe("protected folders written in ways the old check missed", () => {
     expect(await toolbox().check("run_command", { command: "cat a.txt", cwd: home })).toEqual({ reason: undefined })
   })
   it("still runs plain commands in the workspace without asking", async () => {
-    for (const command of ["ls -la", "ls *", "cat notes/library.md", "grep -rn todo .", "cat Documents.md"]) expect((await toolbox().check("run_command", { command })).always, command).toBeUndefined()
+    for (const command of ["ls -la", "ls *", "cat notes/library.md", "grep -rn todo .", "cat Documents.md", "echo $PATH", "ls $TMPDIR", "for f in *.md; do wc -l $f; done", "uniq -c a.txt", "find . -name '*.ts'", `cat "${join(workspace, "notes.txt")}"`, `ls ${workspace.replace(/ /g, "\\ ")}`]) expect((await toolbox().check("run_command", { command })).always, command).toBeUndefined()
   })
   it("still lets the user's named folder through", async () => {
     expect((await toolbox("summarise my documents").check("run_command", { command: "cd ~ && cat Documents/a.txt" })).always).toBeUndefined()
@@ -145,8 +159,8 @@ describe("protected folders written in ways the old check missed", () => {
 
 describe("protected folders count every path a step touches", () => {
   it("finds paths written in a shell command", () => {
-    expect(commandPaths("cat ~/Documents/a.txt | grep x", "/Users/mia")).toEqual(["/Users/mia/Documents/a.txt"])
-    expect(commandPaths('head "$HOME/Desktop/y" && ls /tmp', "/Users/mia")).toEqual(["/Users/mia/Desktop/y", "/tmp"])
+    expect(commandPaths("cat ~/Documents/a.txt | grep x", "/Users/mia")).toEqual(["/Users/mia/Documents", "/Users/mia/Documents/a.txt"])
+    expect(commandPaths('head "$HOME/Desktop/y" && ls /tmp', "/Users/mia")).toEqual(["/Users/mia/Desktop", "/Users/mia/Desktop/y", "/tmp"])
     expect(commandPaths("ls -la src", "/Users/mia")).toEqual([])
   })
 
