@@ -1,12 +1,12 @@
 import { existsSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, isAbsolute, relative } from "node:path"
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type { Json } from "@shared/types"
 
-import { mustConfirm, protectedFolder, shortPath, userNamed } from "./guard"
+import { PROTECTED, expandHome, mustConfirm, protectedFolder, realish, shortPath, userNamed } from "./guard"
 import { deleteFile, editText, listFolder, readText, resolvePath, searchFiles, writeText } from "./files"
 import type { Check, ToolOutcome, Toolbox } from "./loop"
 import { commandReport, runCommand } from "./terminal"
@@ -59,10 +59,12 @@ const preview = (text: string, lines = 12) => {
   return all.length > lines ? `${all.slice(0, lines).join("\n")}\n…` : text
 }
 
-const inside = (p: string, folder: string) => {
+const lexicallyInside = (p: string, folder: string) => {
   const rel = relative(folder, p)
   return !rel.startsWith("..") && !isAbsolute(rel)
 }
+// With symlinks resolved: a link in the workspace that points into ~/Documents isn't "inside".
+const inside = (p: string, folder: string) => lexicallyInside(realish(p), realish(folder))
 
 const PATH_TOOLS = new Set(["read_file", "list_folder", "write_file", "edit_file", "delete_file", "search_files", "run_command"])
 
@@ -117,7 +119,8 @@ export function makeToolbox(o: ToolboxOptions): Toolbox {
     if (!PATH_TOOLS.has(name)) return []
     if (name === "search_files") return [s(input.folder)].filter(Boolean)
     if (name !== "run_command") return [s(input.path)].filter(Boolean)
-    return [s(input.cwd), ...commandPaths(s(input.command), o.home)].filter(Boolean)
+    const cwd = s(input.cwd) ? path(s(input.cwd)) : o.workspace
+    return [s(input.cwd), ...commandPaths(s(input.command), o.home, { cwd, workspace: o.workspace })].filter(Boolean)
   }
 
   async function actionCheck(name: string, input: Input): Promise<Check> {
@@ -236,14 +239,153 @@ function fileTarget(url: string): string | undefined {
   }
 }
 
-/** Paths written in a shell command: ~/…, $HOME/…, ${HOME}/… and absolute paths, quotes removed. */
-export function commandPaths(command: string, home = homedir()): string[] {
-  const out: string[] = []
-  for (const raw of command.split(/[\s|&;()<>]+/)) {
-    const word = raw.replace(/^['"]+|['"]+$/g, "").replace(/^[A-Za-z-]+=/, "")
-    if (!word) continue
-    const expanded = word.replace(/^(\$HOME|\$\{HOME\}|~)(?=\/|$)/, home)
-    if (expanded === "~" || expanded.startsWith("~/") || isAbsolute(expanded)) out.push(expanded)
+// A quote or backslash ends a variable's name: $H"ments" is ${H}ments, not $Hments.
+const closeVar = (word: string) => word.replace(/\$(\w+)$/, "$${$1}")
+
+/** A shell command split into segments of words, quotes and backslash escapes removed. */
+export function shellWords(command: string, windows = process.platform === "win32"): string[][] {
+  const segments: string[][] = [[]]
+  let word: string | undefined
+  let quote: "'" | '"' | undefined
+  const end = () => {
+    if (word !== undefined) segments[segments.length - 1]!.push(word)
+    word = undefined
   }
-  return out
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]!
+    if (quote) {
+      if (c === quote) {
+        quote = undefined
+        word = closeVar(word ?? "")
+      }
+      else if (quote === '"' && c === "\\" && !windows && /["\\$`]/.test(command[i + 1] ?? "")) word += command[++i]!
+      else word += c
+    } else if (c === "'" || c === '"') {
+      quote = c
+      word = closeVar(word ?? "")
+    } else if (c === "\\" && !windows) {
+      word = closeVar(word ?? "") + (command[++i] ?? "")
+    } else if (/\s/.test(c) && c !== "\n") {
+      end()
+    } else if (/[|&;()<>\n`]/.test(c)) {
+      end()
+      if (/[|&;\n()`]/.test(c)) segments.push([])
+    } else {
+      word = (word ?? "") + c
+    }
+  }
+  end()
+  return segments.filter((w) => w.length)
+}
+
+// A part of a path that the shell may turn into any name: a glob, a brace list or a variable.
+const WILD = /[*?[\]{}$]/
+/** A path part as a pattern, erring wide: a brace list or variable matches anything, [..] any one character. */
+function globRegex(part: string): RegExp {
+  let re = ""
+  for (let i = 0; i < part.length; i++) {
+    const c = part[i]!
+    if (c === "*") re += ".*"
+    else if (c === "?") re += "."
+    else if (c === "[" || c === "{" || c === "$") {
+      const close = c === "[" ? "]" : "}"
+      const end = c === "$" && part[i + 1] !== "{" ? i + (/^\$\w*/.exec(part.slice(i))![0].length - 1) : part.indexOf(close, i + 1)
+      re += c === "[" ? "." : ".*"
+      if (end < 0) break
+      i = end
+    } else re += c.replace(/[.+^()|\\\]}]/, "\\$&")
+  }
+  return new RegExp(`^${re}$`, "i")
+}
+/** The protected folders this one path part could name: "Documents", "documents", "D*", "$X". */
+const couldName = (part: string) => PROTECTED.filter((f) => (WILD.test(part) ? globRegex(part).test(f) : part.toLowerCase() === f.toLowerCase()))
+
+const HOME_PREFIX = /^(\$HOME|\$\{HOME\}|~)(?=[/\\]|$)/
+// Words that change the folder the rest runs in (`cd`, `builtin cd`, `env -C`, `git -C`). Command
+// strings (`bash -c '…'`) are read as words too, so a cd inside one counts.
+const CD_WORDS = new Set(["cd", "pushd", "popd", "chdir", "set-location", "sl", "push-location"])
+// -C means "run in this folder" only for some tools; for ls and grep it's columns or context lines.
+const DIR_OPTION = new Set(["-C", "--chdir", "--directory"])
+const DIR_TOOLS = new Set(["env", "git", "make", "gmake", "tar", "pnpm", "npm", "yarn", "bsdtar"])
+const isCd = (w: string, words: string[]) =>
+  CD_WORDS.has(w.toLowerCase()) || (DIR_OPTION.has(w.split("=")[0]!) && words.some((x) => DIR_TOOLS.has(x)))
+// Builtins that set a variable the guard can't read from the words (printf -v, read, mapfile) or run
+// a string (eval, source): after one, even a bare $f could be any folder.
+const DYNAMIC = new Set(["read", "mapfile", "readarray", "eval", "source", "set", "declare", "typeset", "local", "export", "set-variable", "invoke-expression", "iex"])
+const isDynamic = (words: string[]) =>
+  words[0] === "." || words.some((w) => DYNAMIC.has(w.toLowerCase())) || (words.includes("printf") && words.some((w) => /^-v/.test(w)))
+// A variable with more path after or around it ($H/Docu*, ${H}ments) may stand for your home.
+const BARE_VAR = /^\$(?:\w+|\{\w+\})$/
+const MENTION = /(?:^|[/\\~={},:;\s])(desktop|documents|downloads|library)(?=$|[/\\{},:;*?[\s])/gi
+
+/** Every word, with command strings (`bash -c '…'`, `eval "…"`) split into their own words too. */
+function allWords(command: string, depth = 0): string[][] {
+  const segments = shellWords(command)
+  if (depth > 3) return segments
+  const nested = (w: string, i: number, words: string[]) => /[;&|\n]/.test(w) || /^(-c|eval|-command)$/i.test(words[i - 1] ?? "")
+  return segments.flatMap((words) => [words, ...words.filter(nested).flatMap((w) => allWords(w, depth + 1))])
+}
+
+/** `~` and `~name` at the start of a word, as the shell expands them; `$HOME` too. */
+function expandTilde(word: string, home: string): string {
+  const w = word.replace(HOME_PREFIX, home)
+  const other = /^~([A-Za-z0-9._-]+)(?=[/\\]|$)/.exec(w)
+  return other ? join(dirname(home), other[1]!) + w.slice(other[0].length) : w
+}
+
+/**
+ * Paths a shell command could reach, for the protected-folder check. Errs on asking:
+ * - any word that names Desktop, Documents, Downloads or Library (any case, quotes removed, the
+ *   workspace's own path aside) names that folder in your home;
+ * - absolute and home paths count as written, with a glob or variable above a protected folder
+ *   (`~/D*`, `/Users/*\/Documents`) counting as every folder it could match;
+ * - relative words resolve against the command's folder and wherever it cds; when the command may
+ *   not run in the workspace (another cwd, a folder change, `..`, `~` or a brace list in the word),
+ *   a glob or variable in one of its parts counts as every folder it could match.
+ */
+export function commandPaths(command: string, home = homedir(), at: { cwd?: string; workspace?: string } = {}): string[] {
+  const out = new Set<string>()
+  const segments = allWords(command)
+  const bases = at.cwd ? [at.cwd] : []
+  const moved = segments.some((words) => isDynamic(words) || words.some((w) => isCd(w, words)))
+  if (moved) bases.push(home)
+  for (const words of segments) {
+    words.forEach((w, i) => {
+      if (!isCd(w, words) || !words[i + 1] || WILD.test(words[i + 1]!)) return
+      for (const b of [...bases]) bases.push(resolve(b, expandTilde(words[i + 1]!, home)))
+    })
+  }
+  const confined = !moved && !!at.cwd && !!at.workspace && lexicallyInside(at.cwd, at.workspace)
+  const spaces = at.workspace ? [at.workspace, shortPath(at.workspace, home)] : []
+  for (const words of segments) {
+    for (const raw of words) {
+      // The workspace lives under ~/Library on the Mac: its own path isn't a mention of Library.
+      let bare = raw
+      for (const ws of spaces) bare = bare.split(ws).join("")
+      for (const m of bare.matchAll(MENTION)) out.add(join(home, PROTECTED.find((f) => f.toLowerCase() === m[1]!.toLowerCase())!))
+      const word = raw.replace(/^(?:[A-Za-z_][A-Za-z0-9_]*|--?[A-Za-z][\w-]*)=/, "")
+      if (!word || (word.startsWith("-") && word !== "-")) continue
+      const w = expandTilde(word, home)
+      if (isAbsolute(w)) {
+        out.add(w)
+        const pattern = normalize(w).split(sep).filter(Boolean)
+        for (const f of PROTECTED) {
+          const target = join(home, f).split(sep).filter(Boolean)
+          const head = pattern.slice(0, target.length)
+          if (head.length === target.length && head.some((p) => WILD.test(p)) && head.every((p, i) => (WILD.test(p) ? globRegex(p).test(target[i]!) : p.toLowerCase() === target[i]!.toLowerCase())))
+            out.add(join(home, f))
+        }
+        if (!/[{}]/.test(w)) continue
+      } else {
+        for (const b of bases) out.add(resolve(b, w))
+      }
+      const parts = w.split(/[/\\:=,]/).filter(Boolean)
+      if (confined && !/[~{}]/.test(w) && !parts.includes("..") && !(w.includes("$") && !BARE_VAR.test(w))) continue
+      // A brace list both as one pattern ({Docu,x}ments) and taken apart (~{/D*,}).
+      // In the workspace a whole-part variable ($H in $H/Docu*) is the base, not a folder name.
+      const named = confined ? (p: string) => !BARE_VAR.test(p) : () => true
+      for (const p of [...parts, ...w.replace(/\$\{(\w+)\}/g, "$$$1").split(/[/\\:=,{}]/).filter(Boolean)].filter(named)) for (const f of couldName(p)) out.add(join(home, f))
+    }
+  }
+  return [...out]
 }

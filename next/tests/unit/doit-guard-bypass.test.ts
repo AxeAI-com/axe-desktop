@@ -1,12 +1,12 @@
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
 vi.mock("electron", () => ({ BrowserWindow: class {}, ipcMain: { handle: () => {} } }))
 
-import { mustAsk, mustConfirm, readOnlyCommand } from "../../src/main/doit/guard"
-import { commandPaths, makeToolbox } from "../../src/main/doit/toolbox"
+import { mustAsk, mustConfirm, protectedFolder, readOnlyCommand } from "../../src/main/doit/guard"
+import { commandPaths, makeToolbox, shellWords } from "../../src/main/doit/toolbox"
 import { trustedPage } from "../../src/main/ipc"
 
 // Ways around "it asks first" found in a security review (Nov 2026). Each test pins the fix.
@@ -32,10 +32,153 @@ describe("commands that write through their own options aren't read-only", () =>
   })
 })
 
+describe("read-only commands that can run another program", () => {
+  it("asks for sort's compress program and rg's preprocessor, however they're written", () => {
+    for (const c of [
+      "sort --compress-program=sh in.txt",
+      "sort --compress-program sh in.txt",
+      "sort --compress=sh in.txt",
+      "sort -T /tmp in.txt",
+      "rg --pre=./run.sh foo",
+      "rg --pre ./run.sh foo",
+      "rg --pre-glob '*.txt' --pre sh foo",
+      "rg -z foo",
+      "rg --search-zip foo",
+      "rg --hostname-bin=sh foo",
+      "rg -n --pr=sh foo",
+      "rg '--pre=sh' foo",
+      'rg "--pre"=sh foo',
+      "rg --p\\re=sh foo",
+      "find . '-delete'",
+    ])
+      expect(readOnlyCommand(c), c).toBe(false)
+  })
+  it("still lets ordinary searches and sorts through", () => {
+    for (const c of [
+      "sort -k2,2 -t, in.txt",
+      "sort -k 2 -t , -n in.txt",
+      "sort --key=2 --numeric-sort -u in.txt",
+      "rg -n foo src",
+      "rg -i --glob '*.ts' -C 2 foo",
+      "rg --type ts -e --pre src",
+      "rg -l foo -- --pre",
+      "rg --files --hidden",
+    ])
+      expect(readOnlyCommand(c), c).toBe(true)
+  })
+})
+
+describe("protected folders without the exact case, or through a link", () => {
+  const link = join(home, "notes-link")
+  symlinkSync(join(home, "Documents"), link)
+  symlinkSync(join(home, "Documents"), join(workspace, "docs-link"))
+
+  it("matches any case where the disk ignores case", () => {
+    expect(protectedFolder("~/documents/x", "/Users/mia", true)).toBe("Documents")
+    expect(protectedFolder("/Users/mia/DESKTOP", "/Users/mia", true)).toBe("Desktop")
+    expect(protectedFolder("/users/MIA/library/Caches", "/Users/mia", true)).toBe("Library")
+    expect(protectedFolder("~/documents/x", "/Users/mia", false)).toBeUndefined()
+  })
+  it("ignores case by default on the Mac and Windows", () => {
+    if (process.platform === "darwin" || process.platform === "win32") expect(protectedFolder("~/documents/x", "/Users/mia")).toBe("Documents")
+  })
+  it("follows a symlink into a protected folder, for files there and not there yet", () => {
+    expect(protectedFolder(join(link, "a.txt"), home)).toBe("Documents")
+    expect(protectedFolder(join(link, "new", "c.txt"), home)).toBe("Documents")
+    expect(protectedFolder(link, home)).toBe("Documents")
+  })
+  it("asks for a read through a link, even one inside the workspace", async () => {
+    expect(await toolbox().check("read_file", { path: join(link, "a.txt") })).toEqual({ reason: "Use your Documents folder", always: true })
+    expect(await toolbox().check("read_file", { path: join(workspace, "docs-link", "a.txt") })).toEqual({ reason: "Use your Documents folder", always: true })
+    expect(await toolbox().check("run_command", { command: "cat docs-link/a.txt" })).toEqual({ reason: "Use your Documents folder", always: true })
+  })
+})
+
+describe("protected folders written in ways the old check missed", () => {
+  const asks = { reason: "Use your Documents folder", always: true }
+  it("splits shell words the way the shell does", () => {
+    expect(shellWords(`cat "$HOME"/Documents/a.txt | wc -l`, false)).toEqual([["cat", "${HOME}/Documents/a.txt"], ["wc", "-l"]])
+    expect(shellWords(`cat ~/"Doc"'uments'/a\\ b.txt`, false)).toEqual([["cat", "~/Documents/a b.txt"]])
+    expect(shellWords(`cat $H"ments" $H`, false)).toEqual([["cat", "${H}ments", "$H"]])
+  })
+  it("asks for quotes in the middle, .., cd, globs and variables", async () => {
+    for (const command of [
+      `cat "$HOME"/Documents/a.txt`,
+      `cat ~/"Documents"/a.txt`,
+      `cat ~/Doc"uments"/a.txt`,
+      `cat \\~/Documents/a.txt`,
+      "cat ../../Documents/a.txt",
+      "cat ../../../../Documents/a.txt",
+      "cd ~ && cat Documents/a.txt",
+      "cd && cat Documents/a.txt",
+      "cd .. ; cd .. ; cat ../../Documents/a.txt",
+      "cat $HOME/D*/a.txt",
+      "cat ~/Doc?ments/a.txt",
+      "cat ~/[Dd]ocuments/a.txt",
+      "cat ~/{Documents,x}/a.txt",
+      "cat ~/$X/a.txt",
+      `cat ${home}/*/a.txt`,
+      "cat ~{/Documents,}/a.txt",
+      "cat {~/Documents,x}/a.txt",
+      "cat ~{/Do*,}/a.txt",
+      `cat ~${home.split("/").pop()}/Documents/a.txt`,
+      "builtin cd ~ && cat Documents/a.txt",
+      "X=1 cd ~ && cat Documents/a.txt",
+      "{ cd ~; cat Documents/a.txt; }",
+      "if cd ~; then cat Documents/a.txt; fi",
+      "env -C ~ cat Documents/a.txt",
+      "bash -c 'cd ~ && cat Documents/a.txt'",
+      "builtin cd ~ && cat D*/a.txt",
+      "bash -c 'cd ~ && cat Do*/a.txt'",
+      "cat Documents/a.txt",
+      "cat ./DOCUMENTS/a.txt",
+      "H=~; cat $H/Docu*/a.txt",
+      "H=~; ls $H/D*",
+      "export H=~; ls $H/Do*",
+      "C='cd ~'; eval $C; cat Docu*/a.txt",
+      "git -C ~ ls-files Docu*",
+      ". ./env.sh; ls Do*",
+      "printf -v H ~; cat $H/Docu*/a.txt",
+      "printf -v H %s ~; cat $H/Docu*/a.txt",
+      "for H in ~; do cat $H/Docu*/a.txt; done",
+      "select H in ~; do cat $H/Docu*/a.txt; done",
+      "mapfile -t H <<< ~; cat $H/Docu*",
+      "f=~/Docu; cat ${f}ments/a.txt",
+      "printf -v f %s%s ~/Docu ments; cat $f",
+      `H=~/Docu; cat $H"ments"/a.txt`,
+      "H=~/Docu; cat $H'ments'/a.txt",
+      `H=~/Docu; cat "$H"ments/a.txt`,
+      "H=~/Docu; cat $H\\ments/a.txt",
+      `cat ${join(home, "..")}/*/Documents/a.txt`,
+      "X=~/Documents; cat $X/a.txt",
+      "cat $PWD/../Documents/a.txt",
+    ]) {
+      const check = await toolbox().check("run_command", { command })
+      expect(check.always, command).toBe(true)
+      expect(check.reason, command).toMatch(/your (Documents|Library|Desktop) folder$/)
+    }
+    expect(await toolbox().check("run_command", { command: "cat $HOME/Do*/a.txt" })).toEqual(asks)
+    // A command naming the folder in any case asks on every system (on Linux ~/documents is another
+    // folder, but asking there is harmless); paths given to the file tools fold case only on the Mac
+    // and Windows (protectedFolder above).
+    expect(await toolbox().check("run_command", { command: "rg --files ~/documents" })).toEqual(asks)
+  })
+  it("asks for a relative path when the command runs outside the workspace", async () => {
+    expect(await toolbox().check("run_command", { command: "cat Documents/a.txt", cwd: join(home, "Projects") })).toEqual(asks)
+    expect(await toolbox().check("run_command", { command: "cat a.txt", cwd: home })).toEqual({ reason: undefined })
+  })
+  it("still runs plain commands in the workspace without asking", async () => {
+    for (const command of ["ls -la", "ls *", "cat notes/library.md", "grep -rn todo .", "cat Documents.md", "echo $PATH", "ls $TMPDIR", "for f in *.md; do wc -l $f; done", "uniq -c a.txt", "find . -name '*.ts'", "find . -name '*'", "ls -C *", "grep a=b *", "grep -r key=value .", "cat ${PWD}/*.md", "grep -C 3 TODO *", "rg -C 2 TODO src", `cat "${join(workspace, "notes.txt")}"`, `ls ${workspace.replace(/ /g, "\\ ")}`]) expect((await toolbox().check("run_command", { command })).always, command).toBeUndefined()
+  })
+  it("still lets the user's named folder through", async () => {
+    expect((await toolbox("summarise my documents").check("run_command", { command: "cd ~ && cat Documents/a.txt" })).always).toBeUndefined()
+  })
+})
+
 describe("protected folders count every path a step touches", () => {
   it("finds paths written in a shell command", () => {
-    expect(commandPaths("cat ~/Documents/a.txt | grep x", "/Users/mia")).toEqual(["/Users/mia/Documents/a.txt"])
-    expect(commandPaths('head "$HOME/Desktop/y" && ls /tmp', "/Users/mia")).toEqual(["/Users/mia/Desktop/y", "/tmp"])
+    expect(commandPaths("cat ~/Documents/a.txt | grep x", "/Users/mia")).toEqual(["/Users/mia/Documents", "/Users/mia/Documents/a.txt"])
+    expect(commandPaths('head "$HOME/Desktop/y" && ls /tmp', "/Users/mia")).toEqual(["/Users/mia/Desktop", "/Users/mia/Desktop/y", "/tmp"])
     expect(commandPaths("ls -la src", "/Users/mia")).toEqual([])
   })
 

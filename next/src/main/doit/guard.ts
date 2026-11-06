@@ -1,5 +1,6 @@
+import { realpathSync } from "node:fs"
 import { homedir } from "node:os"
-import { basename, isAbsolute, join, relative, resolve, sep } from "node:path"
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import type { Json } from "@shared/types"
 
@@ -105,12 +106,61 @@ const PS_LOOK = new Set([
 const VERSION_ONLY = new Set(["node", "python3", "python", "npm", "pnpm"])
 const GIT_LOOK = new Set(["status", "log", "diff", "show", "branch", "remote", "rev-parse", "ls-files", "blame"])
 
+// Commands that only read in general but have options that run another program or write a file
+// (`sort --compress-program=sh`, `rg --pre=prog`, `sort -o out`). For these only the options listed
+// here count as read-only; anything else, including GNU's abbreviated long options, asks first.
+type Options = { short: string; shortValue: string; long: Set<string>; longValue: Set<string> }
+const SAFE_OPTIONS: Record<string, Options> = {
+  sort: {
+    short: "bdfghiMnRrsuVcCmz",
+    shortValue: "ktS",
+    long: new Set(["ignore-leading-blanks", "dictionary-order", "ignore-case", "general-numeric-sort", "human-numeric-sort", "ignore-nonprinting", "month-sort", "numeric-sort", "random-sort", "reverse", "version-sort", "stable", "unique", "check", "merge", "zero-terminated", "debug", "help", "version"]),
+    longValue: new Set(["key", "field-separator", "buffer-size", "parallel", "sort", "check"]),
+  },
+  rg: {
+    short: "iSsFxwvclnNoqHIL0abUuph",
+    shortValue: "efgtTmABCjMErd",
+    long: new Set(["ignore-case", "smart-case", "case-sensitive", "fixed-strings", "word-regexp", "line-regexp", "invert-match", "count", "count-matches", "files-with-matches", "files-without-match", "files", "line-number", "no-line-number", "only-matching", "quiet", "hidden", "no-hidden", "no-ignore", "no-ignore-vcs", "no-ignore-parent", "no-ignore-dot", "no-ignore-global", "no-ignore-exclude", "no-ignore-files", "follow", "no-follow", "heading", "no-heading", "with-filename", "no-filename", "vimgrep", "json", "no-json", "stats", "multiline", "multiline-dotall", "pcre2", "no-pcre2", "trim", "null", "null-data", "column", "no-column", "no-messages", "binary", "no-binary", "text", "no-text", "type-list", "debug", "trace", "help", "version", "unrestricted", "glob-case-insensitive", "ignore-file-case-insensitive", "byte-offset", "passthru", "crlf", "no-config", "one-file-system", "invert-match", "pretty", "no-unicode", "unicode", "word-regexp", "files-without-match", "include-zero", "max-columns-preview", "no-require-git", "block-buffered", "line-buffered", "no-mmap", "mmap", "no-crlf", "auto-hybrid-regex"]),
+    longValue: new Set(["regexp", "file", "glob", "iglob", "type", "type-not", "type-add", "type-clear", "max-count", "after-context", "before-context", "context", "threads", "max-depth", "maxdepth", "max-filesize", "max-columns", "sort", "sortr", "color", "colors", "encoding", "replace", "context-separator", "field-match-separator", "field-context-separator", "path-separator", "ignore-file", "engine", "dfa-size-limit", "regex-size-limit", "generate"]),
+  },
+}
+
+/** True when every option is on the command's safe list. Values that follow an option are skipped. */
+function onlySafeOptions(args: string[], o: Options): boolean {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!
+    if (a === "--") return true
+    if (!a.startsWith("-") || a === "-") continue
+    if (a.startsWith("--")) {
+      const [name, value] = [a.slice(2).split("=")[0]!, a.includes("=")]
+      if (o.longValue.has(name)) {
+        if (!value && !o.long.has(name)) i++
+        continue
+      }
+      if (o.long.has(name) && !value) continue
+      return false
+    }
+    for (let j = 1; j < a.length; j++) {
+      const c = a[j]!
+      if (o.shortValue.includes(c)) {
+        if (j === a.length - 1) i++
+        break
+      }
+      if (!o.short.includes(c)) return false
+    }
+  }
+  return true
+}
+
+/** A shell word as the shell passes it on: quotes and backslash escapes removed. */
+const unquote = (w: string) => w.replace(/\\(.)/g, "$1").replace(/['"]/g, "")
+
 /** True for a command that only reads: `ls -la`, `git status`, `grep foo *.ts | wc -l`. */
 export function readOnlyCommand(command: string): boolean {
   if (!command.trim()) return false
   if (/[`$]\(|`|>|<\(|\bsudo\b/.test(command)) return false
   for (const segment of command.split(/&&|\|\||;|\||\n/)) {
-    const words = segment.trim().split(/\s+/).filter(Boolean)
+    const words = segment.trim().split(/\s+/).filter(Boolean).map(unquote)
     const [first, ...args] = words
     if (!first) continue
     // "(Get-ChildItem).Count": the command inside PowerShell's brackets.
@@ -121,8 +171,9 @@ export function readOnlyCommand(command: string): boolean {
     if (cmd === "git" && !GIT_LOOK.has(args.find((a) => !a.startsWith("-")) ?? "")) return false
     if (cmd === "find" && args.some((a) => /^-(delete|exec|execdir|ok|okdir|fprint|fls)/.test(a))) return false
     if (cmd === "env" && args.length > 0) return false
+    const safe = SAFE_OPTIONS[cmd]
+    if (safe && !onlySafeOptions(args, safe)) return false
     // Read-only commands that can still write a file through their own options or operands.
-    if (cmd === "sort" && args.some((a) => /^--output(=|$)/.test(a) || /^-[a-zA-Z]*o/.test(a))) return false
     if (cmd === "tree" && args.some((a) => /^-[a-zA-Z]*o/.test(a))) return false
     if (cmd === "uniq" && args.filter((a) => !a.startsWith("-")).length > 1) return false
     if (cmd === "git" && args.some((a) => /^--output(=|$)/.test(a))) return false
@@ -136,13 +187,47 @@ export const PROTECTED = ["Desktop", "Documents", "Downloads", "Library"] as con
 
 export const expandHome = (p: string, home = homedir()) => (p === "~" ? home : p.startsWith("~/") ? join(home, p.slice(2)) : p)
 
-/** The protected folder this path is in, if any. */
-export function protectedFolder(path: string, home = homedir()): (typeof PROTECTED)[number] | undefined {
-  const full = resolve(expandHome(path, home))
-  const rel = relative(home, full)
+/** The Mac's and Windows' usual disks ignore case: ~/documents is ~/Documents. */
+export const CASE_INSENSITIVE = process.platform === "darwin" || process.platform === "win32"
+
+/**
+ * The path with symlinks resolved: the nearest part of it that exists goes through realpath, the
+ * rest (not created yet) is added back as written.
+ */
+export function realish(path: string): string {
+  const rest: string[] = []
+  let p = resolve(path)
+  for (;;) {
+    try {
+      return rest.length ? join(realpathSync.native(p), ...rest.reverse()) : realpathSync.native(p)
+    } catch {
+      const up = dirname(p)
+      if (up === p) return resolve(path)
+      rest.push(basename(p))
+      p = up
+    }
+  }
+}
+
+function topUnder(home: string, full: string, fold: boolean): string | undefined {
+  const rel = fold ? relative(home.toLowerCase(), full.toLowerCase()) : relative(home, full)
   if (!rel || rel.startsWith("..") || isAbsolute(rel)) return undefined
-  const top = rel.split(sep)[0]
-  return PROTECTED.find((f) => f === top)
+  return rel.split(sep)[0]
+}
+
+/**
+ * The protected folder this path is in, if any. Compared without case where the disk ignores it,
+ * and both as written and with symlinks resolved, so ~/documents/x and a link into ~/Documents count.
+ */
+export function protectedFolder(path: string, home = homedir(), fold = CASE_INSENSITIVE): (typeof PROTECTED)[number] | undefined {
+  const full = resolve(expandHome(path, home))
+  // Where it really is first: a link at ~/Library/x pointing into ~/Documents is about Documents.
+  for (const [h, p] of [[realish(home), realish(full)], [home, full]] as const) {
+    const top = topUnder(h, p, fold)
+    const hit = top && PROTECTED.find((f) => (fold ? f.toLowerCase() === top.toLowerCase() : f === top))
+    if (hit) return hit
+  }
+  return undefined
 }
 
 /** Did the user name this folder in what they wrote? "my downloads", "~/Documents/notes.txt". */
