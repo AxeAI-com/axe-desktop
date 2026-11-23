@@ -13,7 +13,7 @@ async function open(page: Page, theme: "dark" | "light", mock: string) {
   await page.clock.setFixedTime(NOW)
   await page.goto(`/?theme=${theme}&mock=${mock}`)
   await page.evaluate(() => document.fonts.ready)
-  await page.getByRole("button", { name: /^Watching/ }).first().click()
+  await page.getByRole("button", { name: /^Oversight/ }).first().click()
 }
 
 async function settle(page: Page) {
@@ -28,7 +28,7 @@ for (const theme of ["light", "dark"] as const) {
   test.describe(`watching ${theme}`, () => {
     test("page-empty and c-uptime-ask", async ({ page }) => {
       await open(page, theme, "nowatches")
-      await expect(page.getByText("What should Axe watch?")).toBeVisible()
+      await expect(page.getByText("What should Axe keep an eye on?")).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-page-empty.png`)
       await page.getByTestId("catalogue").getByRole("button", { name: "Add Uptime and speed" }).click()
@@ -57,7 +57,7 @@ for (const theme of ["light", "dark"] as const) {
       const box = page.getByRole("textbox").last()
       await box.fill("lane-ceramics.com")
       await box.press("Enter")
-      await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Add check" })).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-c-uptime-confirm.png`)
     })
@@ -72,7 +72,7 @@ for (const theme of ["light", "dark"] as const) {
 
     test("page-problem, w-site-problem and its snooze menu", async ({ page }) => {
       await open(page, theme, "watchslow")
-      await expect(page.getByRole("button", { name: "Watching, 1 problem" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Oversight, 1 problem" })).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-page-problem.png`)
       await row(page, "w-site").click()
@@ -83,6 +83,23 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Snooze" }).click()
       await page.waitForTimeout(400)
       await expect(page).toHaveScreenshot(`${theme}-w-site-snooze.png`)
+    })
+
+    test("w-site-activity: incidents, a change and a fix as one line each, newest first", async ({ page }) => {
+      await open(page, theme, "watchactivity")
+      await row(page, "w-site").click()
+      const a = page.getByTestId("activity")
+      await expect(a).toBeVisible()
+      await expect(a.getByTestId("activity-row")).toHaveText([
+        "9:40 amDown for 10 min, 9:40 to 9:50 amResolved",
+        "3:15 pmClaude Code fixed it: changed 3 files",
+        "2:15 pmSlow for 1 h, 2:15 to 3:15 pmFixed",
+        "10:45 amCertificate renewed",
+        "12:45 pmDown for 21 min, 12:45 to 1:06 pmResolved",
+      ])
+      await expect(page.getByTestId("fix-turn")).toHaveCount(0)
+      await settle(page)
+      await expect(page).toHaveScreenshot(`${theme}-w-site-activity.png`)
     })
 
     test("w-site-down", async ({ page }) => {
@@ -112,10 +129,10 @@ for (const theme of ["light", "dark"] as const) {
         await expect(page).toHaveScreenshot(`${theme}-c-${kind}-invalid.png`)
         await box.fill(good)
         await box.press("Enter")
-        await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+        await expect(page.getByRole("button", { name: "Add check" })).toBeVisible()
         await settle(page)
         await expect(page).toHaveScreenshot(`${theme}-c-${kind}-confirm.png`)
-        await page.getByRole("button", { name: "Start watching" }).click()
+        await page.getByRole("button", { name: "Add check" }).click()
         await expect(page.getByText("Checking now")).toBeVisible()
         await page.mouse.move(1420, 880)
         await expect(page).toHaveScreenshot(`${theme}-c-${kind}-running.png`, { mask: [page.locator('[aria-hidden="true"].animate-spin')] })
@@ -125,19 +142,19 @@ for (const theme of ["light", "dark"] as const) {
       })
     }
 
-    test("Watch the page instead switches the kind and keeps the link", async ({ page }) => {
+    test("Check the page instead switches the kind and keeps the link", async ({ page }) => {
       await open(page, theme, "nowatches")
       await page.getByTestId("catalogue").getByRole("button", { name: "Add Price and stock" }).click()
       const box = page.getByRole("textbox").last()
       await box.fill("northclay.com/about")
       await box.press("Enter")
-      await page.getByRole("button", { name: "Watch the page instead" }).click()
+      await page.getByRole("button", { name: "Check the page instead" }).click()
       await expect(page.getByText("Tell me when northclay.com/about changes.")).toBeVisible()
     })
 
     test("the starters sit under the list, and the composer is docked", async ({ page }) => {
       await open(page, theme, "")
-      await expect(page.getByPlaceholder("Watch something else")).toBeVisible()
+      await expect(page.getByPlaceholder("Add a check")).toBeVisible()
       await expect(page.getByTestId("catalogue").getByRole("button", { name: /^Add / })).toHaveCount(35)
       await page.getByTestId("catalogue").getByRole("button", { name: "Add Price and stock" }).click()
       await expect(page.getByText("Press Return to check it. Esc to go back.")).toBeVisible()
@@ -146,7 +163,8 @@ for (const theme of ["light", "dark"] as const) {
     test("w-page-quiet", async ({ page }) => {
       await open(page, theme, "")
       await row(page, "w-page").click()
-      await expect(page.getByText("No changes since Oct 24")).toBeVisible()
+      await expect(page.getByRole("button", { name: "Back to Oversight" })).toBeVisible()
+      await expect(page.getByText("No changes since Oct 24").filter({ visible: true })).toHaveCount(1)
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-w-page-quiet.png`)
     })
@@ -173,7 +191,7 @@ for (const theme of ["light", "dark"] as const) {
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-w-page-reply.png`)
       // Opened: the row's blue dot is gone.
-      await page.getByRole("button", { name: /^Watching/ }).first().click()
+      await page.getByRole("button", { name: /^Oversight/ }).first().click()
       await expect(r).toContainText("No changes since 10:05 am")
     })
 
@@ -216,7 +234,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByText("Every morning I’ll check lane-ceramics.com’s email records, certificate, TLS and headers, and open ports.")).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-c-security-confirm.png`)
-      await page.getByRole("button", { name: "Start watching" }).click()
+      await page.getByRole("button", { name: "Add check" }).click()
       await expect(page.getByText("Checking now")).toBeVisible()
       await page.mouse.move(1420, 880)
       await expect(page).toHaveScreenshot(`${theme}-c-security-running.png`, { mask: [page.locator('[aria-hidden="true"].animate-spin')] })
@@ -278,7 +296,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByText("Tell me about new security alerts in shop-web.")).toBeVisible()
       await expect(page.getByText("Every morning I’ll check shop-web for new security alerts, vulnerable packages and leaked keys.")).toBeVisible()
       await expect(page.getByText(/email records/)).toBeHidden()
-      await page.getByRole("button", { name: "Start watching" }).click()
+      await page.getByRole("button", { name: "Add check" }).click()
       await expect(page.getByText("No open alerts. 214 packages, none with known problems. No keys in the code.")).toBeVisible()
     })
 
@@ -310,20 +328,24 @@ for (const theme of ["light", "dark"] as const) {
   })
 
   test.describe(`watching dashboard ${theme}`, () => {
-    test("dash-wide: ten watches like an owner's, two need a look, links checking", async ({ page }) => {
+    test("dash-wide: the radar, two problems and eight live tiles, like the M-WatchCombo board", async ({ page }) => {
       await open(page, theme, "watchdash")
-      await expect(page.getByTestId("dash-status")).toContainText("8 of 10 healthy, 2 need a look")
-      await expect(page.getByTestId("metric-response")).toContainText("575")
-      await expect(page.getByTestId("metric-certificate")).toContainText("days left")
-      await expect(page.getByTestId("metric-disk")).toContainText("382")
-      await expect(page.getByTestId("metric-tests")).toContainText("Passing")
+      await expect(page.getByTestId("dash-status")).toContainText("8 of 10 checks healthy, 2 need a look")
       await expect(page.getByTestId("dashboard")).toHaveAttribute("data-wide", "true")
+      await expect(page.getByTestId("radar")).toContainText("8/10")
+      await expect(page.getByTestId("radar").getByRole("button", { name: "API health, healthy, 575 ms" })).toBeVisible()
+      await expect(page.getByTestId("row-d-status")).toContainText("Cloudflare outage")
+      await expect(page.getByTestId("row-d-outdated")).toContainText("4 behind")
       await expect(page.getByTestId("row-d-links")).toContainText("Checking")
+      await expect(page.getByTestId("row-d-health")).toContainText("Next check in 5 min")
+      // Problems first: the two problems, the running check, then the healthy ones in group order.
+      const order = await page.locator('[data-testid="live-grid"] > [data-testid^="row-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))
+      expect(order).toEqual(["row-d-status", "row-d-outdated", "row-d-links", "row-d-health", "row-d-feed", "row-d-seo", "row-d-dns", "row-d-expiry", "row-d-tests", "row-d-disk"])
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-dash-wide.png`)
     })
 
-    test("dash-narrow: the Narrow board's one column", async ({ page }) => {
+    test("dash-narrow: two columns, the radar a row of its own", async ({ page }) => {
       await page.setViewportSize({ width: 1180, height: 900 })
       await open(page, theme, "watchdash")
       await expect(page.getByTestId("dashboard")).not.toHaveAttribute("data-wide", "true")
@@ -331,32 +353,140 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page).toHaveScreenshot(`${theme}-dash-narrow.png`)
     })
 
-    test("dash-opened: Show packages, then the pencil opens the chat and Esc folds it back", async ({ page }) => {
+    test("dash-opened: Show packages, then a tile opens its chat and Esc folds it back", async ({ page }) => {
       await open(page, theme, "watchdash")
       await page.getByRole("button", { name: "Show packages" }).click()
-      await expect(page.getByTestId("look-outdated").getByRole("table")).toContainText("electron")
-      await page.getByTestId("look-outdated").scrollIntoViewIfNeeded()
+      await expect(page.getByTestId("row-d-outdated").getByRole("table")).toContainText("electron")
+      await page.getByTestId("row-d-outdated").scrollIntoViewIfNeeded()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-dash-opened.png`)
-      await page.getByTestId("row-d-dns").getByRole("button", { name: "Open axeai.com DNS" }).click()
+      await row(page, "d-dns").click()
       await expect(page.getByTestId("watch-strip")).toBeVisible()
       await page.keyboard.press("Escape")
       await expect(page.getByTestId("dashboard")).toBeVisible()
       await row(page, "d-seo").click()
-      await page.getByRole("button", { name: "Back to Watching" }).click()
+      await page.getByRole("button", { name: "Back to Oversight" }).click()
       await expect(page.getByTestId("dashboard")).toBeVisible()
     })
 
-    test("dash-collapsed: a section folds and stays folded", async ({ page }) => {
+    test("dash-by-group: the order switch, remembered", async ({ page }) => {
       await open(page, theme, "watchdash")
-      await page.getByTestId("group-site").getByRole("button", { name: /^Site/ }).click()
-      await expect(page.getByTestId("row-d-links")).toHaveCount(0)
+      await page.getByRole("button", { name: "By group" }).click()
       await page.reload()
-      await page.getByRole("button", { name: /^Watching/ }).first().click()
-      await expect(page.getByTestId("group-site")).toContainText("4 watches, all healthy")
-      await expect(page.getByTestId("row-d-links")).toHaveCount(0)
+      await page.getByRole("button", { name: /^Oversight/ }).first().click()
+      await expect(page.getByRole("button", { name: "By group" })).toHaveAttribute("aria-pressed", "true")
+      await expect(page.locator('[data-testid="live-grid"] > [data-testid^="row-"]')).toHaveCount(10)
+      const order = await page.locator('[data-testid="live-grid"] > [data-testid^="row-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))
+      expect(order).toEqual(["row-d-health", "row-d-links", "row-d-feed", "row-d-seo", "row-d-dns", "row-d-expiry", "row-d-status", "row-d-outdated", "row-d-tests", "row-d-disk"])
       await settle(page)
-      await expect(page).toHaveScreenshot(`${theme}-dash-collapsed.png`)
+      await expect(page).toHaveScreenshot(`${theme}-dash-by-group.png`)
     })
   })
 }
+
+/** Every grid cell the tiles leave empty, measured from where they really are. */
+async function emptyCells(page: Page) {
+  return page.getByTestId("live-grid").evaluate((grid) => {
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length
+    const kids = [...grid.children] as HTMLElement[]
+    const g = grid.getBoundingClientRect()
+    const colW = (g.width - 16 * (cols - 1)) / cols
+    const rowsTop = [...new Set(kids.map((k) => Math.round(k.getBoundingClientRect().top)))].sort((a, b) => a - b)
+    const taken = new Set<string>()
+    for (const k of kids) {
+      const r = k.getBoundingClientRect()
+      const c0 = Math.round((r.left - g.left) / (colW + 16))
+      const w = Math.round((r.width + 16) / (colW + 16))
+      const r0 = rowsTop.indexOf(Math.round(r.top))
+      const h = rowsTop.filter((t) => t >= Math.round(r.top) && t < Math.round(r.bottom)).length
+      for (let y = r0; y < r0 + h; y++) for (let x = c0; x < c0 + w; x++) taken.add(`${y},${x}`)
+    }
+    return rowsTop.length * cols - taken.size
+  })
+}
+
+test.describe("watching dashboard, live", () => {
+  test("every old action still works: menu, Fix with Claude Code, Open status page, Details", async ({ page }) => {
+    const opened: string[] = []
+    page.on("console", (m) => m.text().startsWith("[mock] open") && opened.push(m.text()))
+    await open(page, "dark", "watchdash")
+    // Right-click: Check now, Pause, Resume.
+    await page.getByTestId("row-d-dns").click({ button: "right" })
+    await page.getByRole("menuitem", { name: "Pause" }).click()
+    await expect(page.getByTestId("row-d-dns")).toContainText("Paused since")
+    await page.getByTestId("row-d-dns").click({ button: "right" })
+    await page.getByRole("menuitem", { name: "Resume" }).click()
+    await expect(page.getByTestId("row-d-dns")).not.toContainText("Paused since")
+    await page.getByTestId("row-d-dns").click({ button: "right" })
+    await page.getByRole("menuitem", { name: "Check now" }).click()
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    // The ⋯ on hover is the same menu.
+    await page.getByTestId("row-d-disk").hover()
+    await page.getByRole("button", { name: "More for This Mac’s disk" }).click()
+    await expect(page.getByRole("menuitem", { name: "Delete" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    // Open status page goes to the provider's page.
+    await page.getByRole("button", { name: "Open status page" }).click()
+    await expect.poll(() => opened).toContain("[mock] open https://www.cloudflarestatus.com")
+    // Details opens the watch.
+    await page.getByTestId("row-d-status").getByRole("button", { name: "Details" }).click()
+    await expect(page.getByRole("button", { name: "Back to Oversight" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    // Fix with Claude Code runs in the watch's own thread.
+    await page.getByRole("button", { name: /^Fix with / }).click()
+    await expect(page.getByRole("button", { name: "Back to Oversight" })).toBeVisible()
+  })
+
+  test("a radar dot brings its tile into view and marks it", async ({ page }) => {
+    await open(page, "dark", "watchdash")
+    await page.getByTestId("dot-d-disk").click()
+    await expect(page.getByTestId("row-d-disk")).toHaveAttribute("data-hi", "true")
+    await expect(page.getByTestId("row-d-disk")).toBeInViewport()
+    await expect(page.getByTestId("row-d-disk")).not.toHaveAttribute("data-hi", "true", { timeout: 3000 })
+    // Hovering a tile lights its dot.
+    await page.getByTestId("row-d-tests").hover()
+    await expect(page.getByTestId("dot-d-tests")).toHaveAttribute("data-lit", "true")
+  })
+
+  test("delete leaves nine watches and no empty cell, wide and narrow", async ({ page }) => {
+    await open(page, "dark", "watchdash")
+    expect(await emptyCells(page)).toBe(0)
+    await page.getByTestId("row-d-tests").click({ button: "right" })
+    await page.getByRole("menuitem", { name: "Delete" }).click()
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click()
+    await expect(page.locator('[data-testid="live-grid"] > [data-testid^="row-"]')).toHaveCount(9)
+    expect(await emptyCells(page)).toBe(0)
+    await page.setViewportSize({ width: 1180, height: 900 })
+    await expect(page.getByTestId("dashboard")).not.toHaveAttribute("data-wide", "true")
+    expect(await emptyCells(page)).toBe(0)
+  })
+
+  test("Reduce Motion: no live animation runs", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" })
+    await open(page, "dark", "watchdash")
+    await expect(page.getByTestId("radar")).toBeVisible()
+    await page.waitForTimeout(600)
+    const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running").length)
+    expect(running).toBe(0)
+    // The values stay: the countdown shows its number.
+    await expect(page.getByTestId("row-d-health")).toContainText("Next check in 5 min")
+  })
+
+  test("Oversight runs no loops, and a hidden window still marks the page paused", async ({ page }) => {
+    await open(page, "dark", "watchdash")
+    await expect(page.getByTestId("radar")).toBeVisible()
+    // Quiet Oversight (2026-11-08): no live loops (`data-loop`) on the dashboard; a checking spinner may still turn.
+    const live = () => page.evaluate(() => document.getAnimations().filter((a) => a.effect instanceof KeyframeEffect && (a.effect.target as Element | null)?.closest("[data-loop]") && !(a.effect.target as Element).closest("[data-loop]")!.getAttribute("data-loop")!.startsWith("lv-spin")).map((a) => a.playState))
+    expect((await live()).filter((s) => s === "running")).toEqual([])
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => true })
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    await expect(page.locator("html")).toHaveClass(/live-paused/)
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => false })
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    await expect(page.locator("html")).not.toHaveClass(/live-paused/)
+  })
+})

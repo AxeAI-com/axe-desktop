@@ -3,6 +3,8 @@
 #
 #   next/scripts/release <version> --notes notes.md   bump, build all three at once, sign, check, publish (feeds last)
 #   next/scripts/release <version> --dry-run          bump locally, build, sign and check all three, fresh-install the Mac build; publish nothing
+#   next/scripts/release <version> --win-linux        Windows and Linux only, for a version already live on Mac (a
+#                                                     catch-up after their builds failed); master must already be <version>
 #
 # After publishing, next/scripts/release-verify checks the release as a user meets it (download API, fresh install,
 # update from the live version) and fails the run, with the rollback command, if it does not hold.
@@ -11,7 +13,8 @@
 # Needed for a real release, optional for a dry run.
 #
 # Mac builds on this Mac. Windows and Linux build at the same time on GitHub's free runners (the
-# axe-desktop-release workflow, started by pushing a throwaway ci/axe-desktop-release-* branch). The version
+# axe-desktop-release workflow, started by pushing a throwaway ci/axe-desktop-release-* branch); they come back as
+# private draft releases, which this script downloads and deletes (not Actions artifacts, whose quota ran out). The version
 # bump goes to master as a PR that merges itself on green checks while the builds run.
 #
 # Publishing: every build and .sig goes to a staging folder on the server first and is checked there
@@ -23,22 +26,24 @@
 # picks what to build; a real release only builds origin/master.
 set -euo pipefail
 
-usage() { echo "usage: next/scripts/release <x.y.z> (--notes notes.md | --dry-run [--notes notes.md])" >&2; exit 2; }
+usage() { echo "usage: next/scripts/release <x.y.z> (--notes notes.md | --dry-run [--notes notes.md] | --win-linux)" >&2; exit 2; }
 VERSION="${1:-}"
-DRY=0 NOTES_FILE=""
+DRY=0 NOTES_FILE="" WINLIN=0
 [ $# -gt 0 ] && shift
 while [ $# -gt 0 ]; do
   case $1 in
     --dry-run) DRY=1 ;;
+    --win-linux) WINLIN=1 ;;
     --notes) [ $# -ge 2 ] || usage; NOTES_FILE=$2; shift ;;
     *) usage ;;
   esac
   shift
 done
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || usage
+[ $DRY = 1 ] && [ $WINLIN = 1 ] && { echo "release: --win-linux publishes; it has no --dry-run (use --dry-run alone)" >&2; exit 2; }
 if [ -n "$NOTES_FILE" ]; then
   [ -f "$NOTES_FILE" ] && grep -q '[^[:space:]]' "$NOTES_FILE" || { echo "release: $NOTES_FILE is missing or empty" >&2; exit 2; }
-elif [ $DRY = 0 ]; then
+elif [ $DRY = 0 ] && [ $WINLIN = 0 ]; then
   echo "release: a real release needs --notes notes.md (what changed for users, 3 to 6 lines)" >&2
   exit 2
 fi
@@ -71,6 +76,7 @@ cleanup() {
   for p in ${PIDS[@]+"${PIDS[@]}"}; do kill "$p" 2>/dev/null || true; done
   [ -n "$RUN_ID" ] && [ $code -ne 0 ] && gh run cancel "$RUN_ID" >/dev/null 2>&1 || true
   [ $CI_PUSHED = 1 ] && git -C "$REPO_ROOT" push -q origin --delete "$CI_BRANCH" >/dev/null 2>&1 || true
+  [ $CI_PUSHED = 1 ] && delete_drafts
   [ $STAGED = 1 ] && [ $PUBLISHED = 0 ] && ssh "$REMOTE" "rm -rf '$STAGE'" >/dev/null 2>&1 || true
   git -C "$REPO_ROOT" worktree remove --force "$SRC" >/dev/null 2>&1 || true
   if [ $code -ne 0 ]; then
@@ -80,6 +86,11 @@ cleanup() {
   elif [ $DRY = 0 ]; then
     rm -rf "$WORK"
   fi
+}
+# The workflow's draft releases (one per system), named after the ci branch.
+delete_drafts() {
+  local d
+  for d in windows linux; do gh release delete "${CI_BRANCH#ci/}-$d" --yes >/dev/null 2>&1 || true; done
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
@@ -126,11 +137,21 @@ if [ "$BASE" = "origin/master" ]; then
   gh api "repos/$GH_REPO/commits/$app/check-runs" -q '.check_runs[] | select(.name == "check") | .conclusion' 2>/dev/null | grep -qx success ||
     die "PR checks haven't passed on master's last app commit ${app:0:7}"
 fi
-LIVE="$(curl -fsS "$FEED_URL/latest-mac.yml?t=$STAMP" | awk '/^version:/ {print $2; exit}')" || die "can't read the live feed"
+if [ $WINLIN = 1 ]; then
+  MACLIVE="$(curl -fsS "$FEED_URL/latest-mac.yml?t=$STAMP" | awk '/^version:/ {print $2; exit}')" || die "can't read the live Mac feed"
+  [ "$MACLIVE" = "$VERSION" ] || die "--win-linux catches Windows and Linux up to the live Mac version ($MACLIVE), not $VERSION"
+  LIVE="$(curl -fsS "$FEED_URL/latest.yml?t=$STAMP" | awk '/^version:/ {print $2; exit}')" || die "can't read the live Windows feed"
+else
+  LIVE="$(curl -fsS "$FEED_URL/latest-mac.yml?t=$STAMP" | awk '/^version:/ {print $2; exit}')" || die "can't read the live feed"
+fi
 newest="$(printf '%s\n%s\n' "$LIVE" "$VERSION" | sort -V | tail -1)"
 [ "$newest" = "$VERSION" ] && [ "$LIVE" != "$VERSION" ] || die "$VERSION isn't newer than the live $LIVE"
 ssh -o BatchMode=yes -o ConnectTimeout=10 "$REMOTE" true 2>/dev/null || die "can't ssh to $REMOTE"
-taken="$(ssh "$REMOTE" "ls '$DEST' 2>/dev/null | grep -F -e 'Axe-AI-$VERSION-' -e 'Axe-AI-Setup-$VERSION.' || true")"
+if [ $WINLIN = 1 ]; then
+  taken="$(ssh "$REMOTE" "ls '$DEST' 2>/dev/null | grep -F -e 'Axe-AI-Setup-$VERSION.' -e 'Axe-AI-$VERSION-x86_64' -e 'Axe-AI-$VERSION-amd64' || true")"
+else
+  taken="$(ssh "$REMOTE" "ls '$DEST' 2>/dev/null | grep -F -e 'Axe-AI-$VERSION-' -e 'Axe-AI-Setup-$VERSION.' || true")"
+fi
 if [ -n "$taken" ]; then
   [ $DRY = 1 ] && say "note: the server already has $VERSION files" || die "the server already has $VERSION files"
 fi
@@ -147,10 +168,14 @@ if [ "$CURRENT" != "$VERSION" ]; then
   BUMPED=1
 fi
 COMMIT="$(git -C "$SRC" rev-parse HEAD)"
+[ $WINLIN = 1 ] && [ $BUMPED = 1 ] && die "--win-linux needs master's next/package.json at $VERSION already (it is $CURRENT)"
 
 if [ $DRY = 0 ] && [ $BUMPED = 1 ]; then
-  git -C "$SRC" push -q origin "HEAD:refs/heads/release-$VERSION" 2>"$LOG/push.log" || die "can't push release-$VERSION (does it exist already?)"
-  PR_URL="$(gh pr create --base master --head "release-$VERSION" --title "Desktop $VERSION" --body "$(printf '%s\n' \
+  # A rerun after a failure finds the last run's version PR still open: point its branch at this commit and
+  # reuse it. The release-* branch is the script's own throwaway branch, so the forced push loses nothing.
+  PR_URL="$(gh pr list -R "$GH_REPO" --head "release-$VERSION" --state open --json url -q '.[0].url' 2>/dev/null)"
+  git -C "$SRC" push -q --force origin "HEAD:refs/heads/release-$VERSION" 2>"$LOG/push.log" || die "can't push release-$VERSION"
+  [ -n "$PR_URL" ] && say "reusing the open version PR" || PR_URL="$(gh pr create --base master --head "release-$VERSION" --title "Desktop $VERSION" --body "$(printf '%s\n' \
     "Raises next/package.json to $VERSION for the release (\`next/scripts/release\`)." "" \
     "Testing: PR checks; the builds of this commit are signed and hash-checked before anything is published." "" \
     "Risk: none on its own; the release publishes only after this merges." "" \
@@ -211,19 +236,26 @@ build_ci() {
   [ -n "$RUN_ID" ] || jdie "the Windows/Linux workflow didn't start"
   echo "$RUN_ID" >"$WORK/run-id"
   gh run watch "$RUN_ID" --exit-status --interval 15 >/dev/null || jdie "the Windows/Linux build failed: gh run view $RUN_ID --log-failed"
-  gh run download "$RUN_ID" -D "$WORK/ci" || jdie "can't download the Windows/Linux builds"
-  cp "$WORK/ci/axe-desktop-windows/"* "$OUT/win/" && cp "$WORK/ci/axe-desktop-linux/"* "$OUT/linux/" || jdie "the Windows/Linux builds are incomplete"
+  gh release download "${CI_BRANCH#ci/}-windows" -D "$OUT/win" || jdie "can't download the Windows build (draft release)"
+  gh release download "${CI_BRANCH#ci/}-linux" -D "$OUT/linux" || jdie "can't download the Linux build (draft release)"
+  delete_drafts
   finish "$OUT/win" Windows
   finish "$OUT/linux" Linux
 }
 
-say "building Mac here, Windows and Linux on GitHub ($CI_BRANCH)"
-step mac build_mac
+if [ $WINLIN = 1 ]; then
+  say "building Windows and Linux on GitHub ($CI_BRANCH); Mac $VERSION is already live"
+else
+  say "building Mac here, Windows and Linux on GitHub ($CI_BRANCH)"
+  step mac build_mac
+fi
 step ci build_ci
 # The run id is written by the background job; pick it up so a failure can cancel the run.
 for _ in $(seq 1 40); do [ -s "$WORK/run-id" ] && RUN_ID="$(cat "$WORK/run-id")" && break; sleep 3; done
-await mac
-say "Mac built, signed and checked"
+if [ $WINLIN = 0 ]; then
+  await mac
+  say "Mac built, signed and checked"
+fi
 await ci
 RUN_ID=""
 say "Windows and Linux built, signed and checked"
@@ -257,7 +289,8 @@ cat "$OUT"/*.manifest | ssh "$REMOTE" "cd '$STAGE' && sha512sum -c --quiet -" >"
   die "the files on the server don't match the builds ($(tail -1 "$LOG/staging-check.log"))"
 say "staging on $REMOTE matches every build"
 
-ssh "$REMOTE" bash -s -- "$STAGE" "$DEST" "$APP_DIR/release-staging/feeds-before-$VERSION" >"$LOG/publish.log" 2>&1 <<'EOF' || die "publishing failed ($(tail -1 "$LOG/publish.log"))"
+BACKUP="$APP_DIR/release-staging/feeds-before-$VERSION$([ $WINLIN = 1 ] && echo -win-linux || true)"
+ssh "$REMOTE" bash -s -- "$STAGE" "$DEST" "$BACKUP" >"$LOG/publish.log" 2>&1 <<'EOF' || die "publishing failed ($(tail -1 "$LOG/publish.log"))"
 set -euo pipefail
 stage=$1 dest=$2 backup=$3
 cd "$stage"
@@ -271,21 +304,35 @@ mv latest*.yml "$dest/"
 cd / && rmdir "$stage"
 EOF
 PUBLISHED=1
+# A catch-up rolls back only the Windows and Linux feeds, never the live Mac one.
+if [ $WINLIN = 1 ]; then ROLLBACK="$BACKUP/latest.yml $BACKUP/latest-linux.yml"; else ROLLBACK="$BACKUP/*"; fi
 say "published; feeds live"
 
 for d in mac win linux; do
+  [ $WINLIN = 1 ] && [ $d = mac ] && continue
   for f in "$OUT/$d"/latest*.yml; do
     curl -fsS "$FEED_URL/$(basename "$f")?t=$STAMP" | cmp -s - "$f" ||
-      die "published, but $FEED_URL/$(basename "$f") isn't the new feed; roll back: copy $APP_DIR/release-staging/feeds-before-$VERSION/* to $DEST"
+      die "published, but $FEED_URL/$(basename "$f") isn't the new feed; roll back: copy $ROLLBACK to $DEST"
   done
 done
 while read -r _ name; do
   local_size="$(stat -f %z "$(ls "$OUT"/*/"$name" | head -1)")"
   served="$(curl -fsSI "$FEED_URL/$name" | awk 'tolower($1) == "content-length:" {print $2}' | tr -d '\r')"
   [ "$served" = "$local_size" ] ||
-    die "published, but $FEED_URL/$name doesn't answer with the right file; roll back: copy $APP_DIR/release-staging/feeds-before-$VERSION/* to $DEST"
+    die "published, but $FEED_URL/$name doesn't answer with the right file; roll back: copy $ROLLBACK to $DEST"
 done < <(cat "$OUT"/*.manifest)
 say "every served feed and file checks out"
+
+if [ $WINLIN = 1 ]; then
+  # release-verify installs the Mac build; Windows and Linux are checked by the workflow (install, start, uninstall)
+  # and by the served feeds and sizes above. Add their files to the existing GitHub release.
+  gh release upload "v$VERSION" "$OUT"/win/*.exe "$OUT"/linux/*.AppImage "$OUT"/linux/*.deb --clobber >/dev/null 2>&1 ||
+    echo "release: note: couldn't attach the builds to the GitHub release v$VERSION (the app is published)" >&2
+  echo
+  echo "Published Axe AI $VERSION for Windows and Linux in $(elapsed)."
+  echo "  feeds     $FEED_URL/latest.yml  latest-linux.yml (before: $APP_DIR/release-staging/feeds-before-$VERSION-win-linux)"
+  exit 0
+fi
 
 gh release create "v$VERSION" --target "$COMMIT" --title "Axe AI $VERSION" \
   --notes-file "$NOTES" >/dev/null 2>&1 ||

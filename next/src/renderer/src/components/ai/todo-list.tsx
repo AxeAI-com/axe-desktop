@@ -24,8 +24,9 @@ function TodoList({ className, compact = false, defaultOpen = true, items, title
     <Collapsible
       data-slot="todo-list"
       className={cn(
-        "rounded-[16px] border-0 bg-card font-sans text-[14px] font-normal text-ink-3 shadow-none",
-        compact ? "px-[16px] py-[12px]" : "px-[18px] pt-[14px] pb-[18px]",
+        // Axe AI: spec 0001: 24px container, 24 padding.
+        "rounded-3xl border-0 bg-card font-sans text-[14px] font-normal text-ink-3 shadow-none",
+        compact ? "px-[24px] py-[16px]" : "p-[24px]",
         className,
       )}
       defaultOpen={defaultOpen}

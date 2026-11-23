@@ -4,18 +4,19 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react"
 import type { Answerer, ChatMessage } from "@shared/types"
 
 import { answererLabel, sameAnswerer } from "@/lib/answerer"
-import { column, composerDock } from "@/lib/layout"
+import { bubbleWidth, column, composerDock } from "@/lib/layout"
 import { useMotion } from "@/lib/motion"
 import { segment, isLiveGroup, replyText } from "@/lib/steps"
 import { changePlan, modeOf, openTerminal, retry, sendInThread, setMode, startPlan, useStore } from "@/lib/store"
 import { useStickToBottom } from "@/lib/useStickToBottom"
 
+import { AgentImage } from "@/components/AgentImage"
 import { AttachmentChip } from "@/components/Attachments"
 import { ErrorCard, PermissionCard, PlanActions, PlanCard, signInAgent } from "@/components/Cards"
 import { ChangesPanel } from "@/components/ChangesPanel"
 import { Composer } from "@/components/Composer"
 import { CopyMark, RetryMark } from "@/components/BoardIcons"
-import { ArrowDownIcon, CheckIcon } from "@/components/Icons"
+import { ArrowDownIcon, CheckIcon } from "@/components/SolarIcons"
 import { Markdown } from "@/components/Markdown"
 import { ResearchApprovalCard, ResearchProgress, ResearchReport } from "@/components/Research"
 import { StepGroup } from "@/components/StepGroup"
@@ -115,23 +116,20 @@ export function Thread({ threadId, panel = false }: { threadId: string; panel?: 
           </AnimatePresence>
         </div>
       </div>
-      {/* The composer sits on the page's own ground, with a short fade above it, so a long reply never shows through. */}
+      {/* The composer sits on the page's own ground, so a long reply never shows through. */}
       {!panel && (
       <div className={`${composerDock} bg-background`}>
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-8 h-8" style={{ background: "linear-gradient(to top, var(--background), transparent)" }} />
         <AnimatePresence>
           {!pinned && (
             <motion.button
               key="jump"
               aria-label="Jump to latest"
-              initial={{ opacity: 0, y: m.reduced ? 0 : 6, scale: m.reduced ? 1 : 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: m.reduced ? 0 : 6, scale: m.reduced ? 1 : 0.9 }}
+              initial={false}
               transition={m.t()}
               onClick={() => jump()}
-              className="absolute -top-12 left-1/2 z-10 -ml-4 flex h-8 w-8 items-center justify-center rounded-full border-0 bg-pop text-ink-2 shadow-[var(--shadow)] hover:text-ink"
+              className="absolute -top-[48px] left-1/2 z-10 -ml-[16px] flex size-[32px] items-center justify-center rounded-full border-0 bg-raised text-ink-2 transition-[color,transform] duration-150 ease-out hover:text-ink active:scale-[0.96]"
             >
-              <ArrowDownIcon size={14} />
+              <ArrowDownIcon size={16} />
             </motion.button>
           )}
         </AnimatePresence>
@@ -147,10 +145,10 @@ export function Thread({ threadId, panel = false }: { threadId: string; panel?: 
 function SwitchDivider({ answerer }: { answerer: Answerer }) {
   const catalog = useStore((s) => s.catalog)
   return (
-    <div className="my-8 flex items-center gap-3 text-[12px] text-ink-3" role="separator">
-      <span className="h-px flex-1 bg-fill" />
+    <div className="my-[32px] flex items-center gap-[12px] text-[12px] text-ink-3" role="separator">
+      <span className="h-px flex-1 bg-hairline" />
       <span>Switched to {answererLabel(answerer, catalog)}</span>
-      <span className="h-px flex-1 bg-fill" />
+      <span className="h-px flex-1 bg-hairline" />
     </div>
   )
 }
@@ -177,7 +175,7 @@ const UserBubble = memo(function UserBubble({ msg, agent }: { msg: ChatMessage; 
       {text && (
         // Your message in a quiet grey bubble on the right (board "Chat messages", grey, approved 2026-10-26).
         <div
-          className={`bubble selectable ${agent ? "max-w-[560px]" : "max-w-[596px]"} rounded-[18px] bg-bubble px-[18px] py-[10px] text-[16px] leading-[24px] whitespace-pre-wrap text-ink [overflow-wrap:anywhere]`}
+          className={`bubble selectable ${bubbleWidth} rounded-3xl bg-bubble px-[16px] py-[12px] text-[15px] leading-[22px] whitespace-pre-wrap text-ink [overflow-wrap:anywhere]`}
         >
           {text}
         </div>
@@ -299,6 +297,7 @@ export function AssistantMessage({
           )
         }
         if (s.kind === "rich") return <RichCard key={s.id} block={s.part.block} />
+        if (s.kind === "image") return <AgentImage key={s.id} threadId={threadId} part={s.part} />
         return <ErrorCard key={s.id} text={s.text} onRetry={isLast ? () => void retry(threadId, msg.id) : undefined} onSignIn={signInFor(s.text)} />
       })}
       {planIdle && !segments.some((s) => s.kind === "plan") && segments.some((s) => s.kind === "text") && (
@@ -339,7 +338,7 @@ function ActionButton({ label, onClick, children }: { label: string; onClick: ()
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="flex size-[32px] items-center justify-center rounded-full border-0 bg-transparent text-inherit transition-colors duration-150 hover:bg-fill-2 hover:text-ink"
+      className="flex size-[32px] items-center justify-center rounded-full border-0 bg-transparent text-inherit transition-[background-color,color,transform] duration-150 ease-out hover:bg-fill-2 hover:text-ink active:scale-[0.96] active:duration-100"
     >
       {children}
     </button>

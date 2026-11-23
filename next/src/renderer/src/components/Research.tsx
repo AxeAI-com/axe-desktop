@@ -11,8 +11,10 @@ import { formatSeconds } from "@/lib/steps"
 import { approveResearch, cancelResearch, useStore } from "@/lib/store"
 import { credits } from "@/lib/usage"
 
-import { CheckIcon, ChevronDown, TelescopeIcon, XIcon } from "./Icons"
+import { CheckIcon, ChevronDown, TelescopeIcon, XIcon } from "./SolarIcons"
 import { Markdown } from "./Markdown"
+import { button } from "./Kit"
+import { Spinner } from "./StepGroup"
 
 type ApprovalPart = Extract<Part, { type: "researchApproval" }>
 
@@ -41,7 +43,7 @@ export function ResearchProgress({ data, question }: { data: ResearchData; quest
         <button
           aria-expanded={open}
           onClick={() => setOpen((o) => !o)}
-          className="flex h-6 w-fit items-center gap-2 rounded-[6px] border-0 bg-transparent px-1 text-[13px] text-ink-3 transition-colors duration-150 hover:text-ink-2"
+          className="flex h-6 w-fit items-center gap-2 rounded-full border-0 bg-transparent px-1 text-[13px] text-ink-3 transition-colors duration-150 hover:text-ink-2"
         >
           <TelescopeIcon size={14} />
           {data.status === "failed" ? "Research stopped" : `Researched for ${formatSeconds(seconds)}`}
@@ -61,13 +63,9 @@ export function ResearchProgress({ data, question }: { data: ResearchData; quest
     )
 
   return (
-    <motion.section {...m.rise} aria-label="Research in progress" className="flex flex-col gap-2.5 rounded-[16px] bg-card shadow-card px-4 py-3.5">
+    <motion.section {...m.rise} aria-label="Research in progress" className="flex flex-col gap-2.5 rounded-3xl bg-card px-6 py-4">
       <div className="flex items-center gap-2.5">
-        <span className="dots small" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
+        <Spinner />
         <span className="flex min-w-0 flex-1 items-baseline gap-2 text-[15px]">
           Researching
           {question && <span className="min-w-0 truncate text-[13px] text-ink-3">{short(question)}</span>}
@@ -76,7 +74,7 @@ export function ResearchProgress({ data, question }: { data: ResearchData; quest
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-fill-2" role="progressbar" aria-valuenow={Math.round(progressFraction(data) * 100)}>
         <motion.div
-          className="h-full rounded-full bg-accent"
+          className="h-full rounded-full bg-ink-2"
           initial={false}
           animate={{ width: `${Math.round(progressFraction(data) * 100)}%` }}
           transition={m.t(0.32)}
@@ -98,7 +96,7 @@ function Rows({ rows, className = "" }: { rows: ProgressRow[]; className?: strin
     <ul className={`m-0 flex list-none flex-col gap-1.5 p-0 text-[13px] leading-5 ${className}`}>
       <AnimatePresence initial={false}>
         {rows.map((r) => (
-          <motion.li key={r.id} layout="position" {...m.rise} transition={m.t()} className="flex items-start gap-2">
+          <motion.li key={r.id} {...m.rise} className="flex items-start gap-2">
             <Mark state={r.state} />
             <span className={`min-w-0 flex-1 ${r.state === "waiting" ? "text-ink-3" : r.state === "running" ? "text-ink" : "text-ink-2"}`}>
               {r.label}
@@ -133,13 +131,13 @@ export function ResearchReport({ text, data, streaming }: { text: string; data: 
 
   if (!text.trim()) return null
   return (
-    <motion.article {...(rise ? m.rise : {})} aria-label="Research report" className="flex flex-col overflow-hidden rounded-[16px] bg-card shadow-card">
+    <motion.article {...(rise ? m.rise : {})} aria-label="Research report" className="flex flex-col overflow-hidden rounded-3xl bg-card">
       <header className="flex flex-col gap-2 px-5 pt-[18px] pb-1">
         <span className="flex items-center gap-1.5 text-[12px] text-ink-3">
           <TelescopeIcon size={12} />
           Research report
         </span>
-        <h1 className="m-0 text-[20px] leading-7 tracking-[-0.005em]">{report.title}</h1>
+        <h1 className="m-0 text-[20px] leading-[26px] tracking-[-0.005em]">{report.title}</h1>
       </header>
       <div className="flex flex-col gap-4 pt-2 pb-4">
         {report.summary && (
@@ -209,7 +207,7 @@ export function ResearchApprovalCard({ threadId, messageId, part, canAct }: { th
       <p className="m-0 px-1 text-[13px] text-ink-3">{part.data.status === "cancelled" ? "Research cancelled. Nothing was charged." : "Research wasn't run."}</p>
     )
   return (
-    <motion.section {...m.rise} aria-label="Run research?" className="flex flex-col gap-3 rounded-[16px] bg-card shadow-card p-4">
+    <motion.section {...m.rise} aria-label="Run research?" className="flex flex-col gap-3 rounded-3xl bg-card p-6">
       <div className="flex items-center gap-2 text-[15px]">
         <TelescopeIcon size={15} className="text-ink-3" />
         Research with {label}?
@@ -227,13 +225,13 @@ export function ResearchApprovalCard({ threadId, messageId, part, canAct }: { th
             setBusy(true)
             void approveResearch(threadId, messageId).catch(() => setBusy(false))
           }}
-          className="h-[34px] rounded-full border-0 bg-button px-3.5 text-[13px] text-button-ink"
+          className={button.primary}
         >
           Run research
         </motion.button>
         <button
           onClick={() => void cancelResearch(threadId, messageId)}
-          className="h-[34px] rounded-[6px] border-0 bg-transparent px-2 text-[13px] text-ink-3 hover:text-ink"
+          className={button.ghost}
         >
           Cancel
         </button>

@@ -29,7 +29,7 @@ export function ChartCard({ chart }: { chart: RichChart }) {
 
 function BigNumber({ value, prefix, suffix }: { value: number; prefix: string; suffix: string }) {
   const text = useCountUp(value, (n) => formatValue(n, prefix, suffix))
-  return <motion.span className="text-[30px] leading-[38px] tracking-[-0.02em] tabular-nums">{text}</motion.span>
+  return <motion.span className="text-[28px] leading-[36px] tracking-[-0.02em] tabular-nums">{text}</motion.span>
 }
 
 /** "Daily sales" is compared with the day before, "Weekly sign-ups" with the week before. */
@@ -153,11 +153,10 @@ function XYChart({ chart }: { chart: RichChart }) {
                 y1={y(t)}
                 y2={y(t)}
                 stroke="var(--chart-grid)"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={false}
                 transition={{ ...m.t(D.base), delay: m.stagger(i, 0.03) }}
               />
-              <text x={AXIS_W - 10} y={y(t) + 4} textAnchor="end" fontSize={11} fill="var(--ink-3)">
+              <text x={AXIS_W - 10} y={y(t) + 4} textAnchor="end" fontSize={12} fill="var(--ink-3)">
                 {formatValue(t, chart.prefix, chart.suffix, true)}
               </text>
             </g>
@@ -175,8 +174,8 @@ function XYChart({ chart }: { chart: RichChart }) {
               key="cross"
               y1={PAD_TOP}
               y2={PAD_TOP + H}
-              stroke="rgb(255 255 255 / 0.14)"
-              initial={{ opacity: 0, x1: x(at), x2: x(at) }}
+              stroke="var(--line-3)"
+              initial={false}
               animate={{ opacity: 1, x1: x(at), x2: x(at) }}
               transition={m.t(D.fast)}
             />
@@ -185,7 +184,7 @@ function XYChart({ chart }: { chart: RichChart }) {
             chart.series.map((s, si) => (
               <motion.g
                 key={si}
-                initial={{ opacity: 0, x: x(at), y: y(s.values[at] ?? 0) }}
+                initial={false}
                 animate={{ opacity: 1, x: x(at), y: y(s.values[at] ?? 0) }}
                 transition={{ ...m.t(D.fast), opacity: { ...m.t(D.base), delay: m.reduced ? 0 : 0.3 } }}
                 style={{ pointerEvents: "none" }}
@@ -198,7 +197,7 @@ function XYChart({ chart }: { chart: RichChart }) {
               key={i}
               x={x(i)}
               y={SVG_H - 6}
-              fontSize={11}
+              fontSize={12}
               fill="var(--ink-3)"
               textAnchor={i === 0 && !isBar ? "start" : i === n - 1 && !isBar ? "end" : "middle"}
             >
@@ -269,8 +268,7 @@ function Line({
         <motion.path
           d={shape}
           fill={fill}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={false}
           transition={{ ...m.t(D.slow), delay: delay + (m.reduced ? 0 : 0.22) }}
         />
       )}
@@ -389,7 +387,7 @@ function Donut({ chart }: { chart: RichChart }) {
           )}
           <foreignObject x={-R + THICK / 2} y={-28} width={2 * R - THICK} height={56}>
             <div className="flex h-full flex-col items-center justify-center">
-              <motion.span className="text-[20px] leading-[28px] font-light tracking-[-0.02em] text-ink tabular-nums">{text}</motion.span>
+              <motion.span className="text-[20px] leading-[28px] tracking-[-0.02em] text-ink tabular-nums">{text}</motion.span>
               <span className="max-w-full truncate text-[12px] text-ink-3">{centerLabel}</span>
             </div>
           </foreignObject>
@@ -398,14 +396,14 @@ function Donut({ chart }: { chart: RichChart }) {
           {segs.map((g, i) => (
             <motion.li
               key={g.i}
-              initial={{ opacity: 0, x: m.reduced ? 0 : 6 }}
-              animate={{ opacity: hover === null || hover === g.i ? 1 : 0.5, x: 0 }}
+              initial={false}
+              animate={{ opacity: hover === null || hover === g.i ? 1 : 0.5 }}
               transition={{ ...m.t(D.base), delay: hover === null ? m.stagger(i, 0.05) : 0 }}
               onMouseEnter={() => setHover(g.i)}
               onMouseLeave={() => setHover(null)}
-              className="flex items-center gap-3 rounded-[6px] px-2 py-[7px] text-[13px] hover:bg-fill"
+              className="flex items-center gap-3 rounded-full px-2 py-[7px] text-[13px] hover:bg-fill"
             >
-              <i className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seriesColor(g.i) }} />
+              <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: seriesColor(g.i) }} />
               <span className="min-w-0 flex-1 truncate">{chart.labels[g.i]}</span>
               <span className="text-ink-2 tabular-nums">{formatValue(g.v, chart.prefix, chart.suffix, true)}</span>
               {!isShare && <span className="w-12 text-right text-ink-3 tabular-nums">{total ? Math.round((g.v / total) * 100) : 0}%</span>}

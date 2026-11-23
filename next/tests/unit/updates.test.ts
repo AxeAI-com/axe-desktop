@@ -178,7 +178,14 @@ describe.runIf(process.platform === "darwin")("Mac updates on a local feed", () 
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r))
     feed = `http://127.0.0.1:${(server.address() as { port: number }).port}`
   })
-  afterAll(() => server?.close())
+  afterAll(() => {
+    server?.close()
+    // Launch Services remembers every stand-in it saw open: forget them, or `open -a "Axe AI"` can pick one.
+    if (process.platform === "darwin") {
+      const apps = execFileSync("/usr/bin/find", [root, "-name", "Axe AI.app", "-type", "d", "-prune"]).toString().split("\n").filter(Boolean)
+      if (apps.length) execFileSync(join(import.meta.dirname, "../../scripts/forget-dev-apps"), apps)
+    }
+  })
 
   it("finds nothing new when the feed has this version", async () => {
     publish("0.1.0")

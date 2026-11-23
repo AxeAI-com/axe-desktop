@@ -37,9 +37,17 @@ export function frontMatter(text: string): Record<string, string> {
   const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)
   const out: Record<string, string> = {}
   if (!m) return out
-  for (const line of m[1]!.split(/\r?\n/)) {
-    const kv = /^([A-Za-z][\w-]*):\s*(.*)$/.exec(line)
-    if (kv) out[kv[1]!] = kv[2]!.replace(/^["']|["']$/g, "").trim()
+  const lines = m[1]!.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const kv = /^([A-Za-z][\w-]*):\s*(.*)$/.exec(lines[i]!)
+    if (!kv) continue
+    const value = kv[2]!.trim()
+    // A block scalar (`description: |` or `>`): the value is the indented lines under it, joined.
+    if (/^[|>][+-]?$/.test(value)) {
+      const body: string[] = []
+      while (i + 1 < lines.length && (/^\s+\S/.test(lines[i + 1]!) || lines[i + 1]!.trim() === "")) body.push(lines[++i]!.trim())
+      out[kv[1]!] = body.filter(Boolean).join(value.startsWith("|") ? "\n" : " ")
+    } else out[kv[1]!] = value.replace(/^["']|["']$/g, "").trim()
   }
   return out
 }

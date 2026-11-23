@@ -225,7 +225,7 @@ describe("security and repo copy", () => {
   it("row lines, the folded plan, notices and the brief", () => {
     const run = (n: number): Run => ({ at: T0, ms: 1, status: "problem", findings: Array.from({ length: n }, (_, i) => ({ key: `alert:${i}`, level: "problem" as const, headline: `p${i}: x`, line: `p${i}: x.`, fix: "agent" as const })) })
     expect(rowLine("repo", run(2))).toBe("2 new security alerts.")
-    expect(foldedPlan("morning", "now")).toBe("Watching. Every morning at 7:30, tells you right away.")
+    expect(foldedPlan("morning", "now")).toBe("Checking. Every morning at 7:30, tells you right away.")
     const opened = run(2).findings.map((f) => ({ ...f, openedAt: T0, lastSeenAt: T0 }))
     expect(watchNotice({ id: "r", name: "shop-web", kind: "repo" }, opened, "Fix with Claude Code")).toMatchObject({ title: "shop-web", body: "2 new security alerts.", actions: [{ id: "fix", text: "Fix with Claude Code" }, { id: "snooze1h" }] })
     expect(fixBrief({ kind: "security", target: "a.com", name: "a.com security" }, [{ key: "header:hsts", level: "problem", headline: "a.com sends no HSTS header", detail: "Without it…", fix: "agent" }])).toBe(

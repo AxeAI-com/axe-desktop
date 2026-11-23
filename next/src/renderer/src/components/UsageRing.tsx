@@ -9,6 +9,7 @@ import { useMotion } from "@/lib/motion"
 import { nextAnswerer, useStore } from "@/lib/store"
 import { chatContext, money, tokens } from "@/lib/usage"
 
+import { button, compact } from "./Kit"
 import { Popover } from "./Popover"
 
 const EMPTY: ChatMessage[] = []
@@ -110,7 +111,7 @@ export function UsageRing({ threadId }: { threadId: string }) {
                 <span className="text-[13px] tabular-nums">{`${(profile?.credits ?? 0).toLocaleString("en-US")} credits left`}</span>
                 <button
                   onClick={() => void invoke("account:openBilling")}
-                  className="h-7 rounded-[6px] border border-border bg-transparent px-2.5 text-[12px] text-ink transition-colors duration-150 hover:bg-fill"
+                  className={compact(button.primary)}
                 >
                   Add credits
                 </button>

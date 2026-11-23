@@ -59,6 +59,10 @@ describe("summarize", () => {
     expect(summarize(steps([{ type: "source", id: "s", title: "A", url: "https://a.example" }]))).toBe("Searched the web")
   })
 
+  it("counts looking for apps as an app tool, not a file search", () => {
+    expect(summarize(steps([tool("a", "search", "Look for apps like “claude”"), tool("b", "other", "Open Claude")]))).toBe("Used 2 tools")
+  })
+
   it("counts files and commands in the order they happened", () => {
     const parts = steps([
       tool("1", "read", "Read a.ts"),

@@ -67,19 +67,8 @@ export function MapCard({ map }: { map: RichMap }) {
           <pattern id={`${pid}-dots`} width="14" height="14" patternUnits="userSpaceOnUse">
             <circle cx="1.5" cy="1.5" r="1" fill="var(--map-dot)" />
           </pattern>
-          <radialGradient
-            id={`${pid}-glow`}
-            gradientUnits="userSpaceOnUse"
-            cx={pts.reduce((a, p) => a + p[0], 0) / Math.max(1, pts.length)}
-            cy={pts.reduce((a, p) => a + p[1], 0) / Math.max(1, pts.length)}
-            r={Math.max(MAP_W, mapH) * 0.7}
-          >
-            <stop offset="0" stopColor="var(--accent)" stopOpacity="0.16" />
-            <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-          </radialGradient>
         </defs>
         <rect width={MAP_W} height={mapH} fill={`url(#${pid}-dots)`} />
-        <motion.rect width={MAP_W} height={mapH} fill={`url(#${pid}-glow)`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={m.t(D.slow)} />
         {pts.length > 1 && (
           <motion.path d={route} fill="none" stroke="var(--accent-2)" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="0" strokeLinecap="round" strokeLinejoin="round" {...m.draw(0.1)} />
         )}
@@ -88,7 +77,7 @@ export function MapCard({ map }: { map: RichMap }) {
           return (
             <motion.g
               key={i}
-              initial={m.reduced ? { opacity: 0, x, y } : { opacity: 0, x, y: y - 14, scale: 0.6 }}
+              initial={false}
               animate={{ opacity: 1, x, y, scale: on ? 1.18 : 1 }}
               transition={{ ...m.t(D.base), delay: hover === null ? 0.12 + m.stagger(i, 0.06) : 0 }}
               onMouseEnter={() => setHover(i)}
@@ -96,7 +85,7 @@ export function MapCard({ map }: { map: RichMap }) {
             >
               <motion.circle r={18} fill={colorOf(map.places[i]!.group)} animate={{ opacity: on ? 0.22 : 0 }} transition={m.t(D.fast)} />
               <circle r={12} fill="var(--ink)" stroke={colorOf(map.places[i]!.group)} strokeWidth={groups.length > 1 ? 2.5 : 0} style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.35))" }} />
-              <text textAnchor="middle" y={4} fontSize={11.5} fontWeight={600} fill="var(--ground)" className="tabular-nums">
+              <text textAnchor="middle" y={4} fontSize={12} fill="var(--ground)" className="tabular-nums">
                 {i + 1}
               </text>
             </motion.g>
@@ -109,12 +98,11 @@ export function MapCard({ map }: { map: RichMap }) {
           {map.places.map((p, i) => (
             <motion.li
               key={i}
-              initial={m.reduced ? { opacity: 0 } : { opacity: 0, x: 6 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={false}
               transition={{ ...m.t(D.base), delay: 0.12 + m.stagger(i, 0.05) }}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
-              className={`group mx-1.5 flex items-start gap-3 rounded-[6px] px-2.5 py-2 transition-colors duration-150 ${hover === i ? "bg-fill" : ""}`}
+              className={`group mx-1.5 flex items-start gap-3 rounded-full px-2.5 py-2 transition-colors duration-150 ${hover === i ? "bg-fill" : ""}`}
             >
               <span className="mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-fill-3 text-[12px] text-ink tabular-nums">{i + 1}</span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -132,7 +120,7 @@ export function MapCard({ map }: { map: RichMap }) {
                   e.preventDefault()
                   void invoke("app:openExternal", mapsURL(p))
                 }}
-                className="shrink-0 text-[12px] leading-5 text-accent-ink no-underline opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100"
+                className="shrink-0 text-[12px] leading-5 text-ink-2 no-underline opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100"
               >
                 Open in Maps
               </a>

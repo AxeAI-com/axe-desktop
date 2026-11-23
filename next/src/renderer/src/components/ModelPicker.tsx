@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type RefObject } from "react"
+import { useEffect, useMemo, useState, type ReactNode, type RefObject } from "react"
 
 import type { Answerer, AxeModel, LocalAgent, LocalModel } from "@shared/types"
 
@@ -7,7 +7,7 @@ import { openSettingsAt } from "@/lib/shortcuts"
 import { installAgent, plainError, refreshModels, startOllama, useStore } from "@/lib/store"
 
 import { agentLogo, localModelLogo, LogoTile, modelLogo } from "./BrandLogo"
-import { BoltIcon, ChevronDown, ChevronRight, DownloadIcon, PlusIcon } from "./Icons"
+import { BoltIcon, ChevronDown, ChevronRight, DownloadIcon, PlusIcon } from "./SolarIcons"
 import { MenuLabel, MenuLine, MenuRow, Popover } from "./Popover"
 
 type Row = { kind: "axe"; model: AxeModel } | { kind: "agent"; agent: LocalAgent } | { kind: "local"; model: LocalModel }
@@ -28,7 +28,10 @@ export function ModelPicker({
   className,
   origin = "bottom right",
   maxHeight,
+  children,
 }: {
+  /** More sections after the agents (an agent's model and effort). */
+  children?: ReactNode
   origin?: string
   maxHeight?: number
   open: boolean
@@ -119,8 +122,8 @@ export function ModelPicker({
           checked={isCurrent(r)}
           hot={i === cursor}
           title={`${r.model.model}, on ${r.model.serverName}. Free, and nothing leaves this computer.${r.model.tools === false ? " It can only chat: no Do it or connectors." : ""}${r.model.serverId === "ollama" && ollama?.canStart ? " Axe starts Ollama when you send." : ""}`}
-          icon={<LogoTile logo={localModelLogo(r.model)} name={r.model.name} size={18} />}
-          hint={<span className="text-[13px] text-ink-3">{warming === r.model.id ? "Loading" : r.model.serverName}</span>}
+          icon={<LogoTile logo={localModelLogo(r.model)} name={r.model.name} size={14} square />}
+          hint={<span>{warming === r.model.id ? "Loading" : r.model.serverName}</span>}
           onHover={() => setCursor(i)}
           onSelect={() => void choose(r)}
         >
@@ -135,7 +138,7 @@ export function ModelPicker({
           checked={isCurrent(r)}
           hot={i === cursor}
           title={r.model.description ?? undefined}
-          icon={<LogoTile auto={r.model.id === "auto"} logo={modelLogo(r.model)} name={r.model.label} size={18} />}
+          icon={<LogoTile auto={r.model.id === "auto"} logo={modelLogo(r.model)} name={r.model.label} size={14} square />}
           onHover={() => setCursor(i)}
           onSelect={() => void choose(r)}
         >
@@ -152,7 +155,7 @@ export function ModelPicker({
         hot={i === cursor}
         disabled={a.state === "unavailable"}
         title={a.state === "unavailable" && a.reason ? a.reason : a.note}
-        icon={<LogoTile logo={agentLogo(a)} name={a.name} size={18} />}
+        icon={<LogoTile logo={agentLogo(a)} name={a.name} size={14} square />}
         hint={
           a.state === "install" ? (
             busy ? (
@@ -175,10 +178,11 @@ export function ModelPicker({
   const otherRows = rows.filter((r) => r.kind === "agent" && !ready.includes(r.agent))
 
   return (
-    <Popover open={open} onClose={onClose} anchor={anchor} origin={origin} role="listbox" label="Choose who answers" className={`w-max ${className}`}>
+    <Popover dense open={open} onClose={onClose} anchor={anchor} origin={origin} role="listbox" label="Choose who answers" className={`min-w-[240px] max-w-[300px] ${className}`}>
       <div className="scroll flex flex-col" style={{ maxHeight: maxHeight ?? 560 }}>
-        {readyRows.length > 0 && <MenuLabel>On this computer</MenuLabel>}
+        {readyRows.length > 0 && <MenuLabel>On this Mac</MenuLabel>}
         {readyRows.map(row)}
+        {children}
         {axeRows.length > 0 && readyRows.length > 0 && <MenuLine />}
         {axeRows.length > 0 && <MenuLabel>Axe AI</MenuLabel>}
         {axeRows.map(row)}

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Makes Launch Services forget copies of Axe AI (com.axeai.desktop) outside /Applications: builds in dist/
+# folders, test copies, mounted .dmgs, the Trash. Every copy that ever started is remembered, and then
+# `open -a "Axe AI"`, axedesktop:// sign-in links and Spotlight can start one of them instead of the
+# installed app.
+#
+#   next/scripts/forget-dev-apps            forget every copy outside /Applications
+#   next/scripts/forget-dev-apps <app>...   forget these
+set -euo pipefail
+[ "$(uname)" = Darwin ] || exit 0
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+if [ $# -gt 0 ]; then
+  for a in "$@"; do "$LSREGISTER" -u "$a" 2>/dev/null || true; done
+  exit 0
+fi
+n=0
+while IFS= read -r app; do
+  case $app in "/Applications/Axe AI.app") continue ;; esac
+  "$LSREGISTER" -u "$app" 2>/dev/null || true
+  n=$((n + 1))
+done < <("$LSREGISTER" -dump 2>/dev/null | awk '
+  /^-+$/ { if (id && p) print p; id = 0; p = "" }
+  /^path:/ { if (!p) { sub(/^path: */, ""); sub(/ *\(0x[0-9a-f]+\)$/, ""); p = $0 } }
+  /^identifier: *com\.axeai\.desktop$/ { id = 1 }' | sort -u)
+echo "forgot $n copies of Axe AI outside /Applications"

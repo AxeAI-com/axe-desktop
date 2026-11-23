@@ -31,13 +31,15 @@ import {
   useStore,
 } from "@/lib/store"
 
-import { ClockIcon, PencilIcon, PhoneIcon, PlusIcon, TrashIcon } from "@/components/Icons"
+import { ClockIcon, PencilIcon, PhoneIcon, PlusIcon, TrashIcon } from "@/components/SolarIcons"
 import { PAGE_TOP, Switch } from "@/components/Library"
 import { Select } from "@/components/Select"
 
 import { agentLogo, LogoTile, serverLogo } from "@/components/BrandLogo"
 import { Avatar } from "@/components/Sidebar"
 import { UpdateRow } from "@/components/Update"
+import { button, compact, Empty } from "@/components/Kit"
+import { PAGE } from "@/lib/layout"
 
 function Section({ title, children, i, id }: { title: string; children: ReactNode; i: number; id?: SettingsSection }) {
   const m = useMotion()
@@ -48,12 +50,21 @@ function Section({ title, children, i, id }: { title: string; children: ReactNod
       transition={{ ...m.t(0.32), delay: m.reduced ? 0 : 0.04 * i }}
       className="flex scroll-mt-[40px] flex-col"
     >
-      <h2 className="m-[0px] mb-[12px] text-[15px] leading-[24px] font-normal text-foreground">{title}</h2>
+      <h2 className="m-[0px] mb-[12px] text-[15px] leading-[24px] font-normal text-ink">{title}</h2>
       {/* A card: rows sit on the card fill and are split by a 1px gap that shows the page. */}
-      <div className="flex flex-col gap-[2px] overflow-hidden rounded-[16px] bg-background shadow-card">{children}</div>
+      <div className="flex flex-col gap-[2px] overflow-hidden rounded-3xl bg-card">{children}</div>
     </motion.section>
   )
 }
+
+/** The product's own accounts, as the site footer lists them (axe-web `features/shell/site-footer.tsx`). */
+const SOCIAL_LINKS = [
+  { label: "X", href: "https://x.com/AxeAI_com" },
+  { label: "LinkedIn", href: "https://www.linkedin.com/company/axe-ai-com/" },
+  { label: "YouTube", href: "https://www.youtube.com/@axeai-com" },
+  { label: "Facebook", href: "https://www.facebook.com/axeai" },
+  { label: "GitHub", href: "https://github.com/AxeAI-com" },
+] as const
 
 // One empty list, so a missing catalog doesn't hand React a new array on every render (an endless loop).
 const NO_AGENTS: never[] = []
@@ -62,12 +73,10 @@ const Row = ({ children, pad = "py-[12px]", id }: { children: ReactNode; pad?: s
   <div id={id} className={`scroll-mt-[40px] flex items-center gap-[12px] bg-card px-[16px] ${pad}`}>{children}</div>
 )
 
-/** Pasta UI's outline button. */
-const ghost =
-  "inline-flex h-[34px] shrink-0 items-center rounded-full border-0 bg-fill-4 px-[16px] text-[13px] text-foreground transition-colors duration-150 enabled:hover:bg-fill-3 disabled:opacity-40"
-
-const brandPill = "inline-flex h-[34px] shrink-0 items-center rounded-full border-0 bg-brand px-[16px] text-[13px] text-white transition-colors duration-150 hover:bg-brand-hover"
-const badPill = "inline-flex h-[28px] shrink-0 items-center rounded-full border-0 bg-bad/11 px-[12px] text-[13px] text-bad-ink transition-colors duration-150 hover:bg-bad/20"
+// The kit's buttons: secondary, the one primary, and a quiet danger for Remove.
+const ghost = button.secondary
+const brandPill = button.primary
+const badPill = compact(button.danger)
 
 /** Light, dark or the system's: one pill with three choices. */
 function ThemeRow() {
@@ -75,15 +84,15 @@ function ThemeRow() {
   return (
     <Row>
       <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-        <span className="text-[14px] leading-[20px]">Theme</span>
+        <span className="text-[13px] leading-[20px]">Theme</span>
       </div>
-      <div role="group" aria-label="Theme" className="flex gap-[2px] rounded-full bg-segment p-[3px] dark:bg-background">
+      <div role="group" aria-label="Theme" className="flex gap-[2px] rounded-[8px] bg-segment p-[2px] dark:bg-background">
         {(["system", "light", "dark"] as const).map((t) => (
           <button
             key={t}
             aria-pressed={theme === t}
             onClick={() => void setTheme(t)}
-            className={`h-[30px] rounded-full border-0 px-[16px] text-[13px] capitalize transition-colors duration-150 ${theme === t ? "bg-raised-2 text-foreground shadow-card dark:bg-fill-4" : "bg-transparent text-ink-3 hover:text-ink"}`}
+            className={`h-[28px] rounded-[6px] border-0 px-[12px] text-[13px] capitalize transition-colors duration-150 ${theme === t ? "bg-raised-2 text-ink" : "bg-transparent text-ink-3 hover:text-ink"}`}
           >
             {t}
           </button>
@@ -122,12 +131,12 @@ export function Settings() {
 
   return (
     <div className={PAGE_TOP}>
-      <div className="flex h-max w-[920px] max-w-[calc(100%-48px)] flex-col gap-[24px] pt-[24px] pb-[200px]">
+      <div style={{ width: PAGE }} className="flex h-max max-w-[calc(100%-48px)] flex-col gap-[24px] pt-[24px] pb-[200px]">
         {!profile && (
           <Section title="Account" i={1} id="account">
             <Row>
               <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-                <span className="text-[14px] leading-[20px]">Not signed in</span>
+                <span className="text-[13px] leading-[20px]">Not signed in</span>
                 <span className="text-[13px] text-ink-3">CLI agents work without an account. Sign in for Axe's models.</span>
               </div>
               <button className={ghost} onClick={() => void signIn()}>
@@ -141,7 +150,7 @@ export function Settings() {
             <Row>
               <Avatar profile={profile} size={34} />
               <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-                <span className="truncate text-[14px] leading-[20px]">{profile.name || profile.email}</span>
+                <span className="truncate text-[13px] leading-[20px]">{profile.name || profile.email}</span>
                 <span className="text-[12px] leading-[17px] text-ink-3 tabular-nums">
                   {[`${profile.plan ?? "Free"} plan`, `${(profile.credits ?? 0).toLocaleString("en-US")} credits`].join(", ")}
                 </span>
@@ -153,8 +162,8 @@ export function Settings() {
             <ThemeRow />
             <Row>
               <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-                <span className="text-[14px] leading-[20px]">Sign out</span>
-                <span className="text-[12px] leading-[17px] text-ink-3">Signed in as {profile.email}</span>
+                <span className="text-[13px] leading-[20px]">{profile.email}</span>
+                <span className="text-[12px] leading-[17px] text-ink-3">Your Axe account</span>
               </div>
               <button className={ghost} onClick={() => void signOut()}>
                 Sign out
@@ -176,10 +185,6 @@ export function Settings() {
           <FullAccess />
         </Section>
 
-        <Section title="Updates" i={5} id="updates">
-          <UpdateRow ghost={ghost} />
-        </Section>
-
         <ModelsSection i={6} />
 
         <Section title="CLIs on this computer" i={7} id="clis">
@@ -188,7 +193,7 @@ export function Settings() {
               <Row key={a.id} pad="py-[12px]">
                 <LogoTile logo={agentLogo(a)} name={a.name} size={28} />
                 <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-                  <span className="text-[14px] leading-[20px]">{a.name}</span>
+                  <span className="text-[13px] leading-[20px]">{a.name}</span>
                   <span className="truncate text-[12px] leading-[17px] text-ink-3">{a.state === "unavailable" && a.reason ? a.reason : a.note}</span>
                 </div>
                 {a.state === "install" ? (
@@ -210,6 +215,26 @@ export function Settings() {
             </Row>
           )}
         </Section>
+
+        {/* About: the version (and updates) and the product's accounts. Keeps the "updates" id for the palette. */}
+        <Section title="About" i={8} id="updates">
+          <UpdateRow ghost={ghost} />
+          <Row>
+            <span className="min-w-[0px] flex-1 text-[13px] leading-[20px]">Follow Axe AI</span>
+            <div className="flex flex-wrap items-center justify-end gap-x-[16px] gap-y-[4px]">
+              {SOCIAL_LINKS.map((l) => (
+                <button
+                  key={l.label}
+                  title={l.href}
+                  className="border-0 bg-transparent p-0 text-[13px] text-ink-3 transition-colors duration-150 hover:text-ink focus-visible:text-ink focus-visible:outline-none"
+                  onClick={() => void invoke("app:openExternal", l.href)}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </Row>
+        </Section>
       </div>
     </div>
   )
@@ -218,12 +243,11 @@ export function Settings() {
 /**
  * Model servers on this computer: Ollama, LM Studio and llama.cpp show up by themselves when they run,
  * with a tick and what they have loaded; any other one (Jan, vLLM, a box on your network) is added by
- * its address. Ollama can be started from here (or when Axe opens) and gets models by name. Below, who
- * new boards check with.
+ * its address. Ollama can be started from here (or when Axe opens) and gets models by name. (The "New boards
+ * check with" row went with boards; nothing read `boardAnswerer` any more.)
  */
 function ModelsSection({ i }: { i: number }) {
   const catalog = useStore((s) => s.catalog)
-  const boardAnswerer = useStore((s) => s.settings.boardAnswerer)
   const servers = catalog?.servers ?? []
   const [adding, setAdding] = useState(false)
   const [address, setAddress] = useState("")
@@ -247,14 +271,7 @@ function ModelsSection({ i }: { i: number }) {
     }
   }
 
-  const keyOf = (a?: Answerer | null) => (!a ? "" : a.kind === "agent" ? `agent:${a.agentId}` : `${a.kind}:${a.modelId}`)
-  const pick = (v: string) => {
-    const [kind, ...rest] = v.split(":")
-    const id = rest.join(":")
-    const a: Answerer | null = kind === "local" || kind === "axe" ? { kind, modelId: id } : kind === "agent" ? { kind: "agent", agentId: id } : null
-    void updateSettings({ boardAnswerer: a })
-  }
-  const field = "h-[34px] rounded-full border-0 bg-fill-4 px-[16px] text-[13px] text-foreground outline-none placeholder:text-ink-3"
+  const field = "h-[32px] rounded-[8px] border-0 bg-fill-4 px-[10px] text-[13px] text-ink outline-none placeholder:text-ink-3"
 
   return (
     <Section title="Models on this computer" i={i} id="models">
@@ -265,7 +282,7 @@ function ModelsSection({ i }: { i: number }) {
           <Row key={s.id} pad="py-[12px]">
             <LogoTile logo={serverLogo(s)} name={s.name} size={28} />
             <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-              <span className="text-[14px] leading-[20px]">{s.name}</span>
+              <span className="text-[13px] leading-[20px]">{s.name}</span>
               <span className="truncate text-[12px] leading-[17px] text-ink-3">
                 {!s.found ? "Not answering right now" : s.models.length ? s.models.map((m) => m.name).join(", ") : "No models loaded"}
               </span>
@@ -297,32 +314,14 @@ function ModelsSection({ i }: { i: number }) {
         </div>
       ) : (
         <Row>
-          <button className="flex flex-1 items-center gap-[12px] border-0 bg-transparent p-0 text-left text-[14px] leading-[20px] text-ink-2 hover:text-ink" onClick={() => setAdding(true)}>
-            <span className="flex size-[30px] items-center justify-center rounded-[9px] bg-fill-4">
+          <button className="flex flex-1 items-center gap-[12px] border-0 bg-transparent p-0 text-left text-[13px] leading-[20px] text-ink-2 hover:text-ink" onClick={() => setAdding(true)}>
+            <span className="flex size-[30px] items-center justify-center rounded-full bg-fill-4">
               <PlusIcon size={14} />
             </span>
             Add a model server
           </button>
         </Row>
       )}
-      <Row pad="py-[12px]">
-        <span className="flex-1 text-[14px] leading-[20px]">New boards check with</span>
-        <Select label="New boards check with" value={keyOf(boardAnswerer)} onChange={pick}>
-          <option value="">{catalog?.local[0] ? `Smallest local model (${catalog.local[0].name})` : "No model, plain summaries"}</option>
-          {catalog?.local.map((m) => (
-            <option key={m.id} value={`local:${m.id}`}>
-              {m.name}
-            </option>
-          ))}
-          {catalog?.agents
-            .filter((a) => a.state === "ready" && a.here)
-            .map((a) => (
-              <option key={a.id} value={`agent:${a.id}`}>
-                {a.name}
-              </option>
-            ))}
-        </Select>
-      </Row>
     </Section>
   )
 }
@@ -341,7 +340,7 @@ function OllamaRows({ server: s }: { server: ModelServer }) {
   const [name, setName] = useState("")
   const [error, setError] = useState<string | null>(null)
   const here = s.found || !!s.canStart
-  const field = "h-[34px] min-w-[0px] flex-1 rounded-full border-0 bg-fill-4 px-[16px] text-[13px] text-foreground outline-none placeholder:text-ink-3"
+  const field = "h-[32px] min-w-[0px] flex-1 rounded-[8px] border-0 bg-fill-4 px-[10px] text-[13px] text-ink outline-none placeholder:text-ink-3"
 
   const start = async () => {
     setStarting(true)
@@ -381,7 +380,7 @@ function OllamaRows({ server: s }: { server: ModelServer }) {
       <Row pad="py-[12px]">
         <LogoTile logo={serverLogo(s)} name={s.name} size={28} />
         <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-          <span className="text-[14px] leading-[20px]">{s.name}</span>
+          <span className="text-[13px] leading-[20px]">{s.name}</span>
           <span className="truncate text-[12px] leading-[17px] text-ink-3">{status}</span>
         </div>
         {!s.found && s.canStart && (
@@ -398,7 +397,7 @@ function OllamaRows({ server: s }: { server: ModelServer }) {
       {here && (
         <Row>
           <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-            <span className="text-[14px] leading-[20px]">Start Ollama when Axe opens</span>
+            <span className="text-[13px] leading-[20px]">Start Ollama when Axe opens</span>
             <span className="text-[12px] leading-[17px] text-ink-3">Axe stops it again when you quit, if Axe started it.</span>
           </div>
           <Switch on={startOnOpen} onChange={(on) => void updateSettings({ startOllama: on })} label="Start Ollama when Axe opens" />
@@ -406,7 +405,7 @@ function OllamaRows({ server: s }: { server: ModelServer }) {
       )}
       {here && (
         <div className="flex flex-col gap-[8px] bg-card px-[16px] py-[12px]">
-          <span className="text-[14px] leading-[20px]">Get a model</span>
+          <span className="text-[13px] leading-[20px]">Get a model</span>
           {pull ? (
             <div className="flex items-center gap-[12px]">
               <div className="flex min-w-[0px] flex-1 flex-col gap-[6px]">
@@ -422,7 +421,7 @@ function OllamaRows({ server: s }: { server: ModelServer }) {
                   aria-valuenow={Math.round(share * 100)}
                   className="h-[4px] overflow-hidden rounded-full bg-fill-4"
                 >
-                  <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${share * 100}%` }} />
+                  <div className="h-full rounded-full bg-ink-2 transition-[width] duration-300" style={{ width: `${share * 100}%` }} />
                 </div>
               </div>
               <button className={ghost} onClick={cancelPull}>
@@ -437,7 +436,7 @@ function OllamaRows({ server: s }: { server: ModelServer }) {
                   {offer.map((m) => (
                     <button
                       key={m}
-                      className="h-[28px] rounded-full border-0 bg-fill-4 px-[12px] text-[13px] text-foreground transition-colors duration-150 hover:bg-fill-3"
+                      className="h-[28px] rounded-full border-0 bg-fill-4 px-[12px] text-[13px] text-ink transition-colors duration-150 hover:bg-fill-3"
                       onClick={() => void get(m)}
                     >
                       {m}
@@ -478,14 +477,14 @@ function NotificationsSection({ i }: { i: number }) {
   return (
     <Section title="Notifications" i={i} id="notifications">
       <Row>
-        <span className="flex-1 text-[14px] leading-[20px]">Watches</span>
-        <Select label="Watches" value={on ? "on" : "off"} onChange={(v) => void updateSettings({ watchNotify: v === "on" })}>
+        <span className="flex-1 text-[13px] leading-[20px]">Checks</span>
+        <Select label="Checks" value={on ? "on" : "off"} onChange={(v) => void updateSettings({ watchNotify: v === "on" })}>
           <option value="on">On</option>
           <option value="off">Off</option>
         </Select>
       </Row>
       <Row>
-        <span className="flex-1 text-[14px] leading-[20px]">Morning summary</span>
+        <span className="flex-1 text-[13px] leading-[20px]">Morning summary</span>
         <Select label="Morning summary" value={at} onChange={(v) => isSummaryAt(v) && void updateSettings({ summaryAt: v })}>
           {SUMMARY_AT.map((a) => (
             <option key={a} value={a}>
@@ -504,7 +503,7 @@ function FullAccess() {
   return (
     <Row>
       <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-        <span className="text-[14px] leading-[20px]">Full access</span>
+        <span className="text-[13px] leading-[20px]">Full access</span>
         <span className="text-[12px] leading-[17px] text-ink-3">
           {on
             ? "Axe and your CLIs act without asking first. Your Desktop, Documents, Downloads and Library still ask."
@@ -517,7 +516,7 @@ function FullAccess() {
         </button>
       ) : confirming ? (
         <div className="flex shrink-0 items-center gap-[4px]">
-          <button className="h-[34px] rounded-full border-0 bg-transparent px-[16px] text-[13px] text-ink-2 hover:text-ink" onClick={() => setConfirming(false)}>
+          <button className={button.ghost} onClick={() => setConfirming(false)}>
             Cancel
           </button>
           <button
@@ -574,7 +573,7 @@ function MemorySection({ i }: { i: number }) {
       </AnimatePresence>
       {items && !items.length && (
         <Row>
-          <span className="text-[14px] leading-[20px] text-ink-3">Nothing yet. Try your role, your city, or how you like answers.</span>
+          <Empty>Nothing yet. Try your role, your city, or how you like answers.</Empty>
         </Row>
       )}
       <Row>
@@ -589,7 +588,7 @@ function MemorySection({ i }: { i: number }) {
           onKeyDown={(e) => {
             if (e.key === "Enter") void add()
           }}
-          className="h-[34px] min-w-[0px] flex-1 rounded-full border-0 bg-fill-4 px-[16px] text-[13px] text-ink outline-none placeholder:text-ink-3"
+          className="h-[32px] min-w-[0px] flex-1 rounded-[8px] border-0 bg-fill-4 px-[10px] text-[13px] text-ink outline-none placeholder:text-ink-3"
         />
         <button className={ghost} disabled={!draft.trim()} onClick={() => void add()}>
           Add
@@ -636,7 +635,7 @@ function VoiceSection({ i }: { i: number }) {
     <Section title="Quick bar and voice" i={i} id="voice">
       <Row>
         <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-          <span className="text-[14px] leading-[20px]">Quick bar</span>
+          <span className="text-[13px] leading-[20px]">Quick bar</span>
           <span className="text-[12px] leading-[17px] text-ink-3">Ask from any app. Click, then press the keys you want.</span>
         </div>
         <button
@@ -648,7 +647,7 @@ function VoiceSection({ i }: { i: number }) {
           }}
           onBlur={() => setRecording(false)}
           className={`h-[32px] min-w-[64px] shrink-0 rounded-full border-0 px-[12px] text-[13px] transition-colors duration-150 ${
-            recording ? "bg-brand-soft text-brand-text" : "bg-fill-4 text-ink hover:bg-fill-3"
+            recording ? "bg-fill-3 text-ink" : "bg-fill-4 text-ink hover:bg-fill-3"
           }`}
         >
           {recording ? "Press keys" : displayAccelerator(key, platform())}
@@ -657,14 +656,14 @@ function VoiceSection({ i }: { i: number }) {
       {problem && <p className="m-[0px] bg-card px-[16px] pb-[8px] text-[12px] leading-[17px] text-bad">{problem}</p>}
       <Row>
         <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-          <span className="text-[14px] leading-[20px]">Dictate</span>
+          <span className="text-[13px] leading-[20px]">Dictate</span>
           <span className="text-[12px] leading-[17px] text-ink-3">Hold to talk, let go to write. Or tap to start and stop.</span>
         </div>
         <Keys>{dictate ? keysOf(dictate) : ""}</Keys>
       </Row>
       <Row>
         <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-          <span className="text-[14px] leading-[20px]">Talk to Axe</span>
+          <span className="text-[13px] leading-[20px]">Talk to Axe</span>
           <span className="text-[12px] leading-[17px] text-ink-3">Speak, hear the answer, speak again. Uses your computer's voice.</span>
         </div>
         <Keys>{talk ? keysOf(talk) : ""}</Keys>
@@ -710,7 +709,7 @@ function MemoryRow({ item }: { item: MemoryItem }) {
                 setEditing(false)
               }
             }}
-            className="h-[34px] min-w-[0px] flex-1 rounded-full border-0 bg-fill-4 px-[16px] text-[13px] text-ink outline-none"
+            className="h-[32px] min-w-[0px] flex-1 rounded-[8px] border-0 bg-fill-4 px-[10px] text-[13px] text-ink outline-none"
           />
           <button className={ghost} onClick={() => void save()}>
             Save
@@ -722,7 +721,7 @@ function MemoryRow({ item }: { item: MemoryItem }) {
 
   return (
     <div className="flex items-center gap-[12px] bg-card px-[16px] py-[10px]">
-      <span className="selectable min-w-[0px] flex-1 text-[14px] leading-[20px]">{item.text}</span>
+      <span className="selectable min-w-[0px] flex-1 text-[13px] leading-[20px]">{item.text}</span>
       <div className="flex gap-[12px]">
         <button
           aria-label={`Edit ${item.text}`}
@@ -746,13 +745,14 @@ function MemoryRow({ item }: { item: MemoryItem }) {
 }
 
 /**
- * Use from your phone (board: Remote control, RCSettings and RCConnected). The QR is new every 2 minutes
- * and works once; a phone that scans it still needs Allow here (PhoneAsk). Phones lists each one with Remove.
+ * Browsers and phones (board: Remote control, RCSettings and RCConnected). Three ways in, all new every
+ * 2 minutes and good once: a 6-digit code typed at axeai.com/connect, the QR, and Connect this browser at
+ * axeai.com/connect (asks here, with a check number: PhoneAsk). A QR scan still needs Allow here. The list
+ * shows each one with Remove.
  */
 function PhoneSections({ i }: { i: number }) {
   const [view, setView] = useState<PhonesView | null>(null)
   const [code, setCode] = useState<PairingCode | null>(null)
-  const [adding, setAdding] = useState(false)
   const [now, setNow] = useState(Date.now())
   const [log, setLog] = useState<PhoneLogEntry[]>([])
 
@@ -765,7 +765,7 @@ function PhoneSections({ i }: { i: number }) {
   }, [])
 
   const phones = view?.phones ?? []
-  const showCode = !!view?.enabled && view.available && (adding || !phones.length)
+  const showCode = !!view?.enabled && view.available
 
   // A new code when it runs out, or when one was used (the list changed).
   useEffect(() => {
@@ -779,36 +779,49 @@ function PhoneSections({ i }: { i: number }) {
       clearInterval(tick)
     }
   }, [showCode, view])
+  // The screen closed (or pairing went off): axeai.com stops offering the code.
+  useEffect(() => (showCode ? () => void invoke("phones:closeCode").catch(() => {}) : undefined), [showCode])
   useEffect(() => {
-    if (code && now >= code.expiresAt) void invoke("phones:code").then(setCode).catch(() => {})
+    if (!code) return
+    // The QR rotates every 2 minutes even while typed codes are blocked.
+    const due = Math.min(code.expiresAt, code.code ? code.codeExpiresAt : code.blockedUntil)
+    if (now >= due) void invoke("phones:code").then(setCode).catch(() => {})
   }, [code, now])
-  useEffect(() => setAdding(false), [phones.length])
 
   if (!view) return null
-  const left = code ? Math.max(0, Math.ceil((code.expiresAt - now) / 1000)) : 0
+  const left = code ? Math.max(0, Math.ceil(((code.code ? code.codeExpiresAt : code.expiresAt) - now) / 1000)) : 0
   const phoneIcon = (
-    <span className="flex size-[30px] shrink-0 items-center justify-center rounded-[8px] bg-fill-4 text-white">
+    <span className="flex size-[30px] shrink-0 items-center justify-center rounded-full bg-raised text-ink">
       <PhoneIcon size={15} />
     </span>
   )
   const live = view.enabled && view.available
   return (
-    <Section title="Use from your phone" i={i} id="phone">
+    <Section title="Browsers and phones" i={i} id="phone">
       <Row>
         <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-          <span className="text-[14px] leading-[20px]">Let my phone use this Mac</span>
+          <span className="text-[13px] leading-[20px]">Let my browsers and phones use this computer</span>
           <span className="text-[12px] leading-[17px] text-ink-3">
-            {view.available ? "Chat and approve from axeai.com on your phone." : "This computer has no place to keep its keys safe, so phones can't connect."}
+            {view.available ? "Chat and approve from axeai.com on a browser or phone." : "This computer has no place to keep its keys safe, so browsers and phones can't connect."}
           </span>
         </div>
-        {view.available && <Switch flat on={view.enabled} onChange={(on) => void invoke("phones:setEnabled", on).then(setView)} label="Let my phone use this Mac" />}
+        {view.available && <Switch on={view.enabled} onChange={(on) => void invoke("phones:setEnabled", on).then(setView)} label="Let my browsers and phones use this computer" />}
       </Row>
       {showCode && code && (
         <div className="flex gap-[24px] bg-card px-[16px] py-[20px]">
           <QRCode text={code.link} />
           <div className="flex flex-col gap-[10px] pt-[6px]">
-            <span className="text-[16px] leading-[22px]">Scan with your phone</span>
-            <span className="text-[13px] leading-[20px] text-ink-2">Open axeai.com on your phone, tap Connect your Mac, and scan this.</span>
+            {code.code ? (
+              <>
+                <span className="text-[34px] leading-[40px] tracking-[0.08em] tabular-nums" aria-label={`Code ${code.code}`}>
+                  {code.code.slice(0, 3)} {code.code.slice(3)}
+                </span>
+                <span className="text-[13px] leading-[20px] text-ink-2">Type this at axeai.com/connect. Works once, for 2 minutes.</span>
+              </>
+            ) : (
+              <span className="text-[13px] leading-[20px] text-ink-2">Too many tries. Try again in 15 minutes.</span>
+            )}
+            <span className="text-[13px] leading-[20px] text-ink-2">Or press Connect this browser at axeai.com/connect. On a phone, scan the QR there.</span>
             <span className="flex items-center gap-[8px] text-[12px] leading-[17px] text-ink-3">
               <ClockIcon size={13} />
               New code in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}. Each code works once.
@@ -821,7 +834,7 @@ function PhoneSections({ i }: { i: number }) {
           <Row key={p.id} id={n === 0 ? "settings-phones" : undefined}>
             {phoneIcon}
             <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-              <span className="truncate text-[14px] leading-[20px]">{p.name}</span>
+              <span className="truncate text-[13px] leading-[20px]">{p.name}</span>
               <span className="truncate text-[12px] leading-[17px] text-ink-3">
                 {p.connected ? "Connected now. " : ""}Added {new Date(p.addedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.
               </span>
@@ -831,25 +844,15 @@ function PhoneSections({ i }: { i: number }) {
             </button>
           </Row>
         ))}
-      {live && phones.length > 0 && (
-        <Row pad="py-[10px]">
-          <button className="flex flex-1 items-center gap-[12px] border-0 bg-transparent p-0 text-left text-[14px] leading-[20px] text-ink-2" onClick={() => setAdding(true)}>
-            <span className="flex size-[30px] items-center justify-center rounded-[9px] bg-fill-4">
-              <PlusIcon size={14} />
-            </span>
-            Add a phone
-          </button>
-        </Row>
-      )}
       {live && !phones.length && (
         <Row id="settings-phones">
-          <span className="text-[14px] leading-[20px] text-ink-3">No phones yet</span>
+          <Empty>No browsers or phones yet</Empty>
         </Row>
       )}
       {view.enabled && log.length > 0 && (
         <>
           <Row id="settings-phone-log" pad="pt-[12px] pb-[4px]">
-            <span className="text-[12px] leading-[22px] text-ink-3">Phone activity</span>
+            <span className="text-[12px] leading-[22px] text-ink-3">Browser and phone activity</span>
           </Row>
           {log.slice(0, 20).map((e) => (
             <Row key={`${e.at}-${e.text}`} pad="pt-[8px] pb-[14px]">
@@ -869,7 +872,7 @@ function QRCode({ text }: { text: string }) {
   let d = ""
   data.forEach((row, y) => row.forEach((dark, x) => dark && (d += `M${x} ${y}h1v1h-1z`)))
   return (
-    <div className="flex size-[196px] shrink-0 items-center justify-center rounded-[16px] bg-white">
+    <div className="flex size-[196px] shrink-0 items-center justify-center rounded-media bg-white">
       <svg width="164" height="164" viewBox={`0 0 ${size} ${size}`} shapeRendering="crispEdges" role="img" aria-label="Pairing code for this Mac">
         <path d={d} fill="#08090b" />
       </svg>

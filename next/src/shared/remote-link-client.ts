@@ -6,8 +6,11 @@
 // again and the phone resumes from the last event it has, so a deploy is a short pause, not a gap.
 //
 // Relay messages (JSON text): {t:"auth",ticket} → {t:"ready",mac?:bool}; the phone sends Hello1 and
-// frames as they are and gets {t:"mac",on}; the Mac gets {from,m} and {t:"peer",phone,on}, and sends
-// {to,m} or {t:"kick",phone}.
+// frames as they are and gets {t:"mac",on}; the Mac gets {from,c?,m} and {t:"peer",phone,c?,on}, and sends
+// {to,c?,m} or {t:"kick",phone,c?}. `c` is the relay's id for one browser socket: two tabs of one browser
+// are one phone but two sockets, each with its own sealed session. A Mac says it understands `c` with
+// {t:"auth",ticket,conns:true}; without that (Axe Desktop 0.12.x) the relay keeps one socket per phone.
+// A browser told 4002 (another tab took over) or 4001 (refused) does not reconnect by itself.
 
 import type { DeviceKeys } from "./remote-crypto"
 import {
@@ -20,124 +23,20 @@ import {
   phoneFinish,
   phoneHello,
 } from "./remote-link"
+import { parse, Queue, Reconnecting, type SocketMaker } from "./remote-link-socket"
 
-/** What a WebSocket needs to offer (the browser's, Node's global one, or a test double). */
-export type SocketLike = {
-  send(data: string): void
-  close(code?: number, reason?: string): void
-  onopen: ((ev: unknown) => void) | null
-  onmessage: ((ev: { data: unknown }) => void) | null
-  onclose: ((ev: { code?: number }) => void) | null
-  onerror: ((ev: unknown) => void) | null
-}
-export type SocketMaker = (url: string) => SocketLike
+export { backoff, type SocketLike, type SocketMaker } from "./remote-link-socket"
 
 /** A Mac's event as the phone gets it. `epoch` changes when the Mac app restarts. */
 export type LinkEvent = { type: "event"; epoch: string; id: number; kind: string; body: unknown }
-export type PhoneLinkState = "connecting" | "online" | "mac-offline"
+export type PhoneLinkState = "connecting" | "online" | "mac-offline" | "replaced" | "refused"
+
+/** The relay's close codes a browser must not answer with an instant reconnect. */
+export const CLOSE_REPLACED = 4002
+export const CLOSE_REFUSED = 4001
 
 /** Two bad frames in one connection end it; the next one handshakes afresh. */
 const MAX_BAD = 2
-const parse = (data: unknown) => {
-  try {
-    return typeof data === "string" ? (JSON.parse(data) as Record<string, unknown>) : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * Retries: at once (with jitter), then every second for about 30 seconds, so a phone is back within a
- * second of a deploy however long the swap takes; after that 2, 4, 8 and at most 15 seconds apart.
- */
-export const backoff = (attempt: number, random = Math.random) =>
-  attempt === 0
-    ? random() * 250
-    : attempt < 30
-      ? Math.min(1000, 250 * 2 ** attempt)
-      : Math.min(15_000, 2000 * 2 ** (attempt - 30))
-
-/** Runs async steps one at a time, in order: frame numbers must go out and come in in sequence. */
-class Queue {
-  private tail: Promise<unknown> = Promise.resolve()
-  run<T>(step: () => Promise<T>): Promise<T> {
-    const next = this.tail.then(step, step)
-    this.tail = next.catch(() => undefined)
-    return next
-  }
-}
-
-abstract class Reconnecting {
-  protected ws: SocketLike | undefined
-  protected stopped = true
-  private attempt = 0
-  private timer: ReturnType<typeof setTimeout> | undefined
-
-  constructor(protected readonly base: { url: string; ticket(): Promise<string>; socket: SocketMaker }) {}
-
-  start() {
-    if (!this.stopped) return
-    this.stopped = false
-    void this.connect()
-  }
-
-  stop() {
-    this.stopped = true
-    if (this.timer) clearTimeout(this.timer)
-    this.ws?.close(1000, "stopped")
-    this.ws = undefined
-    this.closed()
-  }
-
-  /** The connection is up and working: the next drop retries at once again. */
-  protected healthy() {
-    this.attempt = 0
-  }
-
-  /** Ends this connection (bad frames, new keys due); the loop reconnects. */
-  protected drop() {
-    this.ws?.close(4000, "reconnect")
-  }
-
-  protected abstract opened(): void
-  protected abstract message(m: Record<string, unknown>): void
-  protected abstract closed(): void
-
-  private async connect() {
-    if (this.stopped) return
-    let ticket: string
-    try {
-      ticket = await this.base.ticket()
-    } catch {
-      return this.retry()
-    }
-    if (this.stopped) return
-    const ws = this.base.socket(this.base.url)
-    this.ws = ws
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ t: "auth", ticket }))
-      this.opened()
-    }
-    ws.onmessage = (ev) => {
-      if (this.ws !== ws) return
-      const m = parse(ev.data)
-      if (m) this.message(m)
-    }
-    ws.onerror = () => {}
-    ws.onclose = () => {
-      if (this.ws !== ws) return
-      this.ws = undefined
-      this.closed()
-      this.retry()
-    }
-  }
-
-  private retry() {
-    if (this.stopped) return
-    const wait = backoff(this.attempt++)
-    this.timer = setTimeout(() => void this.connect(), wait)
-  }
-}
 
 export class PhoneLink extends Reconnecting {
   private session: LinkSession | undefined
@@ -181,7 +80,20 @@ export class PhoneLink extends Reconnecting {
   protected closed() {
     this.session = undefined
     this.pending = undefined
-    this.setState("connecting")
+    if (this.state !== "replaced" && this.state !== "refused") this.setState("connecting")
+  }
+
+  protected override halts(code: number | undefined) {
+    if (code !== CLOSE_REPLACED && code !== CLOSE_REFUSED) return false
+    this.setState(code === CLOSE_REPLACED ? "replaced" : "refused")
+    return true
+  }
+
+  override reconnect() {
+    if (!this.halted) return
+    this.state = "connecting"
+    this.o.onState?.("connecting")
+    super.reconnect()
   }
 
   private async hello() {
@@ -262,8 +174,22 @@ export class PhoneLink extends Reconnecting {
   }
 }
 
-/** `resumed`: live events wait until the phone said what it has, so a replay never lands after them. */
-type MacPeer = { session: LinkSession; out: Queue; inbox: Queue; bad: number; resumed: boolean }
+/**
+ * One sealed session. `phone` is the browser (or phone) key; `c` is the relay's id for this socket, set when
+ * the relay knows connection ids (two tabs of one browser are two sessions of one phone).
+ * `resumed`: live events wait until the phone said what it has, so a replay never lands after them.
+ */
+type MacPeer = {
+  phone: string
+  c: string | undefined
+  session: LinkSession
+  out: Queue
+  inbox: Queue
+  bad: number
+  resumed: boolean
+}
+
+const peerKey = (phone: string, c: string | undefined) => (c ? `${phone}\u0000${c}` : phone)
 
 export class MacLink extends Reconnecting {
   private peers = new Map<string, MacPeer>()
@@ -282,7 +208,7 @@ export class MacLink extends Reconnecting {
       /** The phone's Ed25519 key from this Mac's signed list, or undefined when it isn't allowed. */
       phoneEd(phone: string): Promise<string | undefined>
       onMessage?(phone: string, m: Record<string, unknown>, chat: string): void
-      /** A phone's sealed session is up and caught up (true), or ended (false). */
+      /** A phone's first sealed session is up and caught up (true), or its last one ended (false). */
       onPeer?(phone: string, on: boolean): void
       bufferSize?: number
     },
@@ -290,37 +216,56 @@ export class MacLink extends Reconnecting {
     super(o)
   }
 
+  protected override authExtra() {
+    return { conns: true }
+  }
+
   protected opened() {}
 
   protected closed() {
-    for (const phone of [...this.peers.keys()]) this.end(phone)
+    for (const peer of [...this.peers.values()]) this.end(peer)
   }
 
-  private end(phone: string) {
-    const peer = this.peers.get(phone)
-    this.peers.delete(phone)
-    if (peer?.resumed) this.o.onPeer?.(phone, false)
+  private of(phone: string) {
+    return [...this.peers.values()].filter((p) => p.phone === phone)
   }
 
-  /** Phones with a sealed session that have caught up, right now. */
+  private end(peer: MacPeer) {
+    const key = peerKey(peer.phone, peer.c)
+    if (this.peers.get(key) !== peer) return
+    this.peers.delete(key)
+    if (peer.resumed && !this.of(peer.phone).some((p) => p.resumed)) this.o.onPeer?.(peer.phone, false)
+  }
+
+  /** Phones with a sealed session that has caught up, right now. */
   phones() {
-    return [...this.peers].filter(([, p]) => p.resumed).map(([phone]) => phone)
+    return [...new Set([...this.peers.values()].filter((p) => p.resumed).map((p) => p.phone))]
   }
 
-  /** Ends a phone's session now (Stop, Remove); it can come back only while it's still allowed. */
+  /** Ends all of a phone's sessions now (Stop, Remove); it can come back only while it's still allowed. */
   kick(phone: string) {
     this.ws?.send(JSON.stringify({ t: "kick", phone }))
-    this.end(phone)
+    for (const peer of this.of(phone)) this.end(peer)
+  }
+
+  /** Ends one session (bad frames). With an old relay (no connection ids) that is the whole phone. */
+  private kickPeer(peer: MacPeer) {
+    if (!peer.c) return this.kick(peer.phone)
+    this.ws?.send(JSON.stringify({ t: "kick", phone: peer.phone, c: peer.c }))
+    this.end(peer)
   }
 
   protected message(m: Record<string, unknown>) {
+    const c = typeof m.c === "string" ? m.c : undefined
     if (m.t === "ready") this.healthy()
-    else if (m.t === "peer" && typeof m.phone === "string" && m.on !== true) this.end(m.phone)
-    else if (typeof m.from === "string" && m.m && typeof m.m === "object")
-      void this.fromPhone(m.from, m.m as Record<string, unknown>)
+    else if (m.t === "peer" && typeof m.phone === "string" && m.on !== true) {
+      const peer = this.peers.get(peerKey(m.phone, c))
+      if (peer) this.end(peer)
+    } else if (typeof m.from === "string" && m.m && typeof m.m === "object")
+      void this.fromPhone(m.from, c, m.m as Record<string, unknown>)
   }
 
-  private async fromPhone(phone: string, m: Record<string, unknown>) {
+  private async fromPhone(phone: string, c: string | undefined, m: Record<string, unknown>) {
     if (m.t === "hs1") {
       const hello = m as unknown as Hello1
       if (hello.phone !== phone) return
@@ -331,22 +276,34 @@ export class MacLink extends Reconnecting {
           mac: this.o.mac,
           phoneEd: await this.o.phoneEd(phone),
         })
-        this.peers.set(phone, { session, out: new Queue(), inbox: new Queue(), bad: 0, resumed: false })
-        this.ws?.send(JSON.stringify({ to: phone, m: answer }))
+        const old = this.peers.get(peerKey(phone, c))
+        const peer: MacPeer = {
+          phone,
+          c,
+          session,
+          out: new Queue(),
+          inbox: new Queue(),
+          bad: 0,
+          resumed: false,
+        }
+        this.peers.set(peerKey(phone, c), peer)
+        // A new handshake on the same socket replaces its session; the phone stays counted as connected.
+        if (old?.resumed && !this.of(phone).some((p) => p.resumed)) this.o.onPeer?.(phone, false)
+        this.ws?.send(JSON.stringify({ to: phone, ...(c ? { c } : {}), m: answer }))
       } catch {
         // Not allowed or not genuine: say nothing.
       }
     } else if (m.t === "f") {
-      const peer = this.peers.get(phone)
+      const peer = this.peers.get(peerKey(phone, c))
       if (!peer) return
       await peer.inbox.run(async () => {
-        if (this.peers.get(phone) !== peer) return
+        if (this.peers.get(peerKey(phone, c)) !== peer) return
         try {
           const message = (await peer.session.open(m as unknown as Frame)) as Record<string, unknown>
-          if (message.type === "resume") this.resume(phone, peer, message)
+          if (message.type === "resume") this.resume(peer, message)
           else this.o.onMessage?.(phone, message, String(m.c ?? ""))
         } catch (e) {
-          if (e instanceof LinkError && ++peer.bad >= MAX_BAD) this.kick(phone)
+          if (e instanceof LinkError && ++peer.bad >= MAX_BAD) this.kickPeer(peer)
         }
       })
     }
@@ -354,7 +311,7 @@ export class MacLink extends Reconnecting {
 
   /** A phone (re)connected: replay what it missed, or tell it to load afresh. */
   // Everything is queued in one go (no await), so no live event can slip in between.
-  private resume(phone: string, peer: MacPeer, m: Record<string, unknown>) {
+  private resume(peer: MacPeer, m: Record<string, unknown>) {
     const after = typeof m.after === "number" ? m.after : null
     const first = this.buffer[0]?.id
     if (
@@ -363,27 +320,38 @@ export class MacLink extends Reconnecting {
       after <= this.lastId &&
       (after === this.lastId || (first !== undefined && first <= after + 1))
     ) {
-      for (const e of this.buffer) if (e.id > after) void this.sendTo(phone, e)
-    } else void this.sendTo(phone, { type: "reset", epoch: this.epoch, last: this.lastId })
+      for (const e of this.buffer) if (e.id > after) void this.sealTo(peer, e)
+    } else void this.sealTo(peer, { type: "reset", epoch: this.epoch, last: this.lastId })
     if (peer.resumed) return
+    const known = this.of(peer.phone).some((p) => p.resumed)
     peer.resumed = true
-    this.o.onPeer?.(phone, true)
+    if (!known) this.o.onPeer?.(peer.phone, true)
   }
 
-  /** Sends to one phone, sealed. False when it has no session. */
-  async sendTo(phone: string, message: Record<string, unknown>, chat = ""): Promise<boolean> {
-    const peer = this.peers.get(phone)
+  private async sealTo(peer: MacPeer, message: Record<string, unknown>, chat = ""): Promise<boolean> {
     const ws = this.ws
-    if (!peer || !ws) return false
+    if (!ws || this.peers.get(peerKey(peer.phone, peer.c)) !== peer) return false
     if (peer.session.needsRekey()) {
-      this.kick(phone)
+      this.kickPeer(peer)
       return false
     }
     return peer.out.run(async () => {
-      if (this.peers.get(phone) !== peer) return false
-      ws.send(JSON.stringify({ to: phone, m: await peer.session.seal(message, chat) }))
+      if (this.peers.get(peerKey(peer.phone, peer.c)) !== peer) return false
+      ws.send(
+        JSON.stringify({
+          to: peer.phone,
+          ...(peer.c ? { c: peer.c } : {}),
+          m: await peer.session.seal(message, chat),
+        }),
+      )
       return true
     })
+  }
+
+  /** Sends to one phone, sealed, on each of its sessions (one per open tab). False when it has none. */
+  async sendTo(phone: string, message: Record<string, unknown>, chat = ""): Promise<boolean> {
+    const sent = await Promise.all(this.of(phone).map((p) => this.sealTo(p, message, chat)))
+    return sent.some(Boolean)
   }
 
   /** An event for every phone; kept for a while so a phone that drops can catch up. */
@@ -391,7 +359,7 @@ export class MacLink extends Reconnecting {
     const e: LinkEvent = { type: "event", epoch: this.epoch, id: ++this.lastId, kind, body }
     this.buffer.push(e)
     if (this.buffer.length > (this.o.bufferSize ?? 1000)) this.buffer.shift()
-    for (const [phone, peer] of this.peers) if (peer.resumed) void this.sendTo(phone, e, chat)
+    for (const peer of this.peers.values()) if (peer.resumed) void this.sealTo(peer, e, chat)
     return e
   }
 }

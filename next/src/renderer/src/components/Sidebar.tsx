@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import type { ThreadSummary } from "@shared/types"
 
-import { agentName } from "@/lib/answerer"
 import { invoke, isMac, shortcut } from "@/lib/bridge"
 import { openSettingsAt } from "@/lib/shortcuts"
 import { D, useMotion } from "@/lib/motion"
@@ -32,7 +31,6 @@ import { liveProblems } from "@shared/watching/findings"
 import { BoltIcon, EyeIcon, FolderPlusIcon, GearGlyph, MoreIcon, NewChatIcon, PhoneGlyph, PinIcon, PlusIcon, SidebarIcon, SlidersGlyph, SlidersIcon, UserIcon } from "./Icons"
 import { UpdatePill } from "./Update"
 import { AxeMark } from "./Logo"
-import { agentLogo, BrandLogo, LogoTile } from "./BrandLogo"
 import { MenuItem, MenuLine, Popover } from "./Popover"
 
 export const SIDEBAR_MIN = 240
@@ -72,7 +70,7 @@ export function Sidebar() {
       initial={false}
       animate={{ width: collapsed ? 0 : width }}
       transition={drag !== null ? { duration: 0 } : m.t(D.slow)}
-      className="relative h-full shrink-0 overflow-hidden"
+      className="sidebar-frozen relative h-full shrink-0 overflow-hidden"
     >
       <motion.nav
         aria-label="Chats"
@@ -122,18 +120,6 @@ function WorkMark({ state }: { state: WorkState }) {
       title={state === "waiting" ? "Needs you" : "Done"}
       className={`size-[7px] shrink-0 rounded-full ${state === "waiting" ? "bg-warn" : "bg-ink-2"}`}
     />
-  )
-}
-
-/** The CLI on a chat as its logo, named on hover and for screen readers. */
-function AgentMark({ agentId }: { agentId: string }) {
-  const catalog = useStore((s) => s.catalog)
-  const a = catalog?.agents.find((x) => x.id === agentId)
-  const name = a?.name ?? agentName(agentId)
-  return (
-    <span role="img" aria-label={name} title={name} className="flex shrink-0">
-      <BrandLogo logo={agentLogo(a ?? { id: agentId, name })} name={name} size={16} />
-    </span>
   )
 }
 
@@ -213,14 +199,14 @@ function SidebarBody() {
         </button>
         <button
           onClick={() => openWatching()}
-          aria-label={needing ? `Watching, ${needing} ${needing === 1 ? "problem" : "problems"}` : "Watching"}
+          aria-label={needing ? `Oversight, ${needing} ${needing === 1 ? "problem" : "problems"}` : "Oversight"}
           aria-current={view.kind === "watching" || view.kind === "newWatch" || view.kind === "watch" ? "page" : undefined}
           className={navClass(view.kind === "watching" || view.kind === "newWatch" || view.kind === "watch")}
         >
           <NavIcon>
             <EyeIcon size={18} />
           </NavIcon>
-          <span className="flex-1 text-left">Watching</span>
+          <span className="flex-1 text-left">Oversight</span>
           {needing > 0 && (
             <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-warn-bg px-[6px] text-[11px] leading-none text-warn tabular-nums">{needing}</span>
           )}
@@ -284,14 +270,18 @@ const navClass = (on: boolean) =>
 
 const NavIcon = ({ children }: { children: React.ReactNode }) => <span className="flex w-[18px] justify-center text-ink-3">{children}</span>
 
+/**
+ * A chat's title on one line, whole words only: words that don't fit wrap onto a second line that stays
+ * hidden, so a title never ends in a cut word or "…".
+ */
+const TITLE_LINE = "block h-[20px] min-w-0 overflow-hidden leading-[20px] whitespace-normal break-normal"
+
 function ChatRow({ thread, state, active, busy = false }: { thread: ThreadSummary; state?: WorkState; active: boolean; busy?: boolean }) {
   const [menu, setMenu] = useState<{ top: number; left: number } | null>(null)
   const [renaming, setRenaming] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
   const m = useMotion()
   const close = useCallback(() => setMenu(null), [])
-  const catalog = useStore((s) => s.catalog)
-  const agent = thread.agentId ? catalog?.agents.find((x) => x.id === thread.agentId) : undefined
   const h = busy ? 46 : 36
 
   const openMenu = (e: React.MouseEvent) => {
@@ -327,26 +317,15 @@ function ChatRow({ thread, state, active, busy = false }: { thread: ThreadSummar
             active || menu ? "bg-sidebar-item-active text-ink" : "text-side-ink hover:bg-sidebar-item-hover hover:text-ink"
           }`}
         >
-          {busy && (
-            <span role="img" aria-label={agent?.name ?? "Axe AI"} title={agent?.name ?? "Axe AI"} className="flex shrink-0">
-              {thread.source === "agent" && thread.agentId ? <LogoTile logo={agentLogo(agent ?? { id: thread.agentId, name: agentName(thread.agentId) })} name={agent?.name ?? agentName(thread.agentId)} size={18} /> : <LogoTile name="Axe AI" auto size={18} />}
-            </span>
-          )}
           {busy ? (
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="truncate leading-[20px]">{thread.title}</span>
+              <span className={TITLE_LINE}>{thread.title}</span>
               <span className={`text-[12px] leading-[16px] ${state === "waiting" ? "text-warn-ink" : "text-ink-3"}`}>{state === "waiting" ? "Needs your OK" : "Working"}</span>
             </span>
           ) : (
-            <span className="min-w-0 flex-1 truncate">{thread.title}</span>
+            <span className={`flex-1 ${TITLE_LINE}`}>{thread.title}</span>
           )}
           {state && <WorkMark state={state} />}
-          {!busy && thread.source === "agent" && thread.agentId && (
-            // In grey: a full-colour logo on a finished chat read as still working.
-            <span className={`shrink-0 opacity-60 grayscale ${menu ? "hidden" : "group-hover:hidden"}`}>
-              <AgentMark agentId={thread.agentId} />
-            </span>
-          )}
           <button
             ref={btn}
             aria-label={`More for ${thread.title}`}
@@ -416,7 +395,7 @@ function AccountRow() {
   const plan = `${profile.plan ?? "Free"}, ${(profile.credits ?? 0).toLocaleString("en-US")} credits`
   return (
     <div className="relative flex h-[68px] shrink-0 items-center gap-[6px] pr-[12px] pb-[4px] pl-[10px]">
-      <Popover open={open} onClose={close} anchor={anchor} origin="bottom left" className="bottom-full left-[10px] flex w-[290px] !p-[8px] flex-col gap-[2px]" label="Account">
+      <Popover dense={false} open={open} onClose={close} anchor={anchor} origin="bottom left" className="bottom-full left-[10px] flex w-[290px] !p-[8px] flex-col gap-[2px]" label="Account">
         <div className="flex flex-col px-[10px] pt-[8px] pb-[10px] text-[15px] leading-[22px]">
           <div className="truncate text-ink">{name}</div>
           <div className="truncate text-[13px] text-ink-3">{profile.email}</div>
@@ -466,7 +445,7 @@ function AccountRow() {
             openSettingsAt("phone")
           }}
         >
-          Use from your phone
+          Browsers and phones
         </AccountItem>
         <div className="h-[6px]" />
         <AccountItem
@@ -542,9 +521,35 @@ function SettingsButton() {
   )
 }
 
-/** Signed out: everything works with CLI agents; signing in adds Axe's models and sync. */
+/**
+ * Signed out: everything works with CLI agents; signing in adds Axe's models and sync. When a saved
+ * sign-in is here but the Keychain said no (after an update), the row asks for access again instead.
+ */
 function SignInRow() {
   const waiting = useStore((s) => s.signingIn)
+  const [blocked, setBlocked] = useState(false)
+  useEffect(() => {
+    void invoke("account:keychainBlocked").then(setBlocked, () => {})
+  }, [])
+  if (blocked)
+    return (
+      <div className="flex h-[68px] shrink-0 items-center gap-[6px] pr-[12px] pb-[4px] pl-[10px]">
+        <button
+          onClick={() => void invoke("account:askKeychainAgain")}
+          title="macOS kept Axe AI out of its saved sign-in. Axe AI restarts and asks again: choose Always Allow."
+          className="flex h-[52px] min-w-0 flex-1 items-center gap-[11px] rounded-[14px] border-0 bg-transparent px-[10px] text-left text-ink transition-colors duration-150 hover:bg-sidebar-item-hover"
+        >
+          <span className="flex size-[32px] shrink-0 items-center justify-center rounded-full bg-brand text-white">
+            <AxeMark size={14} />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-[15px]">Allow Keychain access</span>
+            <span className="truncate text-[12px] text-ink-3">Restarts Axe AI to keep you signed in</span>
+          </span>
+        </button>
+        <SettingsButton />
+      </div>
+    )
   return (
     <div className="flex h-[68px] shrink-0 items-center gap-[6px] pr-[12px] pb-[4px] pl-[10px]">
       <button

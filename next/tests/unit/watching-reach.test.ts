@@ -93,7 +93,7 @@ describe("what a site may make us fetch", () => {
     } as unknown as CheckDeps
     await expect(fetchListed(d, "https://lane.com/go", base)).rejects.toThrow(/refused/)
     expect(asked).toEqual(["https://lane.com/go"])
-    await expect(fetchListed(d, "https://evil.com/", base, { site: true })).rejects.toThrow(/watched site/)
+    await expect(fetchListed(d, "https://evil.com/", base, { site: true })).rejects.toThrow(/checked site/)
   })
   it("the links check skips sitemap entries off the site", async () => {
     const asked: string[] = []

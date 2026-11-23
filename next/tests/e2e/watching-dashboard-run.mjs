@@ -79,7 +79,7 @@ try {
       [1180, 2300, "narrow"],
     ]) {
       await win.setViewportSize({ width: w, height: h })
-      await win.getByRole("button", { name: /^Watching/ }).first().click()
+      await win.getByRole("button", { name: /^Oversight/ }).first().click()
       await win.getByTestId("dashboard").waitFor()
       await win.waitForTimeout(1500)
       const status = await win.getByTestId("dash-status").innerText()
@@ -98,7 +98,7 @@ try {
   await win.keyboard.press("Escape")
   await win.getByTestId("dashboard").waitFor()
   await win.getByTestId(`row-${ids[0]}`).getByRole("button").first().click()
-  await win.getByRole("button", { name: "Back to Watching" }).click()
+  await win.getByRole("button", { name: "Back to Oversight" }).click()
   await win.getByTestId("dashboard").waitFor()
   console.log("ok: pencil opens the watch's chat; Esc and Back fold it into the dashboard")
 
@@ -107,7 +107,7 @@ try {
   await win.waitForTimeout(800)
   await win.reload()
   await win.waitForTimeout(2000)
-  await win.getByRole("button", { name: /^Watching/ }).first().click()
+  await win.getByRole("button", { name: /^Oversight/ }).first().click()
   await win.getByTestId("dashboard").waitFor()
   if (await win.getByTestId(`row-${ids[4]}`).count()) fail("Domain didn't stay folded")
   console.log(`ok: Domain stays folded: ${(await win.getByTestId("group-domain").innerText()).replace(/\s+/g, " ")}`)

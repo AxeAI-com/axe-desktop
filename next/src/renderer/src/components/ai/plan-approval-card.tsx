@@ -46,7 +46,8 @@ function PlanApprovalCard({
       aria-labelledby={titleId}
       data-slot="plan-approval-card"
       className={cn(
-        "w-fit max-w-full rounded-[16px] border-0 bg-card p-[18px] font-sans text-[14px] leading-5 font-normal text-ink-2 shadow-none transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0",
+        // Axe AI: spec 0001: 24px container, 24 padding.
+        "w-fit max-w-full rounded-3xl border-0 bg-card p-[24px] font-sans text-[14px] leading-5 font-normal text-ink-2 shadow-none transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0",
         className,
       )}
       {...props}
@@ -69,7 +70,7 @@ function PlanApprovalCard({
         <Button
           type="button"
           variant="ghost"
-          className="h-7 rounded-full px-3 text-[13px] font-normal text-ink-3 hover:bg-fill hover:text-ink"
+          className="h-[32px] rounded-full px-[16px] text-[13px] font-normal text-ink-3 hover:bg-fill-2 hover:text-ink"
           disabled={disabled}
           onClick={onEdit}
         >
@@ -80,7 +81,7 @@ function PlanApprovalCard({
             <Button
               type="button"
               variant="ghost"
-              className="h-7 rounded-full px-3 text-[13px] font-normal text-ink-3 hover:bg-fill hover:text-ink"
+              className="h-[32px] rounded-full px-[16px] text-[13px] font-normal text-ink-3 hover:bg-fill-2 hover:text-ink"
               disabled={disabled}
               onClick={onCancel}
             >
@@ -90,7 +91,7 @@ function PlanApprovalCard({
           <Button
             type="button"
             variant="default"
-            className="h-7 gap-2 rounded-full border-0 bg-primary px-3 text-[13px] font-normal text-primary-foreground shadow-none hover:brightness-110 dark:bg-none"
+            className="h-[32px] gap-2 rounded-full border-0 bg-brand px-[16px] text-[13px] font-normal text-white shadow-none hover:bg-brand-hover dark:bg-brand"
             disabled={disabled || steps.length === 0}
             onClick={onStart}
           >

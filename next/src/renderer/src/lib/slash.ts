@@ -30,9 +30,9 @@ export type WatchCommand = "check" | "pause" | "resume" | "summary"
 
 /** Watching's group in the / menu. /check, /pause and /resume then ask for a watch with the @ list. */
 export const WATCHING_COMMANDS: SlashItem[] = [
-  { name: "check", description: "Check a watch now", source: "watching", watch: "check" },
-  { name: "pause", description: "Pause a watch", source: "watching", watch: "pause" },
-  { name: "resume", description: "Start a paused watch again", source: "watching", watch: "resume" },
+  { name: "check", description: "Run a check now", source: "watching", watch: "check" },
+  { name: "pause", description: "Pause a check", source: "watching", watch: "pause" },
+  { name: "resume", description: "Start a paused check again", source: "watching", watch: "resume" },
   { name: "summary", description: "Show the morning summary now", source: "watching", watch: "summary" },
 ]
 

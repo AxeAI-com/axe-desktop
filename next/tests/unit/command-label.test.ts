@@ -14,11 +14,11 @@ describe("shell steps", () => {
   })
 
   it("says what it does", () => {
-    expect(commandLabel(search, false)).toBe("Searching files")
-    expect(commandLabel(search, true)).toBe("Searched files")
-    expect(commandLabel("pnpm exec vitest run", true)).toBe("Ran tests")
-    expect(commandLabel("git status --short", false)).toBe("Using git")
-    expect(commandLabel("cat package.json", true)).toBe("Read a file")
-    expect(commandLabel("osascript -e 'tell app \"Finder\" to get name'", false)).toBe("Checking this computer")
+    expect(commandLabel(search, false)).toBe("Searching the code for ‘onion’")
+    expect(commandLabel(search, true)).toBe("Searched the code for ‘onion’")
+    expect(commandLabel("pnpm exec vitest run", true)).toBe("Ran the tests")
+    expect(commandLabel("git status --short", false)).toBe("Checking git status")
+    expect(commandLabel("cat package.json", true)).toBe("Read package.json")
+    expect(commandLabel("osascript -e 'tell app \"Finder\" to get name'", false)).toBe("Running a command")
   })
 })

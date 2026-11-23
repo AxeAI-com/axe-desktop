@@ -56,7 +56,7 @@ type MockState = {
 }
 
 const MIA: Profile = { id: "u_mia", email: "mia@example.com", name: "Mia Lane", plan: "Pro", credits: 1240 }
-// ?mock=photo: the account has a picture (a plain gradient, never a real face).
+// ?mock=photo: the account has a picture (a plain colour, never a real face).
 const PHOTO =
   "data:image/svg+xml," +
   encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><linearGradient id="g" x2="1" y2="1"><stop offset="0" stop-color="#f6a35b"/><stop offset="1" stop-color="#7b5cff"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/></svg>')
@@ -911,6 +911,8 @@ export function installMockBridge() {
       signInCancel?.()
       signInCancel = null
     },
+    "account:keychainBlocked": () => false,
+    "account:askKeychainAgain": () => {},
     "account:signOut": () => {
       state.profile = null
       emit("account", null)
@@ -1099,6 +1101,7 @@ export function installMockBridge() {
       state.messages[threadId] = list.slice(0, Math.max(0, i))
       return { messages: state.messages[threadId]!, text: msg ? msg.parts.map((p) => (p.type === "text" ? p.text : "")).join("") : "" }
     },
+    "chat:image": () => `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" rx="16" fill="#9ad"/></svg>')}`,
     "chat:commands": (threadId) => (state.threads.find((t) => t.id === threadId)?.agentId === "claude-code" ? AGENT_COMMANDS : AGENT_COMMANDS.filter((c) => c.source === "skill")),
     "agents:commands": () => AGENT_COMMANDS.filter((c) => c.source === "skill"),
     "agents:instructions": (threadId): InstructionsFile[] => {

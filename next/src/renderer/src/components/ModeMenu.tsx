@@ -7,16 +7,17 @@ import { inTrayWindow } from "@/lib/bridge"
 import { useMotion } from "@/lib/motion"
 import { modeOf, setMode, useStore } from "@/lib/store"
 
-import { AlertIcon, ChatIcon, ChecklistIcon, ChevronDown, PencilIcon } from "./Icons"
-import { ShieldMark } from "./ai/board-icons"
+import { AlertIcon, ChatIcon, ChecklistIcon, PencilIcon } from "./SolarIcons"
+import { ChevronDown as LineChevron } from "./Icons"
+import { underControl } from "./Kit"
 import { MenuRow, Popover } from "./Popover"
 
 /** The four modes, in the order the menu lists them. */
-export const MODE_INFO: { mode: AgentMode; name: string; note: string }[] = [
-  { mode: "ask", name: "Ask before changes", note: "It asks before editing files or running commands." },
-  { mode: "acceptEdits", name: "Accept edits", note: "It edits files freely and asks before commands." },
-  { mode: "plan", name: "Plan first", note: "It reads and plans; nothing changes until you start." },
-  { mode: "full", name: "Full access", note: "It acts without asking. Everything still shows here." },
+export const MODE_INFO: { mode: AgentMode; name: string; note: string; short: string }[] = [
+  { mode: "ask", name: "Ask before changes", note: "It asks before editing files or running commands.", short: "Asks before editing or running commands" },
+  { mode: "acceptEdits", name: "Accept edits", note: "It edits files freely and asks before commands.", short: "Asks only before commands" },
+  { mode: "plan", name: "Plan first", note: "It reads and plans; nothing changes until you start.", short: "Reads and plans; nothing changes until you start" },
+  { mode: "full", name: "Full access", note: "It acts without asking. Everything still shows here.", short: "Acts without asking" },
 ]
 
 export const modeName = (mode: AgentMode) => MODE_INFO.find((m) => m.mode === mode)!.name
@@ -41,29 +42,20 @@ export function ModeMenu({ threadId, size = "docked" }: { threadId?: string; siz
   const close = useCallback(() => setOpen(false), [])
   const m = useMotion()
 
-  // Full access in orange text and Plan in the accent, so neither is missed; no filled box, no icon.
-  const tone =
-    mode === "full"
-      ? "text-warn-ink hover:bg-fill"
-      : mode === "plan"
-        ? "text-accent-ink hover:bg-fill"
-        : open
-          ? "bg-fill-2 text-ink"
-          : "bg-transparent text-ink-3 hover:bg-fill hover:text-ink-2"
-  const note = MODE_INFO.find((m) => m.mode === mode)!.note
   const iconOnly = inTrayWindow()
   const Icon = MODE_ICON[mode]
 
   return (
     <div className="relative shrink-0">
-      <Popover open={open} onClose={close} anchor={anchor} origin="bottom left" className="bottom-[calc(100%+8px)] left-0" label="How much it may do">
-        {MODE_INFO.map((info, i) => (
+      <Popover dense open={open} onClose={close} anchor={anchor} origin="bottom left" className="bottom-[calc(100%+6px)] left-0" label="How much it may do">
+        {MODE_INFO.map((info) => (
           <MenuRow
             key={info.mode}
             role="menuitemradio"
             checked={info.mode === mode}
-            hint={i === 0 && info.mode !== mode ? "⇧Tab" : undefined}
+            sub={info.short}
             title={info.note}
+            warn={info.mode === "full"}
             onSelect={() => {
               close()
               void setMode(threadId, info.mode)
@@ -72,7 +64,6 @@ export function ModeMenu({ threadId, size = "docked" }: { threadId?: string; siz
             {info.name}
           </MenuRow>
         ))}
-        <p className="m-0 px-2.5 pt-1.5 pb-1 text-[12px] leading-[17px] text-ink-3">{note}</p>
       </Popover>
       <button
         ref={anchor}
@@ -81,22 +72,11 @@ export function ModeMenu({ threadId, size = "docked" }: { threadId?: string; siz
         aria-label={`Mode: ${modeName(mode)}`}
         title={iconOnly ? `${modeName(mode)} (Shift+Tab)` : "How much it may do (Shift+Tab)"}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 rounded-full border-0 px-2.5 text-[13px] transition-[background-color,color,filter] duration-150 ${size === "start" ? "h-8" : "h-7"} ${tone}`}
+        // Draft 3's `.cb`: plain text and a chevron; Full access in the warn colour.
+        className={`${underControl(open)} ${mode === "full" ? "!text-[var(--cx-warn)]" : ""}`}
       >
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={mode}
-            initial={{ opacity: 0, y: m.reduced ? 0 : 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: m.reduced ? 0 : -4 }}
-            transition={m.t(0.12)}
-            className="flex items-center gap-1.5 whitespace-nowrap"
-          >
-            {iconOnly ? <Icon size={14} /> : <ShieldMark size={14} />}
-            {!iconOnly && modeName(mode)}
-          </motion.span>
-        </AnimatePresence>
-        {!iconOnly && <ChevronDown size={12} className="text-ink-4" />}
+        <span className="flex items-center gap-[6px] whitespace-nowrap">{iconOnly ? <Icon size={14} /> : modeName(mode)}</span>
+        {!iconOnly && <LineChevron size={12} className="opacity-70" />}
       </button>
     </div>
   )

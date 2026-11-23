@@ -66,7 +66,9 @@ export function autoAnswer(mode: AgentMode, p: RequestPermissionRequest, nativeP
   const options = p.options
   switch (mode) {
     case "full":
-      return firstAllow(options)?.optionId
+      // Bypass never stops to ask: a request that offers no way to allow it is turned down for you,
+      // so the agent carries on (and says what it couldn't do) instead of waiting on a question.
+      return (firstAllow(options) ?? firstReject(options))?.optionId
     case "acceptEdits":
       return FILE_KINDS.has(kind) || READ_KINDS.has(kind) || touchesFiles(p) ? firstAllow(options)?.optionId : undefined
     case "plan":
@@ -95,6 +97,14 @@ export function toolPaths(call: { locations?: { path: string }[] | null; content
   }
   return [...out]
 }
+
+/**
+ * Said once at the start of every agent session. Copies into Desktop, Downloads or Documents make
+ * macOS ask its own permission (Bypass can't answer that), and "show it here" is not a reason to
+ * publish anything to an outside site.
+ */
+export const WORK_NOTE =
+  "You are running inside Axe AI. Keep files you make in the working folder or your temporary folder. Don't copy them to Desktop, Downloads or Documents unless I ask. To show me a file, give its full path; don't publish it to a website unless I ask."
 
 /** Without a plan mode of its own, the agent is asked to plan in words. */
 export const PLAN_ONLY_NOTE =

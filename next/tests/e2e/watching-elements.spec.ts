@@ -10,7 +10,7 @@ async function open(page: Page, theme: "dark" | "light", mock: string) {
   await page.clock.setFixedTime(NOW)
   await page.goto(`/?theme=${theme}&mock=${mock}`)
   await page.evaluate(() => document.fonts.ready)
-  await page.getByRole("button", { name: /^Watching/ }).first().click()
+  await page.getByRole("button", { name: /^Oversight/ }).first().click()
 }
 
 async function settle(page: Page, top = true) {
@@ -42,10 +42,10 @@ for (const theme of ["light", "dark"] as const) {
       await open(page, theme, "nowatches")
       await add(page, "Memory pressure").click()
       await expect(page.getByText("Tell me when memory pressure turns red.")).toBeVisible()
-      await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Add check" })).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-el-add-memory.png`)
-      await page.getByRole("button", { name: "Start watching" }).click()
+      await page.getByRole("button", { name: "Add check" }).click()
       await expect(page.getByText("Green, 36% used").first()).toBeVisible()
     })
 
@@ -60,21 +60,20 @@ for (const theme of ["light", "dark"] as const) {
       await box.press("Enter")
       await expect(page.getByText("Tell me when :3000 and :5173 stop listening.")).toBeVisible()
       await page.keyboard.press("Escape")
-      await page.getByRole("button", { name: /^Watching/ }).first().click()
+      await page.getByRole("button", { name: /^Oversight/ }).first().click()
       await add(page, "Crypto wallets").click()
       await expect(page.getByPlaceholder("Wallet addresses, like 0x… or a Solana address")).toBeVisible()
       await add(page, "Competitor pages").click()
       await expect(page.getByPlaceholder("Competitor page, like rival-shop.com/pricing")).toBeVisible()
     })
 
-    test("el-dash: every element as a card in its group", async ({ page }) => {
+    test("el-dash: every element as a live tile", async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 2000 })
       await open(page, theme, "watchelements")
-      await expect(page.getByTestId("group-mac").getByTestId(/^row-e-/)).toHaveCount(11)
-      await expect(page.getByTestId("group-web").getByTestId(/^row-e-/)).toHaveCount(4)
-      await expect(page.getByTestId("group-site")).toContainText("LCP 1.4 s")
-      await expect(page.getByTestId("group-domain")).toContainText("0 of 11 blacklists")
-      await expect(page.getByTestId("dash-status")).toContainText("16 of 18 healthy, 2 need a look")
+      await expect(page.getByTestId("live-grid").getByTestId(/^row-e-/)).toHaveCount(18)
+      await expect(page.getByTestId("live-grid")).toContainText("LCP 1.4 s")
+      await expect(page.getByTestId("live-grid")).toContainText("0 of 11 blacklists")
+      await expect(page.getByTestId("dash-status")).toContainText("16 of 18 checks healthy, 2 need a look")
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-el-dash.png`)
     })

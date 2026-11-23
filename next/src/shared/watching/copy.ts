@@ -50,7 +50,7 @@ export function sentence(kind: Kind, target: string, condition?: string, limit?:
     case "repo":
       return `Tell me about new security alerts in ${nameFor(kind, target)}.`
     case "custom":
-      return condition ?? `Watch ${target}.`
+      return condition ?? `Keep an eye on ${target}.`
   }
 }
 
@@ -68,9 +68,9 @@ export function nameFor(kind: Kind, target: string): string {
 
 const often = (every: Every) => (every === "morning" ? "every morning at 7:30" : EVERY_LABEL[every].toLowerCase())
 
-/** The folded plan under the bubble: "Watching. Every morning at 7:30, tells you right away." */
+/** The folded plan under the bubble: "Checking. Every morning at 7:30, tells you right away." */
 export const foldedPlan = (every: Every, notify: NotifyWhen) =>
-  `Watching. ${every === "morning" ? "Every morning at 7:30" : EVERY_LABEL[every]}, ${notify === "now" ? "tells you right away" : "tells you in the morning summary"}.`
+  `Checking. ${every === "morning" ? "Every morning at 7:30" : EVERY_LABEL[every]}, ${notify === "now" ? "tells you right away" : "tells you in the morning summary"}.`
 
 /** A price run's amount and stock, when it found them. */
 export const priceOfRun = (r: Run | undefined): PriceMemo | undefined =>

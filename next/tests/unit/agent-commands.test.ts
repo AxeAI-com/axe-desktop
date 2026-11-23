@@ -27,6 +27,13 @@ describe("an agent's / commands", () => {
   it("reads front matter", () => {
     expect(frontMatter('---\nname: brand-voice\ndescription: "House style"\n---\nBody')).toEqual({ name: "brand-voice", description: "House style" })
     expect(frontMatter("no front matter")).toEqual({})
+    // Block scalars: the indented lines, not a lone "|".
+    expect(frontMatter("---\nname: humanizer\ndescription: |\n  Rewrite AI-sounding text.\n  Keep the meaning.\nlicense: MIT\n---\n")).toEqual({
+      name: "humanizer",
+      description: "Rewrite AI-sounding text.\nKeep the meaning.",
+      license: "MIT",
+    })
+    expect(frontMatter("---\ndescription: >-\n  One\n  line\n---\n").description).toBe("One line")
   })
 
   it("finds Claude Code skills and command files in the project, then home", async () => {

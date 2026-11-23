@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 
@@ -38,3 +38,19 @@ export function writeJSON(path: string, value: unknown) {
 
 /** Unit tests and the self-test never touch the real keychain. */
 export const isSelfTest = () => Boolean(process.env.AXE_SELFTEST_COOKIE) || process.env.AXE_SELFTEST === "1"
+
+/**
+ * Whether secrets go to the OS store. Self-tests keep them in memory, except a Keychain test
+ * (AXE_KEYCHAIN_NAME, scripts/release-verify): it uses the real Keychain under its own item name
+ * (index.ts renames the app before ready), so it never reads or changes the installed app's item.
+ */
+export const usesKeychain = () => !isSelfTest() || Boolean(process.env.AXE_KEYCHAIN_NAME)
+
+/** Self-tests only: appends a line to AXE_STATUS_LOG (signed in, device id, remote online) for scripts to read. */
+export function statusLog(line: string) {
+  const file = process.env.AXE_STATUS_LOG
+  if (!file || !isSelfTest()) return
+  try {
+    appendFileSync(file, `${line}\n`)
+  } catch {}
+}

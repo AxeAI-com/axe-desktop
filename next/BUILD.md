@@ -6,6 +6,7 @@ Read this before you change anything in `next/`.
 
 - Feature list and slices: https://claude.ai/artifact/WtjNaZBJ361m6j9xXxLTso
 - Design board (the look to match): https://claude.ai/artifact/Rkhy1TkScLKPAd3YwxinYd
+- UI name: Oversight (items are checks), renamed from Watching on 2026-11-08; code keeps the watch/watching names.
 
 ## Layout
 
@@ -23,6 +24,13 @@ Read this before you change anything in `next/`.
 Adding a feature usually means: a type in `types.ts`, a command or event in `api.ts`, a handler in
 `src/main/commands.ts` (or a new module it calls), state in `lib/store.ts`, UI in `components/` or
 `screens/`, the mock in `lib/mock-bridge.ts`, then tests at every level below.
+
+**Packages:** `dependencies` is only what the engine or preload loads at runtime (ACP and MCP SDKs, zod,
+node-pty, electron-updater). electron-builder copies every one of them into `app.asar`, while Vite already bundles
+the window's packages into `out/renderer`. So a window-only package (React UI kits, icons, charts) goes in
+`devDependencies`. Moving them there on 2026-11-13 took `app.asar` from 122 MB (31,689 files) to 25 MB, and first
+launch after install from 3.4 s to 2.7 s. `scripts/launch-time.mjs "dist/mac-arm64/Axe AI Dev.app"` (after `pnpm pack:mac`) times a packaged
+build: window, composer, first run vs warm.
 
 ## Porting from the old apps
 
@@ -42,24 +50,49 @@ Move the logic, give it this app's types and IPC, and draw it with this app's de
   `docs/design/pasta-ui/README.md`). Before building any piece, use the matching Pasta component (Schedule Card,
   Background Runs, Background Inbox, Task Card, Job Progress, Image Generation Loader, Video Player, Audio Player,
   Tool Approval, Todo List, …). Treat both folders as vendored: change them only for a real bug or a missing prop,
-  with an `// Axe AI:` comment. Colours are the website's tokens (`bg-card`, `shadow-card`, `text-muted-foreground`,
-  `bg-muted`, `border-border`, `bg-brand`…); the app's older names (`--ink`, `--fill`, …) are aliases, so new
-  code uses the website names. Dark is the `.dark` class on `<html>`.
+  with an `// Axe AI:` comment. Surfaces use the website's tokens (`bg-card`, `bg-muted`,
+  `border-border`, `bg-brand`…); text colour in app code is always `text-ink`, `-ink-2`, `-ink-3` or `-ink-4`
+  (not `text-foreground`, `text-muted-foreground` or `text-label-foreground`, which only the vendored folders use). Dark is the `.dark` class on `<html>`.
 
-- **The flat kit (since 2026-10-26, board "Redesign 2/3").** Every screen is built from `components/Kit.tsx`
-  and the tokens in `styles.css`: four text sizes (20 titles, 15 reading, 13 controls, 12 hints; Tailwind's
-  `text-xs`…`text-2xl` map onto them), three corners (6 controls, 10 cards and menus, 16 the composer and
-  sheets), regular weight only. Flat: a fill and one faint hairline (`--hairline`, `--hairline-strong`), no
-  gradients, no top highlights, nothing that lifts on hover; only menus, sheets and alerts cast one small
-  shadow (`--elevation-overlay`). The vendored Pasta buttons were flattened to match. A model choice is always
-  the chat's picker (`ModelPicker` behind a `chip()`), a starter is always `StarterCard`.
-  Dropdowns (2026-10-31): one compact look. `Select` (`components/Select.tsx`, reads `<option>`/`<optgroup>`) is a
-  content-width 28 px trigger; every menu is a `Popover` of `MenuRow`s (28 px rows, 13 px, 4 px padding, radius 10,
-  content width 160 to 320). `SlashMenu` and `MentionMenu` use the same sizes. Never a native `<select>`.
-- Colours are tokens in `styles.css` (`--ink`, `--ink-2`, …); never hard-code a colour. Reading column 736,
-  composer 768, body 15/22, system font.
-- Motion only through `lib/motion.ts` (`useMotion()`): one spring, 120/240/320 ms, nothing loops,
-  everything respects reduced motion.
+- **The flat kit (rewritten 2026-11-08 after the UI audit, `ops/reports/2026-11-08-axe-mac-ui-audit.md`).** Every
+  screen is built from `components/Kit.tsx` and the tokens in `styles.css`; Draft 3's composer mock (design review
+  page, `#draft3`) is the reference for controls and menus.
+  - Palette (warm dark): page `#161514`, cards and composer `#1f1e1d`, raised/hover and selected `#2a2928`, input fill
+    white 5%, hairline white 7%. Warm light: page `#e8e5e4`, panels `#f4f2f2`, raised `#ffffff`, hover `--fill-3`.
+    Flat: no gradients or blur; sheets and cards have a 1 px hairline. Menus take Draft 3's look (`--cx-pop`, a
+    hairline and one soft shadow).
+  - **Colour:** four text colours only, `text-ink`, `text-ink-2`, `text-ink-3`, `text-ink-4` (placeholders and
+    disabled). No other colour except status (`--ok`, `--warn`, `--bad`) and model or brand logos. Axe Blue only on
+    the one main action of a view (Send, Create, Add credits), never on switches, selected states, chips or bars.
+    Never a hard-coded colour; add a token.
+  - **Type:** system font, regular weight only (a global `font-weight: 400 !important`; bold only inside an
+    answer's markdown). Sizes: 28 greeting and the Oversight headline, 20 titles, 15 reading, 13 rows, buttons and
+    controls, 12 hints and labels. Nothing else (no 14, 17, 11 or fractions).
+  - **Controls:** 32 high at radius 8 (`button.primary`, `.secondary`, `.ghost`, `.danger`, `iconButton(true)`,
+    `inputClass`), or 28 at radius 7 (`compact(...)`, `iconButton()`, chips, segments, the row under the composer).
+    The one `Switch` (34 by 20, ink when on) is in Kit. Keycaps are `Keycaps`; icon tiles are `IconTile`.
+  - **Radii:** 24 cards and containers, 16 media in a card (`rounded-media`), 10 menus with 6 rows, 8 or 7 controls,
+    full only for pills (suggestion pills, switches, avatars, dots).
+  - **Menus:** `Popover` (dense by default) plus `MenuRow`: 220 to 300 wide, 4 px padding, 28 px rows, 13 px text,
+    14 px bare icons in ink-3, hints and labels in ink-4, a "✓" for the current item. One line per row (the mode
+    menu's two-line rows are the one exception). Menus never cover the title bar or run off the window.
+  - **Layout:** pages and composers share one centred column: 640 on New chat, the reading column (`COLUMN` 736,
+    `COMPOSER` 768) in chats, `PAGE` 920 for Customize and Settings, `WIDE` 1200 for Oversight (`lib/layout.ts`).
+    Spacing 4/8/12/16/24/32/48. Scrolling pages keep the scrollbar's space (`scrollbar-gutter`); scrollbars are 4 px
+    thumbs with no track. Empty lists show `Empty` (13 px ink-3).
+  - **Motion: calm.** Pages and tabs switch instantly, content never animates in (no `initial`/`animate`/`exit`
+    outside `Popover`), nothing scales on press, only menus fade (120 ms), and the 12 px checking spinner is the one
+    loop. The composer has no border beam (removed on purpose). Hover is 150 ms ease-out on colour and background.
+  - Icons are Solar Bold Duotone (`components/SolarIcons.tsx`, same export names as `Icons.tsx`); the secondary
+    layer is .35 and goes to 1 on hover, focus and the current item (`.axe-icon`), never inside cards and tiles.
+  - A model choice is always the chat's picker (`ModelPicker`), a starter is always `StarterCard`. Never a native
+    `<select>`.
+- **The sidebar is frozen.** It keeps today's look: `Sidebar.tsx`'s root has `className="sidebar-frozen"`, a token
+  scope in `styles.css` that sets every token the sidebar reads back to its pre-spec value (and `Icons.tsx` stays its
+  icon set). A popover drawn inside it carries `popover-new` and takes the new tokens. Changing a shared token never
+  changes the sidebar; change the `.sidebar-frozen` block only on purpose.
+- Motion only through `lib/motion.ts` (`useMotion()`), and everything respects reduced motion. The Oversight
+  dashboard's ambient loops (spec 0002) were turned off on 2026-11-08: `loop()` in `live/loops.ts` only runs `lv-spin`, the checking spinner.
 - Real brand logos, never a letter in a square. No ' · ' middle dots in copy. Plain, short English.
 - Placeholder people only in sample data and screenshots (Mia Lane, David, Jack, Sam), never the owner's name.
 
@@ -411,8 +444,25 @@ on 2026-10-28; the website's `generate_image` tool shows in a chat as a plain to
 - **Mac signing:** ad-hoc (`"identity": "-"`, `"hardenedRuntime": false`) until there's a Developer ID. With
   `null` nothing signed the app, the fuses step then broke the binary's linker signature, and Apple Silicon killed
   the app at launch ("Code Signature Invalid", 2026-10-23). `release:mac` ends with `codesign --verify`, so that
-  can't ship again. Ad-hoc builds change identity every release, so macOS may ask for the Keychain password
-  ("Axe AI Safe Storage") after an update; a Developer ID fixes that.
+  can't ship again.
+- **Keychain after updates:** the saved sign-in (`session.bin`), remote-control keys (`remote-keys.bin`) and
+  connector secrets are sealed with Electron's "Axe AI Safe Storage" Keychain item. Its partition list lets in
+  `cdhash:<the build that made it>` (or `teamid:<id>` for an app with an Apple Team ID), so after every ad-hoc
+  update macOS asks for the login password and Always Allow before the app window opens. Deny, or a dismissed
+  prompt, used to look like a sign-out, with the Mac offline on axeai.com (2026-11-15, 0.12.2 to 0.13.0). Now
+  `secrets.ts` notes that a saved sign-in is there but unreadable, and the sidebar shows "Allow Keychain access"
+  (`account:keychainBlocked`), which restarts the app to ask again: Electron keeps the first answer until a
+  restart. The files are never replaced on a failed read. A self-made certificate doesn't help (tested: its
+  partition is still the cdhash). Only a Developer ID (Team ID) stops the prompts.
+- **Keychain check:** `release-verify` check 4 (see the script). Without a Team ID it prints WARN and why. With one,
+  it saves a session and device keys under a Keychain item of its own (`AXE_KEYCHAIN_NAME`, self-tests only), swaps
+  the bundle, and needs the same session, device id and "remote online" back (`AXE_STATUS_LOG`), from the relay
+  with `AXE_VERIFY_TOKEN`, else a local stand-in. `release-verify <v> --keychain <old.app> <new.app>` runs it
+  between two local builds.
+- **Launch Services:** every copy that starts is remembered, and `open -a "Axe AI"` or sign-in links can then open
+  a build in some `dist/` folder instead of /Applications. `pack:mac` builds "Axe AI Dev" (`com.axeai.desktop.dev`),
+  `release:mac`, release-verify and the updates unit test forget their copies, and `scripts/forget-dev-apps` forgets
+  every copy outside /Applications.
 - Tests: `tests/unit/updates.test.ts` (versions, signatures, the whole Mac path on a local HTTP feed down to the swap,
   unsigned, tampered and wrong-app releases refused, install on quit, the Windows/Linux gate with a fake
   electron-updater); `tests/e2e/updates.spec.ts` (Restart to update and every update state, light and dark, on the
@@ -430,6 +480,10 @@ on 2026-10-28; the website's `generate_image` tool shows in a chat as a plain to
 `scripts/release <version> --notes notes.md` does all of this in one unattended run (Mac here, Windows and Linux on
 GitHub at the same time, feeds published last); the notes (what changed for users, 3 to 6 lines) become the GitHub
 release. `--dry-run` builds, signs and checks without publishing. The steps below are the release steps by hand.
+Windows and Linux come back from GitHub as two private draft releases (`axe-desktop-release-<v>-<time>-windows`,
+`-linux`) that the script downloads and deletes, not as Actions artifacts: the artifact quota ran out on 2026-11-15
+and held Windows and Linux 0.13.0 back. If they fail after the Mac is live, `scripts/release <version> --win-linux`
+builds and publishes only those two for the live Mac version (master must already be at it).
 
 Nothing here publishes. Steps 4 and 5 put a build in front of every user: the owner's call.
 
@@ -470,8 +524,21 @@ a yes, answered in the chat, not waiting; remote commands and the snapshot), `ph
   default to a ready CLI agent when signed out (`defaultAnswerer`) and to the folder of your newest agent
   chat (`draftFolder` in `lib/store.ts`). Test: `screens.spec.ts` "signed out", `tests/unit/new-chat-folder.test.ts`.
 - **Composer** (`components/Composer.tsx`): + left in the box, mic right, send only when it can act
-  (`PromptInput` `inline`); under the box folder, mode, chips, then the model with its logo and the context
-  ring. The ASCII fox is `components/Pet.tsx`, coloured by `--pet`.
+  (`PromptInput` `inline`); under the box folder, mode, chips, then the context ring. Who answers sits in the
+  title bar (below); the composer keeps its own `AnswererPicker` only in the menu bar's chat and on Oversight. The fox and its forest were removed on 2026-11-08 (the app should read as a tool, not a toy).
+- **Home** (`screens/NewChat.tsx`, `lib/home.ts`, spec `specs/2026-11-08-home-redesign.md`; simplified 2026-11-08):
+  the greeting ("Good evening, Mia", `lib/greetings.ts`, system font 28/36 px, regular, -0.02em), the composer
+  and the four starter pills, a little above the middle (free space split 4 above, 5 below), and nothing
+  animates in. Under the pills one quiet line, "Getting started, 4 of 6 done" with a chevron (13 px ink-3, no
+  card, no progress bar); it opens the steps in a `Popover` (downwards when they fit, else upwards), each a
+  click, plus Hide. Getting started (`lib/getting-started.ts`) reads this Mac: a coding agent ready and here,
+  an agent chat with a folder, an Oversight check, a connected connector, a local model chat (only when a
+  server is found), the quick bar tried (localStorage), and Sign in (only signed out). The line goes after
+  Hide (localStorage `axe.home.gettingStartedHidden`) or when all are done. Below it, only when they have
+  rows, Needs you (chats waiting for an OK, watches with problems) and Working, with 12 px ink-3 labels (no
+  Recent: the sidebar has it). Follow Axe AI (the accounts in axe-web's site footer) moved to Settings,
+  About, the last group, next to the version and updates row. Tests: `tests/unit/renderer/home.test.ts`,
+  `getting-started.test.ts`.
 - **Open source** tab on Skills (obra/superpowers, VoltAgent/awesome-agent-skills) and Agents
   (wshobson/agents): `main/libraries/community.ts`, cached a day in `community-*.json`. Adding a skill
   downloads its folder from GitHub (one API call for the repo's tree, files from raw) and imports it;
@@ -579,7 +646,7 @@ the old specs.
   `src/main/remote/` (see "Remote control, keep-awake, background"). Watch notices: `main/watching/notify.ts`.
 - On Watching the composer is the chat's own: under the box only the model picker (no folder chip or mode menu,
   even with a CLI agent picked); the starters show while the box is focused and empty; @ lists Watches first
-  (after Folders in a chat), each with its kind's icon. The new chat's fourth card is "Watch a site".
+  (after Folders in a chat), each with its kind's icon. The new chat's "Watch a site" pill opens it.
 - Morning summary (`shared/watching/summary.ts`, plain templates, no model): at the time in Settings, Notifications
   (7:00, 8:00 or 9:00 am, or Off; default 8:00) and only before noon, the engine's tick sends one "Good morning"
   notification and keeps a card on top of Watching until × or noon. It covers problems opened and cleared since the
@@ -628,8 +695,8 @@ Review board: https://claude.ai/artifact/E1hj6ZcmUrVNJ5bC6jNe8q. What changed:
 - Answers: a unified diff draws as `DiffBlock` (per file, red/green, wrapped; `lib/diff.ts` parses it);
   plain output blocks have no "text" label or line numbers; code in table cells doesn't break mid-word.
 - Changes panel: the chat keeps a 24 px gutter, the file list shows whole rows, diff lines wrap.
-- The context ring's track uses `--fill-3` (it was white, invisible on light); idle agent logos in the
-  sidebar are grey; an older reply's hover buttons hang into the gap, so turns sit closer.
+- The context ring's track uses `--fill-3` (it was white, invisible on light); the sidebar shows no
+  agent logos (removed 2026-11-08); an older reply's hover buttons hang into the gap, so turns sit closer.
 
 ## Model and effort for CLI agents (branch `change-reading-to-thinking`)
 
@@ -759,6 +826,48 @@ and `effort` (its levels change with the model), Codex `model` and `reasoning_ef
   lists all ten (2026-11-02: 8 of 10 healthy; Cloudflare's real outage and 4 packages behind in next).
 - Left: the tests watch in the run uses one quick test file, not the whole axe-web suite (minutes, needs its
   database).
+- Superseded on 2026-11-05 by "Watching, live" below: the status strip, metric cards, "Needs a look" list and folding
+  groups are gone; their copy, LookCard's buttons and the right-click menu live on in the tiles.
+
+## Watching, live (spec 0002, 2026-11-05)
+
+- Design: board https://claude.ai/artifact/RTdyC21uEjjuV1X3Jn7p1X, page "Mac Watching": `M-WatchCombo` (layout),
+  `M-WatchBLive` (tiles and motion), `M-WatchOrbit` (radar). Screenshots next to the board: `docs/screenshots/0002/`.
+- With watches, Watching is `components/watching/live/LiveDashboard.tsx` (`Dashboard` keeps its export and props).
+  Top to bottom: the heading ("8 of 10 healthy, 2 need a look" at 28 px, the line under it) with a "Problems first" /
+  "By group" switch (`axe.watching.order` in local storage; `sortTiles`), the live log (`LiveLog.tsx`: each watch's
+  latest result, newest first, scrolling sideways, held on hover, hidden until something ran), then one grid of 4
+  columns (2 under 1000 px): the radar (2 by 2; full width and one row when narrow), each watch that needs a look as
+  a 2-column tile, every other watch as a 1-column tile. `fillRows` (`lib/dashboard.ts`) widens tiles so no cell is
+  ever empty and shortens the radar when nothing sits beside its second row. The catalogue stays under it.
+- Radar (`Radar.tsx`): 470 px, scaled to fit. Rings by group (inner Site, middle Domain and Services, outer This Mac,
+  Web, Other), only the rings that have watches, a legend naming them. Dots spread evenly from a stable angle (hash of
+  the ring's first watch), in group order whichever way the tiles are sorted, so they never jump. Problems 14 px and
+  blinking. Labels (`radarPlace`) go outward, then the other side, above or below, away from the centre and each other;
+  over 12 watches only problems keep their value. The hand turns every 6 s and each dot pings as it passes. Dots are
+  buttons ("API health, healthy, 575 ms"): a click scrolls to the tile and marks it for a second; hovering a tile
+  lights its dot.
+- Tiles (`LiveTile.tsx`, `TileViz.tsx`): status disc, short name (an unrenamed watch reads by kind: "DNS", "Services",
+  "Disk"; `lib/live-copy.ts`) and what it watches, the headline value and when, the kind's motion (response line for
+  health, uptime and page speed; lights per status page; package pills; a small radar for DNS; one dot per sitemap
+  page; the used disk; the domain's date; the build file; what changed for page, price and custom), the last 24 checks
+  with a sweep, and the foot: "Next check in 4:58.41" counting down from the last run plus its interval, "Every
+  morning", "Tells you under 20 GB", or "Paused since …". A tile that needs a look keeps LookCard's sentence and
+  buttons (Fix with the agent, Open status page, Check now, Show packages or Details). Click opens the watch, right-
+  click or the ⋯ on hover is Check now, Pause or Resume, Delete. Every number comes from the watch; a watch with no
+  run says "Waiting for the first check".
+- Odometers (`Odometer.tsx`): each digit a column stepped with `steps()`, seeded from the clock at mount and re-seeded
+  every half minute, when a count changes length and when the window comes back. The title bar's Live pill reads
+  "Updated 0.47 s ago" for the first minute after a run.
+- Motion: the loops are off since 2026-11-08 (Design rules). CPU with `?mock=watchdash` at 1440 by 900
+  (`tests/e2e/watching-cpu-run.mjs`, 10 s in Chromium on Metal): renderer about 8%, main thread under 1%, 50 loops
+  running (the rest are off screen); it read up to 13% while other work loaded the Mac. As CSS animations it was 21%
+  renderer and 13% main thread.
+- Tests: `tests/unit/renderer/watching-dashboard.test.ts` (`fillRows` for 1 to 12 watches at 4 and 2 columns, order,
+  radar placement, the words). `tests/e2e/watching.spec.ts`: `dash-wide`, `dash-narrow`, `dash-opened`,
+  `dash-by-group` (light and dark), and "watching dashboard, live": every old action, a radar dot, delete to nine watches
+  with no empty cell wide and narrow, Reduce Motion (no running animation), a hidden window (all paused). Tiles keep
+  `row-<id>` with the open button first, so older specs still find them.
 
 ## Available elements
 
@@ -815,3 +924,112 @@ and `effort` (its levels change with the model), Codex `model` and `reasoning_ef
   folder ~/.colima 55.9 GB (160 s to measure); 357 Mbps on Wi-Fi with Tailscale; axeai.com LCP 1.3 s, CLS 0.00;
   0 blacklists (6 answered); 58 to 876 ms from three regions; fees under a cent; Time Machine refused honestly
   (no backup disk on this Mac); Reddit refused. Every failing case turned into a problem or a plain refusal.
+
+## Web final design (2026-11-04)
+
+- Landed (spec `specs/0001-main-area-web-final.md`, Design board https://claude.ai/artifact/RTdyC21uEjjuV1X3Jn7p1X): the
+  main area (title bar, New chat, thread and rich parts, composer, Watching and its dashboard, Settings, library
+  screens, menus, sheets, sign-in, quick bar, menu bar panel, palette) is on the web's final design. Tokens re-valued in
+  `styles.css` (website tokens plus the alias layer), radius scale 999 / 24 / 16, motion 120/200/320 ms on
+  `cubic-bezier(0.23,1,0.32,1)`, Kit, Library, Popover and every menu rebuilt, Solar icons, vendored `ai/` and `ui/`
+  files touched only with small `// Axe AI:` class edits (prompt-input, plan-approval-card, tool-approval, tool-error,
+  todo-list, code-block, citations, button).
+- The sidebar is unchanged: computed styles of all its elements match master (checked on 13 680 element states, light
+  and dark, with hovers), its e2e screenshot crops match the master baselines, and `tests/e2e/web-final.spec.ts` asserts
+  three sidebar colours plus the main-area computed values (page, composer, bubble, menu, hovered icon button).
+- Kept on purpose: text-clip shimmers became a colour pulse (no gradient), the fox's forest keeps its reveal mask, the
+  macOS windows (quick bar, tray) keep the system's own window shadow, vendored `evilcharts` keep their chart fills.
+- Left: the behaviour sheets' toasts, offline bar and shortcuts (a later spec). At full secondary opacity a few Solar
+  icons lose their inner detail (New chat's pen, Bot's eyes) because both layers share a colour; that is the web's rule.
+
+## Title bar picker and plain sidebar rows (2026-11-08, branch `feature/home-redesign`)
+
+- **Who answers** is in the title bar, after the page title (`components/AnswererPicker.tsx`: logo, name,
+  chevron; `ModelPicker` opens below). On New chat a pick is the default for new chats, kept in
+  `settings.answerer` (`pickAnswerer` → `updateSettings`, read by `defaultAnswerer`). In a chat it changes that
+  chat's next answerer with the old limits (`pickerSections`: a local chat stays local, others Axe or CLI). No grey
+  model or agent subtitle under the title. The composer shows the picker only where there is no title bar picker
+  (menu bar chat) or the page picks its own model (Oversight).
+- **Sidebar rows**: no model or agent logo, busy rows included (they keep "Working" / "Needs your OK" and the
+  `WorkMark` at the end). Titles show whole words on one line, never a cut word or "…" (`TITLE_LINE`: a
+  20 px box, `overflow: hidden`, normal wrapping, the rest wraps onto a hidden second line).
+
+## Calm agent steps (2026-11-08, branch `feature/home-redesign`)
+
+- **Plain-English labels** (`lib/step-label.ts`, tested in `tests/unit/renderer/step-label.test.ts`): a step is a
+  verb and an object, never the raw command. Shell: test runners "Ran the tests", grep/rg/find "Searched the code
+  for ‘X’" (first pattern), ls/tree "Listed files", git status/diff "Checked git status", git log/show "Checked git
+  history", installs "Installed packages", cat/head "Read <file>", curl "Opened <host>", else "Ran a command". Reads
+  "Read <file>", edits "Edited <file>" with "+N −M" when the diff is known, fetches "Opened <host>", web searches
+  "Searched the web for ‘X’", connector tools (`mcp__<server>__…`) "Used <connector>", thinking "Thought for 4s".
+  Titles an engine already wrote in words stay. `commandLabel` and `liveLabel` in `lib/steps.ts` use it.
+- **Looks** (`components/StepGroup.tsx`): every step line is 13 px in ink-3. While working, one live line
+  ("Searching the code…") with a 12 px spinner, the only thing that moves (no shimmer, no pulse); the seconds only
+  after 10 s, in ink-4. Finished steps fold into the summary line. Open, a run of one kind is one row ("Read 4
+  files"); a row opens to the raw command, path or output in 12 px monospace, ink-3, on a faint fill.
+- **One working indicator**: the composer hides the context ring while a chat runs, so Stop is the only sign.
+- **Title bar**: the chat title is 15 px regular ink; the who-answers picker is plain 13 px text with a 14 px logo
+  and a chevron, no pill; hover shows a faint fill.
+
+## Oversight activity timeline (2026-11-08, branch `feature/home-redesign`)
+
+- A check's page shows **Activity** under its strip: one 13 px line per incident, change, edit and fix, newest
+  first, grouped "Open", then "Today", "Yesterday", "Nov 6". Times in ink-3; the warn colour only on open incidents.
+  Pure logic in `lib/activity.ts` (tested in `tests/unit/renderer/activity.test.ts`), rows in
+  `components/watching/Activity.tsx`.
+- Sources: incidents from `open` and `past` problem findings ("Down for 4 min, 9:40 to 9:44 am", "Slow since 1:10 pm";
+  other kinds use the finding's own words, `past` once closed), with Resolved, Fixed or Expected. The end of a closed
+  down or slow is the first clean run in `strip` after `lastSeenAt` (`closedAt` waits for two clean runs), else
+  `closedAt`; no range when it crosses midnight. A repo's alerts that opened or closed together are one line.
+  Changes from `news` (ignored ones left out; a price's "Down to $42" reads "Price down to $42"). Your edits from
+  `said` with an Undo patch ("You changed how often it checks"). Fixes from `fixes`: "Fix started" while it runs
+  (agent name on the right), "Claude Code fixed it: updated 4 packages" (every key a package alert) or "changed 3
+  files" (`files`), else just "fixed it"; clicking opens the agent's chat. Unknown numbers are left out, never guessed.
+- The thread under it keeps only what needs you: a fix in progress (its folder question, permission cards, Keep all /
+  Undo all, Check now, Try again), the latest change's card while nothing happened after it, an "expected" with Undo,
+  and your replies. A fix never shows the agent's messages or tool output here: one status line ("Running the
+  tests…", "A plan is waiting for you", "Finished") and Open the chat.
+- Mock: `?mock=watchactivity`; e2e `w-site-activity` in `tests/e2e/watching.spec.ts`.
+- Agent steps (same day): redirections never name the file (`cat x 2>/dev/null` was "Read null"); Axe's own app tool
+  titles get their tense ("Open Claude" → "Opened Claude" / "Opening Claude"); looking for apps is a tool, not a
+  file search.
+
+## Composer, menus, widths and greeting (2026-11-08, branch `feature/home-redesign`, Draft 3)
+
+- **Composer** copies Draft 3's mock (design review page, `#draft3`), with its values as `--cx-*` tokens in
+  `styles.css` (dark as drawn, an equivalent light set; the rest of the app keeps its own greys). Box: radius 16,
+  `--cx-box` (#232221 dark), an inset 1 px `--cx-edge` hairline (white 9%), padding 8 8 8 6, focused or not; no
+  shadow, no ring, nothing moves. One row (`PromptInput` inline, items at the bottom): the sparkle button
+  (`MagicIcon` in `Icons.tsx`, a four-point star with concave sides, ink-2, 16 px; opens the + menu), the text
+  (15/22, one line to start, "Describe a task or ask a question" in ink-4, grows to 176 px), the mic, and send only
+  when there is text (32 px, radius 8, ink fill, dark arrow), or Stop while it runs. `boxButton` in `Kit.tsx`.
+- **Under the box** (8 px gap): `.cb` controls (`underControl`): 28 px, radius 7, 13 px ink-3, a faint fill and ink
+  on hover, 14 px icons, 12 px chevrons at 70%. Left: the folder (a new chat's opens recent folders, Choose a folder…
+  and Work in a copy; a chat's is plain text) and the mode (two-line menu). Right: one who-answers control, the
+  14 px square logo, the model ("Opus 5.5") and muted effort; its menu lists who answers, then the agent's Model
+  and Effort (`AgentOptionRows`). Who answers is not in the title bar. The context ring shows only while a chat runs.
+- **The + menu** (Draft 3): Add files or photos; Add a check (four kinds and More checks); Connectors; an agent
+  chat's CLAUDE.md. Search the web, Do it and Research stay for Axe models.
+- **Menus**: `Popover` is dense by default for menus and the who-answers list: `.cx-menu` (220 to 300 wide, 4 px
+  padding, radius 10, `--cx-pop`, a hairline and one shadow), 28 px rows with radius 6, 14 px icons in ink-3,
+  labels 12 px and details in ink-4, a "✓" for the current item, two-line rows for the mode. The page title
+  ("Customize") is plain text with a 12 px chevron.
+- **New chat**: one centred 640 px column (Draft 3's `.cx-col`) for the greeting, composer, its row, the pills
+  (30 px, full radius, inset hairline, ink-3, words only), Getting started (13 px ink-4; its popover is a compact
+  menu) and Needs you. Chats keep the 736 reading column and 768 composer.
+- **Oversight widths**: the dock takes its page's column (dashboard and empty catalogue both `WIDE` 1200, with 24 or 40 px sides;
+  the empty catalogue 40), plus the 4 px each side of the scrollbar gutter, so the composer meets the tiles.
+- **Greeting**: "Good evening, Mia" (time of day, first name; `lib/greetings.ts`). The Axe mark is 20 px, the cap
+  height of the 28 px text, on the baseline 12 px before the words.
+
+## UI audit fixes (2026-11-08, branch `feature/home-redesign`)
+
+- Fixed 47 of the 54 findings in `ops/reports/2026-11-08-axe-mac-ui-audit.md` (7 were stale or overruled by the
+  approved Draft 3 mock); the Design rules section above is the result. Kit: `button.*` 32/radius 8, `compact` 28/7,
+  `iconButton`, `inputClass`, one `Switch`, `IconTile`, `Keycaps`, `Empty`. Menus: every `Popover` is compact;
+  slash, mention, palette and quick bar lists use `menuPanel`/`menuRowClass` from `Popover.tsx` and `fit()` keeps
+  any menu under the title bar (`data-titlebar`) and inside the window.
+- `--news` is the status colour for a check that found a change (`bg-news`, `text-news`, `--dash-blue`).
+- The title bar is one line on every page (no subtitles, no Customize menu).
+- An open `outdated:` finding takes each run's words, so the package count matches everywhere.
+- Skill front matter reads YAML block scalars (`description: |`).

@@ -55,8 +55,10 @@ export function onSignedIn(fn: () => void) {
 export function configureAccount(options: { store?: TokenStore; openExternal?: (url: string) => void }) {
   if (options.store) store = options.store
   if (options.openExternal) openAuthorizePage = options.openExternal
-  // AXE_TOKEN lets end-to-end tests start signed in; never saved.
+  // AXE_TOKEN lets end-to-end tests start signed in; never saved, except by a Keychain test
+  // (AXE_KEYCHAIN_NAME), which saves it the way a real sign-in would so the next run reads it back.
   token = process.env.AXE_TOKEN || store.read()
+  if (process.env.AXE_TOKEN && process.env.AXE_KEYCHAIN_NAME) store.write(process.env.AXE_TOKEN)
   // The last profile, so the window shows who is signed in while offline.
   profile = token ? readJSON<Profile | null>(profileFile(), null) : null
   // Self-test: approve our own code against the server with a test session cookie

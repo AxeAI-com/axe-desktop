@@ -1,0 +1,39 @@
+{
+  "offer": {
+    "v": 1,
+    "mac": "jZYVl8_hAIvMdHcT9FJi6g",
+    "name": "David's Mac",
+    "ed": "5jnHuvz0w1VU8O1iwWoofQ2EOxuT-EAUECU-N3g-Bbk",
+    "x": "6lMvGn6kKiAa0n7XHYbBuzK-JF-fDnYVIuchmMIaqHg",
+    "acct": "3mdgVXe6_9CDrgbiElkVlw"
+  },
+  "code": {
+    "code": "327195",
+    "hello": {
+      "n": "KzrgG9WlDP91PQIjpVdLxIJ3-kKBRy5XpEDB9DZjiU8",
+      "y": "Kiq2i94j5DDAPwaJT39xcny1WIM0Y6NC82u-7rq78BQ"
+    },
+    "reply": {
+      "y": "fifO4Vo-h4NJHBQExSOwWYS98bPycm3Uv21t7Oc25y0"
+    },
+    "secret": "HXLaG5usxfvcXNkXeKUeSys9IWLVo7_IxD1SbxMLMTk",
+    "macSecret": "HXLaG5usxfvcXNkXeKUeSys9IWLVo7_IxD1SbxMLMTk"
+  },
+  "click": {
+    "commit": {
+      "c": "SqjBcP3ijRKEHF8P7j2F9TMSySrvgkRyQcZKegas6dA"
+    },
+    "half": {
+      "y": "NJigM5NaGB4h3qA_IfxcStrA8lg2970kEWfCu_6SviU",
+      "n": "hgbaxwZsKLdULiHWONoq3B-dJB9h7hgGBKJP22aUDAs"
+    },
+    "reveal": {
+      "y": "4B3Kj812jqGL9UH6gWMt7ZgovHMSrHgHTCRy6aCpFmM",
+      "n": "cJE9mBiuL60Ls81Dol-tCM6rhySEV5TWvGm5wbt9UWg"
+    },
+    "check": "615759",
+    "secret": "DoY_eKCtcZzS91SxZXa4r1WqdM3TL4o_5JeUtPqkcG4",
+    "macCheck": "615759",
+    "macSecret": "DoY_eKCtcZzS91SxZXa4r1WqdM3TL4o_5JeUtPqkcG4"
+  }
+}

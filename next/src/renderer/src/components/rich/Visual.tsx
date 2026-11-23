@@ -6,7 +6,7 @@ import { withoutScripts } from "@shared/rich"
 import { D, useMotion } from "@/lib/motion"
 import { resolvedTheme, useStore } from "@/lib/store"
 
-import { CheckIcon, CopyIcon, RetryIcon } from "../Icons"
+import { CheckIcon, CopyIcon, RetryIcon } from "../SolarIcons"
 import { CardFrame } from "./shared"
 
 const VARS = ["ink", "ink-2", "ink-3", "ink-4", "ground", "card", "fill", "fill-2", "line", "line-2", "accent", "accent-ink", "accent-2", "ok", "bad", "chart-1", "chart-2", "chart-3", "chart-4", "chart-5"]
@@ -85,7 +85,7 @@ export function VisualCard({ title, html, height, done }: { title?: string; html
                 setRun((n) => n + 1)
               }}
               aria-label="Play again"
-              className="flex h-6 items-center gap-1.5 rounded-[6px] border-0 bg-transparent px-1.5 text-[12px] text-ink-3 transition-colors duration-150 hover:bg-fill-2 hover:text-ink"
+              className="flex h-6 items-center gap-1.5 rounded-full border-0 bg-transparent px-1.5 text-[12px] text-ink-3 transition-colors duration-150 hover:bg-fill-2 hover:text-ink"
             >
               <RetryIcon size={12} />
               Play again
@@ -96,7 +96,7 @@ export function VisualCard({ title, html, height, done }: { title?: string; html
                 setCopied(true)
                 setTimeout(() => setCopied(false), 1400)
               }}
-              className="flex h-6 items-center gap-1.5 rounded-[6px] border-0 bg-transparent px-1.5 text-[12px] text-ink-3 transition-colors duration-150 hover:bg-fill-2 hover:text-ink"
+              className="flex h-6 items-center gap-1.5 rounded-full border-0 bg-transparent px-1.5 text-[12px] text-ink-3 transition-colors duration-150 hover:bg-fill-2 hover:text-ink"
             >
               {copied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
               {copied ? "Copied" : "Copy code"}
@@ -113,7 +113,7 @@ export function VisualCard({ title, html, height, done }: { title?: string; html
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
           className="block h-full w-full border-0"
-          initial={{ opacity: 0 }}
+          initial={false}
           animate={{ opacity: ready ? 1 : 0 }}
           transition={m.t(D.slow)}
         />

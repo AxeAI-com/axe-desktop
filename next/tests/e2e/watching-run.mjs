@@ -1,4 +1,4 @@
-// Clicks through Watching in the real app: every starter, the plan, Start watching, the watch, and a problem.
+// Clicks through Watching in the real app: every starter, the plan, Add check, the watch, and a problem.
 // node tests/e2e/watching-run.mjs <out-dir>   (run `pnpm run build` first; needs no account)
 // A local test site serves the pages; Security and Repo alerts use real targets (example.com, this repo).
 import { mkdirSync, mkdtempSync } from "node:fs"
@@ -50,8 +50,8 @@ await win.waitForTimeout(1500)
 
 // Signed out is fine: Watching needs no account. Close any first-run sheet.
 await win.keyboard.press("Escape").catch(() => {})
-await win.getByRole("button", { name: /^Watching/ }).first().click()
-await win.getByText("What should Axe watch?").waitFor()
+await win.getByRole("button", { name: /^Oversight/ }).first().click()
+await win.getByText("What should Axe keep an eye on?").waitFor()
 await shot("01-empty")
 log("empty page ok")
 
@@ -72,15 +72,15 @@ for (const [label, target, id] of starters) {
   await box.fill(target)
   await shot(`${String(n++).padStart(2, "0")}-${id}-ask`)
   await box.press("Enter")
-  await win.getByRole("button", { name: "Start watching" }).waitFor({ timeout: 60_000 })
+  await win.getByRole("button", { name: "Add check" }).waitFor({ timeout: 60_000 })
   await win.waitForTimeout(600)
   await shot(`${String(n++).padStart(2, "0")}-${id}-plan`)
-  await win.getByRole("button", { name: "Start watching" }).click()
-  await win.getByText(/^Watching\. /).waitFor()
+  await win.getByRole("button", { name: "Add check" }).click()
+  await win.getByText(/^Checking\. /).waitFor()
   await win.waitForTimeout(500)
   await shot(`${String(n++).padStart(2, "0")}-${id}-watch`)
   log(`${label}: created`)
-  await win.getByRole("button", { name: /^Watching/ }).first().click()
+  await win.getByRole("button", { name: /^Oversight/ }).first().click()
   await win.waitForTimeout(400)
 }
 await shot(`${String(n++).padStart(2, "0")}-list`)
@@ -98,7 +98,7 @@ down = false
 
 // A price change is news.
 price = 52
-await win.getByRole("button", { name: /^Watching/ }).first().click()
+await win.getByRole("button", { name: /^Oversight/ }).first().click()
 await win.getByRole("main").getByRole("button", { name: /^Stoneware clay, 25 lb/ }).first().click()
 await titleMenu()
 await win.getByRole("menuitem", { name: /Check now/ }).click()
@@ -118,15 +118,15 @@ await win.getByText(/^Okay\./).waitFor()
 await shot(`${String(n++).padStart(2, "0")}-reply`)
 
 // Free text: Axe finds the address and asks which kind.
-await win.getByRole("button", { name: /^Watching/ }).first().click()
+await win.getByRole("button", { name: /^Oversight/ }).first().click()
 // The page fades in; the watch's box stays in the page until it's gone.
-const box = win.getByPlaceholder("Watch something else")
+const box = win.getByPlaceholder("Add a check")
 await box.waitFor()
 await win.waitForTimeout(400)
 await box.fill("keep an eye on lane-ceramics.com for me")
 await box.press("Enter")
 await win
-  .getByText("What should I watch on lane-ceramics.com?")
+  .getByText("What should I keep an eye on at lane-ceramics.com?")
   .waitFor()
   .catch(async (e) => {
     await shot("fail-free-text")

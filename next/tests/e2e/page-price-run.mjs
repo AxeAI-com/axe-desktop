@@ -65,7 +65,7 @@ await win.keyboard.press("Escape").catch(() => {})
 
 const main = win.getByRole("main")
 const box = () => win.getByRole("textbox").last()
-const watchingPage = () => win.getByRole("button", { name: /^Watching/ }).first().click()
+const watchingPage = () => win.getByRole("button", { name: /^Oversight/ }).first().click()
 const titleMenu = async (item) => {
   await win.locator('header button[aria-haspopup="menu"]').first().click()
   await win.getByRole("menuitem", { name: new RegExp(item) }).click()
@@ -78,7 +78,7 @@ const checkNow = async () => {
 }
 const starter = async (label) => {
   // The page fades in; the old screen's box stays in the page until it's gone.
-  await win.getByPlaceholder(/^(Say what to watch|Watch something else)$/).click()
+  await win.getByPlaceholder(/^(Say what to check|Add a check)$/).click()
   await win
     .getByTestId("catalogue")
     .getByRole("button", { name: `Add ${label}` })
@@ -97,7 +97,7 @@ const rest = async () => {
 
 // 1. Page changes: the starter and the ask.
 await watchingPage()
-await win.getByText("What should Axe watch?").waitFor()
+await win.getByText("What should Axe keep an eye on?").waitFor()
 await starter("Page changes")
 await shot("p01-ask")
 
@@ -117,13 +117,13 @@ await box().fill(`https://${host}/pricing`)
 await box().press("Enter")
 await win.getByText("Reading the page…").waitFor()
 await shot("p03-reading")
-await win.getByRole("button", { name: "Start watching" }).waitFor({ timeout: 20_000 })
+await win.getByRole("button", { name: "Add check" }).waitFor({ timeout: 20_000 })
 hang = false
 
 // 3. The plan, Start, Checking now, the first result.
 await rest()
 await shot("p04-plan")
-await win.getByRole("button", { name: "Start watching" }).click()
+await win.getByRole("button", { name: "Add check" }).click()
 await win.getByText("Checking now").waitFor()
 await win.waitForTimeout(250)
 await shot("p05-first-run")
@@ -159,14 +159,14 @@ await main.getByText("Done. I’ll check every morning at 7:30 and ignore the da
 await rest()
 await shot("p10-reply")
 
-// 7. Price and stock: the starter, no price ("Watch the page instead"), "Finding the price…".
+// 7. Price and stock: the starter, no price ("Check the page instead"), "Finding the price…".
 await watchingPage()
 await starter("Price and stock")
 await shot("q01-ask")
 await box().fill(`${host}/about`)
 await box().press("Enter")
 await win.getByText("There’s no price on that page that Axe can read.").waitFor()
-await win.getByRole("button", { name: "Watch the page instead" }).waitFor()
+await win.getByRole("button", { name: "Check the page instead" }).waitFor()
 await rest()
 await shot("q02-no-price")
 hang = true
@@ -174,12 +174,12 @@ await box().fill(`${host}/stoneware-25`)
 await box().press("Enter")
 await win.getByText("Finding the price…").waitFor()
 await shot("q03-finding")
-await win.getByRole("button", { name: "Start watching" }).waitFor({ timeout: 20_000 })
+await win.getByRole("button", { name: "Add check" }).waitFor({ timeout: 20_000 })
 hang = false
 await rest()
 await shot("q04-plan")
 log("price plan:", await main.innerText().then((t) => t.split("\n").slice(0, 4).join(" | ")))
-await win.getByRole("button", { name: "Start watching" }).click()
+await win.getByRole("button", { name: "Add check" }).click()
 await win.getByText("Checking now").waitFor()
 await win.waitForTimeout(250)
 await shot("q05-first-run")

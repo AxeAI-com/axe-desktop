@@ -27,6 +27,8 @@ function rig() {
   const stopped: string[] = []
   const answers: [string, string][] = []
   const saved: { name: string; bytes: number }[] = []
+  const reads: string[] = []
+  const pictures = new Map<string, Uint8Array>()
   let now = 1_000_000
   const threads = [thread({}), thread({ id: "t2", source: "axe", agentId: undefined, title: "Plan the launch" })]
   const control = new PhoneControl({
@@ -37,9 +39,16 @@ function rig() {
       stop: (id) => void stopped.push(id),
       setMode: async (id, mode) => void modes.push([id, mode]),
       modeOf: () => "ask",
+      defaultMode: () => "ask",
       isRunning: () => false,
       title: (id) => threads.find((t) => t.id === id)?.title ?? "New chat",
       answer: (rq, opt) => void answers.push([rq, opt]),
+      image: async (chat, part) => {
+        reads.push(`${chat}:${part}`)
+        const bytes = pictures.get(`${chat}:${part}`)
+        if (!bytes) throw new Error("That isn't a picture in this chat.")
+        return { mime: "image/png", bytes }
+      },
     },
     saveFile: (name, bytes) => (saved.push({ name, bytes: bytes.byteLength }), { path: `/tmp/${name}`, name, mime: "image/png", size: bytes.byteLength }),
     catalog: async () => catalog,
@@ -50,7 +59,7 @@ function rig() {
     now: () => now,
   })
   const cmd = (c: Record<string, unknown>, id = "1", phone = "phone-1") => control.handle(phone, { type: "cmd", id, cmd: c })
-  return { control, cmd, sent, events, log, sends, modes, stopped, threads, answers, saved, tick: (ms: number) => (now += ms) }
+  return { control, cmd, sent, events, log, sends, modes, stopped, threads, answers, saved, reads, pictures, tick: (ms: number) => (now += ms) }
 }
 
 describe("a phone driving chats", () => {
@@ -67,7 +76,7 @@ describe("a phone driving chats", () => {
     const r = rig()
     await r.cmd({ type: "send", chat: null, text: "Fix the checkout test", answerer: { kind: "agent", agentId: "claude-code" }, mode: "full" })
     expect(r.sends[0]).toMatchObject({ threadId: null, answerer: { kind: "agent", agentId: "claude-code" }, mode: "full", keepDefaults: true })
-    // It works where you last worked with it on the Mac; the phone can't name a folder.
+    // With no folder picked, it works where you last worked with that agent on the Mac.
     expect(r.sends[0]?.cwd).toBe("/Users/david/shop")
     expect(r.log).toEqual([{ text: "Started New chat with Claude Code in Bypass", bypass: true }])
   })
@@ -77,7 +86,49 @@ describe("a phone driving chats", () => {
     r.threads.length = 0
     await r.cmd({ type: "send", chat: null, text: "hi", answerer: { kind: "agent", agentId: "claude-code" } })
     expect(r.sends).toEqual([])
-    expect((r.sent[0] as { error: string }).error).toMatch(/Start a chat with this agent on your Mac first/)
+    expect((r.sent[0] as { error: string }).error).toBe("Pick a folder for this agent.")
+  })
+
+  it("lists the Mac's recent folders, newest first, one per folder", async () => {
+    const r = rig()
+    r.threads.push(
+      thread({ id: "t3", agentId: "codex", cwd: "/Users/david/shop", updatedAt: "2026-10-27T10:00:00Z" }),
+      thread({ id: "t4", cwd: "/Users/david/site/", updatedAt: "2026-10-29T10:00:00Z" }),
+      thread({ id: "t5", source: "axe", agentId: undefined, cwd: undefined }),
+    )
+    await r.cmd({ type: "folders" })
+    const res = r.sent[0] as { ok: boolean; data: { folders: { path: string; label: string; agentIds: string[]; lastUsedAt: string }[] } }
+    expect(res.data.folders).toEqual([
+      { path: "/Users/david/site/", label: "site", lastUsedAt: "2026-10-29T10:00:00Z", agentIds: ["claude-code"] },
+      { path: "/Users/david/shop", label: "shop", lastUsedAt: "2026-10-28T10:00:00Z", agentIds: ["claude-code", "codex"] },
+    ])
+  })
+
+  it("keeps the list to 20 folders", async () => {
+    const r = rig()
+    for (let n = 0; n < 30; n++) r.threads.push(thread({ id: `x${n}`, cwd: `/work/p${n}`, updatedAt: `2026-09-${String(n + 1).padStart(2, "0")}T10:00:00Z` }))
+    await r.cmd({ type: "folders" })
+    expect((r.sent[0] as { data: { folders: unknown[] } }).data.folders).toHaveLength(20)
+  })
+
+  it("starts an agent chat in a folder from the list, and refuses any other", async () => {
+    const r = rig()
+    r.threads.push(thread({ id: "t4", cwd: "/Users/david/site", updatedAt: "2026-10-29T10:00:00Z" }))
+    const agent = { kind: "agent", agentId: "claude-code" }
+    await r.cmd({ type: "send", chat: null, text: "hi", answerer: agent, folder: "/Users/david/site" })
+    expect(r.sends[0]?.cwd).toBe("/Users/david/site")
+    for (const [n, folder] of ["/Users/david", "/Users/david/site/../..", "/etc", "/Users/david/SITE"].entries())
+      await r.cmd({ type: "send", chat: null, text: "hi", answerer: agent, folder }, `bad${n}`)
+    expect(r.sends).toHaveLength(1)
+    expect(r.sent.slice(1).map((m) => (m as { error?: string }).error)).toEqual(Array(4).fill("Pick a folder from the list."))
+  })
+
+  it("a chat started on a phone asks first, unless the phone picks a mode", async () => {
+    const r = rig()
+    const agent = { kind: "agent", agentId: "claude-code" }
+    await r.cmd({ type: "send", chat: null, text: "hi", answerer: agent })
+    await r.cmd({ type: "send", chat: null, text: "hi", answerer: agent, mode: "plan" }, "2")
+    expect(r.sends.map((s) => s.mode)).toEqual(["ask", "plan"])
   })
 
   it("switches a chat's mode, Bypass included, and logs it", async () => {
@@ -199,5 +250,54 @@ describe("a phone driving chats", () => {
     expect(r.saved.map((f) => f.bytes)).toEqual([3])
     expect(r.sends).toEqual([])
     expect(r.sent.filter((m) => (m as { ok: boolean }).ok === false)).toHaveLength(3)
+  })
+
+  describe("pictures an agent made (spec 0035)", () => {
+    type Piece = { ok: boolean; error?: string; data?: { mime: string; size: number; total: number; index: number; data: string } }
+
+    it("sends a picture of that chat in pieces that put back together exactly", async () => {
+      const r = rig()
+      const bytes = new Uint8Array(250 * 1024).map((_, i) => i % 251)
+      r.pictures.set("t1:img1", bytes)
+      await r.cmd({ type: "image", chat: "t1", part: "img1", index: 0 }, "a")
+      const first = r.sent[0] as Piece
+      expect(first.ok).toBe(true)
+      expect(first.data).toMatchObject({ mime: "image/png", size: bytes.length, total: 3, index: 0 })
+      for (let index = 1; index < 3; index++) await r.cmd({ type: "image", chat: "t1", part: "img1", index }, `p${index}`)
+      const pieces = (r.sent as Piece[]).map((p) => Buffer.from(p.data!.data, "base64"))
+      expect(Buffer.concat(pieces).equals(Buffer.from(bytes))).toBe(true)
+      // The copy is read once for the whole picture.
+      expect(r.reads).toEqual(["t1:img1"])
+    })
+
+    it("refuses a part that isn't a picture in that chat, and pieces past the end", async () => {
+      const r = rig()
+      r.pictures.set("t1:img1", new Uint8Array(10))
+      await r.cmd({ type: "image", chat: "t2", part: "img1", index: 0 }, "a")
+      await r.cmd({ type: "image", chat: "t1", part: "img1", index: 1 }, "b")
+      expect((r.sent as Piece[]).map((p) => p.ok)).toEqual([false, false])
+      expect((r.sent[1] as Piece).error).toBe("That piece isn't part of the picture.")
+    })
+
+    it("never takes a path", async () => {
+      const r = rig()
+      await r.cmd({ type: "image", chat: "t1", part: "img1", index: 0, path: "/etc/passwd" }, "a")
+      await r.cmd({ type: "image", chat: "t1", part: "../../secrets", index: 0 }, "b")
+      // The first is dropped by the schema (no answer); the second is a part id the engine doesn't know.
+      expect(r.sent.map((m) => m.id)).toEqual(["b"])
+      expect(r.reads).toEqual(["t1:../../secrets"])
+      expect((r.sent[0] as Piece).ok).toBe(false)
+    })
+
+    it("has its own budget, apart from the 40-command limit", async () => {
+      const r = rig()
+      r.pictures.set("t1:img1", new Uint8Array(10))
+      for (let i = 0; i < 201; i++) await r.cmd({ type: "image", chat: "t1", part: "img1", index: 0 }, `i${i}`)
+      const res = r.sent as Piece[]
+      expect(res.slice(0, 200).every((p) => p.ok)).toBe(true)
+      expect(res[200]?.error).toBe("Too fast. Wait a moment.")
+      await r.cmd({ type: "chats" }, "c")
+      expect((r.sent.at(-1) as Piece).ok).toBe(true)
+    })
   })
 })

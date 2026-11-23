@@ -131,7 +131,7 @@ await win.keyboard.press("Escape").catch(() => {})
 
 const main = win.getByRole("main")
 const box = () => win.getByRole("textbox").last()
-const watchingPage = () => win.getByRole("button", { name: /^Watching/ }).first().click()
+const watchingPage = () => win.getByRole("button", { name: /^Oversight/ }).first().click()
 const titleMenu = async (item) => {
   await win.locator('header button[aria-haspopup="menu"]').first().click()
   await win.getByRole("menuitem", { name: new RegExp(item) }).click()
@@ -144,7 +144,7 @@ const checkNow = async () => {
   await win.waitForTimeout(400)
 }
 const starter = async (label) => {
-  await win.getByPlaceholder(/^(Say what to watch|Watch something else)$/).click()
+  await win.getByPlaceholder(/^(Say what to check|Add a check)$/).click()
   await win.getByTestId("catalogue").getByRole("button", { name: `Add ${label}` }).click({ timeout: 5000 })
   await win.waitForTimeout(200)
 }
@@ -157,7 +157,7 @@ const rest = async () => {
 try {
   /* Security */
   await watchingPage()
-  await win.getByText("What should Axe watch?").waitFor()
+  await win.getByText("What should Axe keep an eye on?").waitFor()
   await starter("Security")
   check("security chip and placeholder", (await win.getByPlaceholder("Domain, like lane-ceramics.com").count()) === 1)
   await shot("sec-01-ask")
@@ -170,13 +170,13 @@ try {
 
   await box().fill("https://lane-ceramics.com/pricing")
   await box().press("Enter")
-  await win.getByRole("button", { name: "Start watching" }).waitFor()
+  await win.getByRole("button", { name: "Add check" }).waitFor()
   check("security plan", await main.getByText("Every morning I’ll check lane-ceramics.com’s email records, certificate, TLS and headers, and open ports.").isVisible())
   check("security bubble", await main.getByText("Check lane-ceramics.com for security problems.").isVisible())
   await rest()
   await shot("sec-03-plan")
 
-  await win.getByRole("button", { name: "Start watching" }).click()
+  await win.getByRole("button", { name: "Add check" }).click()
   await win.getByText("Checking now").waitFor()
   await win.waitForTimeout(500)
   await shot("sec-04-first-run")
@@ -185,12 +185,12 @@ try {
   await rest()
   await shot("sec-05-first-result")
   const first = await main.innerText()
-  check("security folded plan", first.includes("Watching. Every morning at 7:30, tells you right away."))
+  check("security folded plan", first.includes("Checking. Every morning at 7:30, tells you right away."))
   check("security rows", ["Email records", "Spoofable", "74 days left", "TLS 1.3", "80 and 443 only"].every((t) => first.includes(t)), first.split("\n").slice(0, 30).join(" | "))
   check("security problem card", first.includes("Anyone can send email as lane-ceramics.com") && first.includes('_dmarc.lane-ceramics.com TXT "v=DMARC1; p=none"'))
   check("first run doesn't notify", notices().length === 0)
   // The sidebar counts it on Watching's badge; watches never list themselves there.
-  check("sidebar badge counts the problem", await win.getByRole("button", { name: /^Watching, 1 problem/ }).first().isVisible())
+  check("sidebar badge counts the problem", await win.getByRole("button", { name: /^Oversight, 1 problem/ }).first().isVisible())
 
   await checkNow()
   await rest()
@@ -248,13 +248,13 @@ try {
   await box().click()
   await win.getByRole("menu", { name: "Repos and folders" }).waitFor()
   await box().press("Enter")
-  await win.getByRole("button", { name: "Start watching" }).waitFor()
+  await win.getByRole("button", { name: "Add check" }).waitFor()
   check("repo plan", await main.getByText("Every morning I’ll check shop-web for new security alerts, vulnerable packages and leaked keys.").isVisible())
   check("repo bubble", await main.getByText("Tell me about new security alerts in shop-web.").isVisible())
-  check("title says New watch", (await win.locator("header").first().innerText()).includes("New watch"))
+  check("title says New check", (await win.locator("header").first().innerText()).includes("New check"))
   await rest()
   await shot("repo-03-plan")
-  await win.getByRole("button", { name: "Start watching" }).click()
+  await win.getByRole("button", { name: "Add check" }).click()
   await main.getByTestId("problem-repo").waitFor({ timeout: 30_000 })
   await rest()
   await shot("repo-04-problem")
@@ -285,8 +285,8 @@ try {
   await starter("Repo alerts")
   await win.getByRole("menu", { name: "Repos and folders" }).waitFor()
   await win.getByRole("menuitem", { name: "Choose folder…" }).click()
-  await win.getByRole("button", { name: "Start watching" }).waitFor({ timeout: 30_000 })
-  await win.getByRole("button", { name: "Start watching" }).click()
+  await win.getByRole("button", { name: "Add check" }).waitFor({ timeout: 30_000 })
+  await win.getByRole("button", { name: "Add check" }).click()
   await win.getByText("Checking now").waitFor()
   await shot("repo-07-first-run")
   await main.getByTestId("problem-repo").waitFor({ timeout: 90_000 })

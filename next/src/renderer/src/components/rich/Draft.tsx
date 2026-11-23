@@ -6,7 +6,7 @@ import type { RichDraft } from "@shared/rich"
 import { D, useMotion } from "@/lib/motion"
 
 import { CopyMark } from "../BoardIcons"
-import { CheckIcon } from "../Icons"
+import { CheckIcon } from "../SolarIcons"
 import { CardFrame, EmptyNote } from "./shared"
 
 /** Character limits people actually hit. */
@@ -93,15 +93,13 @@ export function DraftCard({ draft }: { draft: RichDraft }) {
         <AnimatePresence>
           {edited && (
             <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={false}
               transition={m.t(D.fast)}
               onClick={() => {
                 setBody(draft.body)
                 setSubject(draft.subject ?? "")
               }}
-              className="h-8 rounded-[6px] border-0 bg-transparent px-2 text-[13px] text-ink-3 hover:text-ink"
+              className="h-8 rounded-full border-0 bg-transparent px-2 text-[13px] text-ink-3 hover:text-ink"
             >
               Undo my edits
             </motion.button>

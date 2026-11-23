@@ -10,6 +10,7 @@ import { useStore } from "@/lib/store"
 import { DescribeAgent } from "@/components/AgentDraft"
 import { agentLogo, BrandLogo, modelLogo } from "@/components/BrandLogo"
 import { Card, ConnectorLogo, ErrorLine, Field, ghost, Grid, HelperMark, inputClass, KIND_ICONS, LibraryPage, pickIcons, primary, Select, Sheet, sheetFooter, Switch } from "@/components/Library"
+import { Empty } from "@/components/Kit"
 
 // One empty list, so an unloaded library doesn't hand React a new array on every render (an endless loop).
 const NONE: never[] = []
@@ -67,18 +68,18 @@ export function Agents() {
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-[15px] text-ink">{h.name}</span>
                 </div>
-                <span className="shrink-0 text-[12px] text-ink-4">/{helperCommand(h.name)}</span>
               </div>
               <p className="m-0 truncate text-[13px] leading-[20px] text-ink-3">{h.role}</p>
               <div className="mt-auto flex h-[28px] items-center gap-[8px] text-[12px]">
                 <Answers answerer={h.answerer} />
                 <span className="flex-1" />
                 {h.skills.length > 0 && <span className="shrink-0 text-ink-3">{h.skills.length === 1 ? "1 skill" : `${h.skills.length} skills`}</span>}
+                <span className="max-w-[45%] shrink-0 truncate text-ink-4">/{helperCommand(h.name)}</span>
               </div>
             </Card>
           ))}
         </Grid>
-        {helpers && !shown.length && <p className="m-0 text-[13px] text-ink-3">No agents yet. Describe one above.</p>}
+        {helpers && !shown.length && <Empty>No agents yet. Describe one above.</Empty>}
       </section>
       <HelperSheet
         helper={helper}
@@ -104,11 +105,11 @@ function HelperSheet({ helper, onClose, onEdit }: { helper?: Helper; onClose: ()
           <div className="flex items-center gap-[14px] pr-[32px]">
             <HelperMark kind={helper.kind} size={44} />
             <div className="flex min-w-0 flex-col gap-[2px]">
-              <h2 className="m-0 text-[20px] leading-7 font-normal">{helper.name}</h2>
+              <h2 className="m-0 text-[20px] leading-[26px] font-normal">{helper.name}</h2>
               <p className="m-0 text-[13px] text-ink-3">{helper.role}</p>
             </div>
           </div>
-          <p className="m-0 rounded-[10px] bg-muted px-[16px] py-[12px] text-[13px] leading-[22px] whitespace-pre-wrap text-ink-2">{helper.instructions}</p>
+          <p className="m-0 rounded-3xl bg-muted px-[16px] py-[12px] text-[13px] leading-[22px] whitespace-pre-wrap text-ink-2">{helper.instructions}</p>
           <dl className="m-0 grid grid-cols-[110px_1fr] gap-x-[16px] gap-y-[10px] text-[13px]">
             <dt className="text-ink-3">Answers with</dt>
             <dd className="m-0">
@@ -189,11 +190,11 @@ function HelperEditor({ initial, onClose }: { initial: Helper | "new" | null; on
     if (!e) onClose()
   }
   const chip = (on: boolean) =>
-    `flex h-[32px] items-center gap-[6px] rounded-full border-0 px-[12px] text-[13px] transition-colors duration-150 ${on ? "bg-accent-bg text-ink" : "bg-fill-2 text-ink-2 hover:bg-fill-3"}`
+    `flex h-[32px] items-center gap-[6px] rounded-full border-0 px-[12px] text-[13px] transition-colors duration-150 ${on ? "bg-raised text-ink" : "bg-fill-2 text-ink-2 hover:bg-fill-3"}`
 
   return (
     <Sheet open={!!initial} onClose={onClose} label={h.id ? "Edit agent" : "New agent"} width={620}>
-      <h2 className="m-0 text-[20px] leading-7 font-normal">{h.id ? "Edit agent" : "New agent"}</h2>
+      <h2 className="m-0 text-[20px] leading-[26px] font-normal">{h.id ? "Edit agent" : "New agent"}</h2>
       <div className="grid grid-cols-[200px_1fr] gap-[12px]">
         <Field label="Name">
           <input className={inputClass} value={h.name} onChange={(e) => setH({ ...h, name: e.target.value })} placeholder="Support replies" />
@@ -212,7 +213,7 @@ function HelperEditor({ initial, onClose }: { initial: Helper | "new" | null; on
               aria-checked={h.kind === k}
               aria-label={k}
               onClick={() => setH({ ...h, kind: k })}
-              className={`rounded-[10px] border-0 bg-transparent p-[3.5px] ${h.kind === k ? "shadow-[0_0_0_1.5px_var(--accent-2)]" : ""}`}
+              className={`rounded-full border-0 bg-transparent p-[3.5px] ${h.kind === k ? "outline-2 outline-ink-3" : ""}`}
             >
               <HelperMark kind={k} size={32} />
             </button>

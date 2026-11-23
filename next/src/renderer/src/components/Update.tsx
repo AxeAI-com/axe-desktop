@@ -5,7 +5,7 @@ import { useMotion } from "@/lib/motion"
 import { useStore } from "@/lib/store"
 import { updateLine } from "@/lib/updates"
 
-import { UpdateIcon } from "./Icons"
+import { UpdateIcon } from "./SolarIcons"
 
 // Updates in the window: a quiet "Restart to update" at the foot of the sidebar once a new version has
 // downloaded and checked out, and a row in Settings that says where things stand.
@@ -20,9 +20,9 @@ export function UpdatePill() {
           <button
             onClick={() => void invoke("updates:install")}
             title={`Version ${state.version} is ready`}
-            className="mt-[4px] mb-[4px] flex h-[36px] w-full items-center gap-[10px] rounded-[16px] border-0 bg-card px-[12px] text-left text-[13px] text-ink transition-colors duration-150 hover:bg-fill"
+            className="mt-[4px] mb-[4px] flex h-[32px] w-full items-center gap-[10px] rounded-[8px] border-0 bg-card px-[10px] text-left text-[13px] text-ink transition-colors duration-150 hover:bg-fill"
           >
-            <span className="flex w-[18px] justify-center text-brand">
+            <span className="flex w-[18px] justify-center text-ink-3">
               <UpdateIcon size={15} />
             </span>
             <span className="flex-1">Restart to update</span>
@@ -41,7 +41,7 @@ export function UpdateRow({ ghost }: { ghost: string }) {
   return (
     <div className="flex items-center gap-[12px] bg-card px-[16px] py-[12px]">
       <div className="flex min-w-[0px] flex-1 flex-col gap-[2px]">
-        <span className="text-[14px] leading-[20px]">Axe AI {version}</span>
+        <span className="text-[13px] leading-[20px]">Axe AI {version}</span>
         <span role="status" className={`text-[12px] leading-[17px] ${state.status === "error" ? "text-bad" : "text-ink-3"}`}>
           {updateLine(state, Date.now())}
         </span>

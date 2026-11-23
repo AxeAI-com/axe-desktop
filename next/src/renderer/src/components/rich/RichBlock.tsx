@@ -74,12 +74,12 @@ function Building({ type }: { type: RichKind }) {
       ) : type === "choices" ? (
         <div className="flex flex-col gap-2" aria-hidden="true">
           {[0, 1, 2].map((i) => (
-            <span key={i} className="rich-skeleton h-[46px] w-full rounded-[10px]" />
+            <span key={i} className="rich-skeleton h-[46px] w-full rounded-full" />
           ))}
         </div>
       ) : type === "map" ? (
         <div className="flex gap-4" aria-hidden="true">
-          <span className="rich-skeleton h-[120px] w-[160px] rounded-[10px]" />
+          <span className="rich-skeleton h-[120px] w-[160px] rounded-full" />
           <div className="flex flex-1 flex-col gap-2.5 pt-1">
             {[80, 64, 72].map((w, i) => (
               <span key={i} className="rich-skeleton h-3" style={{ width: `${w}%` }} />

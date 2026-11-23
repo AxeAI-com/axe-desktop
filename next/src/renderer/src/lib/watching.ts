@@ -45,7 +45,7 @@ export const watchById = (id: string) => getState().watching?.watches.find((w) =
 /** The limit on checking a target before the plan shows. */
 const DRAFT_LIMIT = 10_000
 
-/** Checks the target once; on success the plan screen opens. `force`: "Watch it anyway". */
+/** Checks the target once; on success the plan screen opens. `force`: "Check it anyway". */
 export async function draftWatch(kind: Kind, target: string, force = false) {
   const shown = (cleanTarget(kind, target) ?? target.trim()).split("/")[0] ?? target
   setState({ watchBusy: true, watchBusyTarget: shown, watchError: null, watchErrorButton: null })
@@ -55,7 +55,7 @@ export async function draftWatch(kind: Kind, target: string, force = false) {
     // A GitHub repo finds its local clone among the folders of recent agent chats.
     const folders = kind === "repo" ? [...new Set(getState().threads.filter((t) => t.source === "agent" && t.cwd && !t.copy).map((t) => t.cwd!))] : undefined
     const d = await Promise.race([invoke("watching:draft", { kind, target, answerer, ...(force ? { force } : {}), ...(folders ? { folders } : {}) }), limit])
-    if (d === "late") return void setState({ watchError: `${shown} isn’t answering right now.`, watchErrorButton: kind === "uptime" ? { label: "Watch it anyway", kind, target, force: true } : null })
+    if (d === "late") return void setState({ watchError: `${shown} isn’t answering right now.`, watchErrorButton: kind === "uptime" ? { label: "Check it anyway", kind, target, force: true } : null })
     if ("error" in d) return void setState({ watchError: d.error, watchErrorButton: d.button ?? null })
     // A target typed after "Which site?" keeps the sentence it answered as the plan's bubble.
     const asked = getState().watchAsked
@@ -90,7 +90,7 @@ export async function readFreeText(text: string, answerer: Answerer) {
   if (n !== reads || getState().watchAsk?.text !== text) return
   if (r === "late") {
     const target = findTarget(text)
-    return void setState({ watchAsk: { text, question: target ? `What should I watch on ${target}?` : "What should I watch?", ...(target ? { target } : {}) } })
+    return void setState({ watchAsk: { text, question: target ? `What should I keep an eye on at ${target}?` : "What should I keep an eye on?", ...(target ? { target } : {}) } })
   }
   if ("plan" in r) return void setState({ view: { kind: "newWatch", draft: r }, watchAsk: null, watchKind: null })
   if ("error" in r) {
@@ -225,7 +225,7 @@ export async function runWatchCommand(cmd: WatchCommand, rest: string, watchId?:
   if (cmd === "summary") return showSummary()
   const all = getState().watching?.watches ?? []
   const targets = watchId ? all.filter((w) => w.id === watchId) : namedWatches(rest, all)
-  if (!targets.length) return void setState({ watchError: all.length ? "Pick a watch with @." : "There are no watches yet.", watchNote: null })
+  if (!targets.length) return void setState({ watchError: all.length ? "Pick a check with @." : "There are no checks yet.", watchNote: null })
   await Promise.all(targets.map((w) => commandWatch(cmd, w.id)))
   if (!watchId) setState({ watchNote: DONE[cmd](and(targets.map((w) => w.name))), watchError: null })
 }

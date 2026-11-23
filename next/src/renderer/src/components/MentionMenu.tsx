@@ -1,15 +1,15 @@
 import { AnimatePresence, motion } from "motion/react"
-import { useEffect, useRef } from "react"
+import { useEffect, useLayoutEffect, useRef } from "react"
 
 import type { MentionItem, MentionKind } from "@/lib/mentions"
 import { useMotion } from "@/lib/motion"
 
-import { IconTile } from "./Kit"
-import { ChatIcon, EyeIcon, FolderIcon, MonitorIcon, PlugIcon } from "./Icons"
+import { fit, menuLabelClass, menuPanel, menuRowClass } from "./Popover"
+import { ChatIcon, EyeIcon, FolderIcon, MonitorIcon, PlugIcon } from "./SolarIcons"
 import { KindIcon } from "./WatchIcons"
 
 type Group = { kinds: MentionKind[]; title: string }
-const WATCHES: Group = { kinds: ["watch"], title: "Watches" }
+const WATCHES: Group = { kinds: ["watch"], title: "Checks" }
 const FOLDERS: Group = { kinds: ["folder"], title: "Folders" }
 const REST: Group[] = [
   { kinds: ["connector", "app"], title: "Apps" },
@@ -42,6 +42,11 @@ export function MentionMenu({
   const list = useRef<HTMLDivElement>(null)
   const pop = m.pop("bottom left")
 
+  // Never past the window's top or over the title bar: cap the height to the room above the composer.
+  useLayoutEffect(() => {
+    if (open && list.current) fit(list.current, null)
+  }, [open, items.length])
+
   useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-i="${selected}"]`)?.scrollIntoView({ block: "nearest" })
   }, [selected])
@@ -55,15 +60,15 @@ export function MentionMenu({
           ref={list}
           role="listbox"
           aria-label="Mention"
-          className={`scroll absolute z-40 box-border max-h-[320px] w-max min-w-[220px] max-w-[420px] overflow-y-auto rounded-[10px] border-0 bg-pop p-[4px] text-[13px] shadow-card ${className}`}
+          className={`scroll absolute z-40 max-h-[320px] w-max min-w-[220px] max-w-[420px] overflow-y-auto ${menuPanel} ${className}`}
         >
-          {items.length === 0 && <div className="px-[8px] py-[6px] text-[13px] text-ink-3">Nothing by that name. Type ~/ for a folder.</div>}
+          {items.length === 0 && <div className="px-[8px] py-[6px] text-[13px] text-[var(--cx-ink3)]">Nothing by that name. Type ~/ for a folder.</div>}
           {groups(watchesFirst).map((g) => {
             const group = items.filter((x) => g.kinds.includes(x.kind))
             if (!group.length) return null
             return (
               <div key={g.title} className="flex flex-col">
-                <div className="px-[8px] pt-[6px] pb-[2px] text-[12px] text-ink-3">{g.title}</div>
+                <div className={menuLabelClass}>{g.title}</div>
                 {group.map((item) => {
                   i++
                   const n = i
@@ -80,13 +85,13 @@ export function MentionMenu({
                         e.preventDefault()
                         onPick(item)
                       }}
-                      className={`flex h-[28px] cursor-default items-center gap-[8px] rounded-[6px] px-[8px] ${on ? "bg-fill-2" : ""}`}
+                      className={menuRowClass(on)}
                     >
-                      <IconTile tone="mute" size={18}>
-                        {item.watchKind ? <KindIcon kind={item.watchKind} size={12} /> : <Icon size={12} />}
-                      </IconTile>
-                      <span className="min-w-0 shrink truncate text-[13px] text-foreground">{item.label}</span>
-                      {item.detail && <span className="min-w-0 flex-1 truncate text-right text-[13px] text-ink-3">{item.detail}</span>}
+                      <span className="flex w-[14px] shrink-0 items-center justify-center text-[var(--cx-ink3)]">
+                        {item.watchKind ? <KindIcon kind={item.watchKind} size={14} /> : <Icon size={14} />}
+                      </span>
+                      <span className="min-w-0 shrink truncate">{item.label}</span>
+                      {item.detail && <span className="min-w-0 flex-1 truncate pl-[16px] text-right text-[var(--cx-ink4)]">{item.detail}</span>}
                     </div>
                   )
                 })}

@@ -264,7 +264,10 @@ async function workTurn(conn, sessionId, s, update, asked) {
   const wrote = []
   const edits = asked.match(/edit:(\S+)/)?.[1]
   for (const pair of edits ? edits.split(";") : []) {
-    const [name, text] = pair.split("=")
+    const at = pair.indexOf("=")
+    const [name, raw] = at < 0 ? [pair, undefined] : [pair.slice(0, at), pair.slice(at + 1)]
+    // A picture's markup needs spaces, which a prompt word can't hold: "%20" in an .svg is one.
+    const text = name.endsWith(".svg") ? decodeURIComponent(raw ?? "") : raw
     if (await edit(conn, sessionId, s, update, name, `${text ?? ""}\n`)) wrote.push(name)
   }
   let ran = "no"

@@ -1,11 +1,14 @@
 # Release builds of the new Axe desktop app (next/) for Windows and Linux, on GitHub's free runners.
 # Unsigned by the OS (no code-signing certificate yet); the updater signature is added on the release Mac.
 # Runs only on these branches (scripts/release pushes a throwaway ci/axe-desktop-release-<v>-<time>); the builds
-# come back as private artifacts. The Windows installer is also installed, started and uninstalled before it is kept.
+# come back as assets of a draft release per system (drafts are private, and release assets don't count against the
+# Actions artifact quota that blocked 0.13.0); scripts/release downloads them and deletes the drafts. The Windows installer is also installed, started and uninstalled before it is kept.
 name: axe-desktop-release
 on:
   push:
     branches: [ci/axe-desktop-release, "ci/axe-desktop-release-*"]
+permissions:
+  contents: read
 jobs:
   build:
     strategy:
@@ -19,12 +22,18 @@ jobs:
             script: release:linux
             name: linux
     runs-on: ${{ matrix.os }}
+    # Write only to create the draft release. checkout keeps no token (persist-credentials: false), so install and
+    # build scripts can't reach it; only the last step gets it, through its own GH_TOKEN.
+    permissions:
+      contents: write
     timeout-minutes: 40
     defaults:
       run:
         working-directory: next
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 10
@@ -62,13 +71,16 @@ jobs:
           Start-Sleep 5
           if (Test-Path $exe.FullName) { throw "Uninstall left the app behind" }
           Write-Host "Uninstalled"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: axe-desktop-${{ matrix.name }}
-          path: |
-            next/dist/*.exe
-            next/dist/*.exe.blockmap
-            next/dist/*.AppImage
-            next/dist/*.deb
-            next/dist/latest*.yml
-          retention-days: 3
+      # Hand the builds back as a draft release's assets, not an Actions artifact: artifacts share a storage quota
+      # that ran out on 2026-11-15 and blocked Windows and Linux 0.13.0. scripts/release deletes the draft after.
+      - name: Hand the builds to the release Mac
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          draft="${GITHUB_REF_NAME#ci/}-${{ matrix.name }}"
+          files=$(find dist -maxdepth 1 -type f \( -name '*.exe' -o -name '*.exe.blockmap' -o -name '*.AppImage' -o -name '*.deb' -o -name 'latest*.yml' \) ! -iname '*uninstall*')
+          [ -n "$files" ] || { echo "no builds in dist"; exit 1; }
+          gh release create "$draft" --draft --target "$GITHUB_SHA" --title "$draft" \
+            --notes "CI builds for scripts/release; deleted once published." -R "$GITHUB_REPOSITORY" $files

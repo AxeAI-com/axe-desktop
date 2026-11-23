@@ -4,7 +4,8 @@ import type { AgentChoice, AgentOption } from "@shared/types"
 
 import { agentOptionsOf, loadAgentOptions, setAgentOption, useStore } from "@/lib/store"
 
-import { BrainIcon, ChevronDown } from "./Icons"
+import { ChevronDown } from "./SolarIcons"
+import { underControl } from "./Kit"
 import { MenuLabel, MenuLine, MenuRow, Popover } from "./Popover"
 
 /** "Default (recommended)" reads "Default" on the chip; the menu keeps the agent's own words. */
@@ -41,11 +42,12 @@ export function AgentOptionsMenu({ threadId, agentId }: { threadId?: string; age
   return (
     <div className="relative min-w-0 shrink">
       <Popover
+        dense
         open={open}
         onClose={close}
         anchor={anchor}
-        origin="bottom left"
-        className="bottom-[calc(100%+8px)] left-0 max-h-[min(520px,calc(100vh-160px))] overflow-y-auto"
+        origin="bottom right"
+        className="right-0 bottom-[calc(100%+6px)] max-h-[min(520px,calc(100vh-160px))] overflow-y-auto"
         label="Model and effort"
       >
         {options.map((o, i) => (
@@ -80,13 +82,62 @@ export function AgentOptionsMenu({ threadId, agentId }: { threadId?: string; age
         aria-label={`Model and effort: ${label}`}
         title="Model and effort"
         onClick={() => setOpen((x) => !x)}
-        className={`flex h-7 min-w-0 items-center gap-1.5 rounded-full border-0 px-2.5 text-[13px] transition-[background-color,color] duration-150 ${open ? "bg-fill-2 text-ink" : "bg-transparent text-ink-3 hover:bg-fill hover:text-ink-2"}`}
+        // Plain text under the composer, right of who answers: "Opus 5.5 medium".
+        className={underControl(open)}
       >
-        <BrainIcon size={14} className="shrink-0" />
         <span className="truncate">{model}</span>
         {effort && <span className="shrink-0 text-ink-4">{effort}</span>}
         <ChevronDown size={12} className="shrink-0 text-ink-4" />
       </button>
     </div>
+  )
+}
+
+/**
+ * A CLI agent's model and effort inside the who-answers menu (Draft 3): a "Model" list, then "Effort" as one row of
+ * segments. Picking a model keeps the menu open for the effort.
+ */
+export function AgentOptionRows({ threadId, agentId, onDone }: { threadId?: string; agentId: string; onDone: () => void }) {
+  const options = useStore((s) => agentOptionsOf(threadId, agentId, s))
+  useEffect(() => {
+    void loadAgentOptions(threadId, agentId)
+  }, [threadId, agentId])
+  return (
+    <>
+      {options.map((o) => (
+        <Fragment key={o.id}>
+          <MenuLine />
+          <MenuLabel>{o.kind === "effort" ? "Effort" : "Model"}</MenuLabel>
+          {o.kind === "effort" ? (
+            <div role="radiogroup" aria-label="Effort" className="flex flex-wrap gap-[2px] px-[6px] pt-[2px] pb-[6px]">
+              {o.choices.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={c.value === o.current}
+                  title={c.description}
+                  onClick={() => {
+                    onDone()
+                    void setAgentOption(threadId, agentId, o.id, c.value)
+                  }}
+                  className={`h-[26px] flex-auto cursor-pointer rounded-[6px] border-0 px-[8px] text-[13px] whitespace-nowrap transition-colors duration-150 ${
+                    c.value === o.current ? "bg-[var(--cx-hover)] text-[var(--cx-ink)]" : "bg-transparent text-[var(--cx-ink3)] hover:text-[var(--cx-ink)]"
+                  }`}
+                >
+                  {shortName(c)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            o.choices.map((c) => (
+              <MenuRow key={c.value} role="menuitemradio" checked={c.value === o.current} title={c.description} onSelect={() => void setAgentOption(threadId, agentId, o.id, c.value)}>
+                {shortName(c)}
+              </MenuRow>
+            ))
+          )}
+        </Fragment>
+      ))}
+    </>
   )
 }

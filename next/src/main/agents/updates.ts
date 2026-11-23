@@ -9,6 +9,7 @@ import { describe, type Input } from "../doit/tools"
 
 type Tool = Extract<Part, { type: "tool" }>
 type Reasoning = Extract<Part, { type: "reasoning" }>
+type Image = Extract<Part, { type: "image" }>
 
 const KINDS = new Set<ToolKind>(["read", "edit", "delete", "move", "search", "execute", "think", "fetch", "other"])
 export const toolKind = (k: string | null | undefined): ToolKind => (k && KINDS.has(k as ToolKind) ? (k as ToolKind) : "other")
@@ -85,6 +86,8 @@ export class ReplyBuilder {
   private thoughtStarted = new Map<string, number>()
   /** Axe's own MCP tools by call id (their input often arrives after the title). */
   private axeTools = new Map<string, string>()
+  /** Pictures in this reply by what they came from (a path, or a block), so a file written twice shows once. */
+  private pictures = new Map<string, string>()
 
   constructor(
     readonly message: ChatMessage,
@@ -97,6 +100,35 @@ export class ReplyBuilder {
 
   private last(): Part | undefined {
     return this.parts[this.parts.length - 1]
+  }
+
+  /**
+   * A part id for a picture from `key` (its path, or a block's id): the one it already has, a new one,
+   * or undefined once the reply has `max` pictures. The caller saves the copy, then calls image().
+   */
+  pictureSlot(key: string, max: number): string | undefined {
+    const known = this.pictures.get(key)
+    if (known) return known
+    if (this.pictures.size >= max) return undefined
+    const id = newId("img")
+    this.pictures.set(key, id)
+    return id
+  }
+
+  /** Shows a saved picture: after the tool that made it (`after`), or at the end; again: a new rev. */
+  image(picture: Omit<Image, "type" | "rev">, after?: string): boolean {
+    const existing = this.parts.find((p): p is Image => p.type === "image" && p.id === picture.id)
+    if (existing) {
+      Object.assign(existing, picture, { rev: (existing.rev ?? 0) + 1 })
+      return true
+    }
+    const part: Image = { type: "image", ...picture }
+    let at = after ? this.parts.findIndex((p) => p.id === after) : -1
+    // Pictures from the same tool stay in the order they came.
+    if (at >= 0) while (this.parts[at + 1]?.type === "image") at++
+    if (at >= 0) this.parts.splice(at + 1, 0, part)
+    else this.parts.push(part)
+    return true
   }
 
   /** "Thought for 4s": closes thinking once the agent moves on. */

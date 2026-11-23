@@ -11,7 +11,7 @@ import { loadPage, textOf, unreadable } from "./page"
 // not news. News is told once, when the answer turns true; a problem stays open while it's true.
 // `prev` is the last answer ("met" or "not"), saved by the caller.
 
-export const NO_MODEL = "This watch has no model to read the page."
+export const NO_MODEL = "This check has no model to read the page."
 export const BAD_ANSWER = "The model’s answer couldn’t be read."
 export const BAD_QUOTE = "The model quoted words that aren’t on the page."
 

@@ -28,7 +28,7 @@ for (const theme of ["dark"] as const) {
       await expect(card(page).getByText("Click “Send order” on localhost:5203")).toBeVisible()
       await expect(page.getByText("2/3")).toBeVisible()
       await page.getByRole("button", { name: /Waiting for you/ }).click()
-      await expect(page.getByText("Fill in “mia@example.com”")).toBeVisible()
+      await expect(page.getByText("Filled in “mia@example.com”")).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-doit-waiting.png`)
     })
@@ -123,14 +123,16 @@ test("the composer grows to eight lines with no scrollbar, the placeholder on on
   for (const url of ["/?theme=dark"]) {
     await page.goto(url)
     const box = page.getByRole("textbox", { name: "Message" })
-    const size = () => box.evaluate((t: HTMLTextAreaElement) => ({ h: t.clientHeight, overflow: getComputedStyle(t).overflowY, bar: getComputedStyle(t).scrollbarWidth }))
-    expect(await size()).toEqual({ h: 36, overflow: "hidden", bar: "none" })
+    // scrollbar-width is reset to auto app-wide for the 4 px scrollbars (2026-11-08); .no-scrollbar hides it with
+    // ::-webkit-scrollbar { display: none }, so "bar" is that pseudo-element's display.
+    const size = () => box.evaluate((t: HTMLTextAreaElement) => ({ h: t.clientHeight, overflow: getComputedStyle(t).overflowY, bar: getComputedStyle(t, "::-webkit-scrollbar").display }))
+    expect(await size()).toEqual({ h: 32, overflow: "hidden", bar: "none" })
     const lines = (n: number) => Array(n).fill("Sam's notes for the Lisbon trip.").join("\n")
     await box.fill(lines(4))
-    expect(await size()).toEqual({ h: 101, overflow: "hidden", bar: "none" })
+    expect(await size()).toEqual({ h: 98, overflow: "hidden", bar: "none" })
     await box.fill(lines(8))
-    expect(await size()).toEqual({ h: 191, overflow: "hidden", bar: "none" })
+    expect(await size()).toEqual({ h: 186, overflow: "hidden", bar: "none" })
     await box.fill(lines(20))
-    expect(await size()).toEqual({ h: 192, overflow: "auto", bar: "none" })
+    expect(await size()).toEqual({ h: 186, overflow: "auto", bar: "none" })
   }
 })

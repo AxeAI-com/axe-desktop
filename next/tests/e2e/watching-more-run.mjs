@@ -179,7 +179,7 @@ try {
     await win.reload()
     await win.waitForTimeout(2000)
     await win.keyboard.press("Escape").catch(() => {})
-    await win.getByRole("button", { name: /^Watching/ }).first().click()
+    await win.getByRole("button", { name: /^Oversight/ }).first().click()
     const main = win.getByRole("main")
     await main.getByText(health.name, { exact: true }).first().waitFor()
     await win.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())

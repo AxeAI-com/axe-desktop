@@ -61,7 +61,7 @@ await main.waitForTimeout(2500)
 if (!(await main.evaluate(() => window.axe.invoke("account:get")))) {
   await main.evaluate(() => window.axe.invoke("account:signIn"))
   await main.reload()
-  await main.getByRole("heading", { name: /Good (morning|afternoon|evening)/ }).waitFor({ timeout: 20000 })
+  await main.getByRole("heading", { level: 1 }).waitFor({ timeout: 20000 })
 }
 check(!!(await main.evaluate(() => window.axe.invoke("account:get"))), "signed in")
 

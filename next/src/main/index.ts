@@ -2,16 +2,16 @@ import { join, resolve } from "node:path"
 import { appendFileSync } from "node:fs"
 import { app, BrowserWindow, Menu, nativeTheme, Notification, screen, shell } from "electron"
 
-import { configureAccount, handleCallback, PROTOCOL } from "./axe/account"
+import { configureAccount, handleCallback, isSignedIn, PROTOCOL } from "./axe/account"
 import { setEmitter } from "./bus"
 import { shutdown } from "./chat"
 import { applyTheme, registerCommands } from "./commands"
 import { emit, startIpc } from "./ipc"
 import { createNotifier, setNotifier } from "./notify"
 import { hub } from "./libraries"
-import { isSelfTest, setDataDir } from "./paths"
+import { isSelfTest, setDataDir, statusLog } from "./paths"
 import { startQuickBar, stopQuickBar, toggle as toggleQuickBar } from "./quickbar"
-import { safeTokenStore } from "./secrets"
+import { safeTokenStore, savedSessionUnreadable } from "./secrets"
 import { settings } from "./settings"
 import { startUpdates } from "./updates"
 import { keepAlive, startRemote, stopRemote } from "./remote"
@@ -23,6 +23,8 @@ import { allowOwnMicrophone } from "./voice"
 
 // Development runs as "Axe AI Dev": its own Keychain item and menu name, apart from the installed app.
 if (!app.isPackaged) app.setName("Axe AI Dev")
+// A Keychain test (scripts/release-verify) names its own Keychain item ("<name> Safe Storage").
+if (isSelfTest() && process.env.AXE_KEYCHAIN_NAME?.startsWith("Axe AI ")) app.setName(process.env.AXE_KEYCHAIN_NAME)
 
 // The engine's files live in userData (AXE_DATA_DIR overrides it for self-tests).
 setDataDir(app.getPath("userData"))
@@ -203,6 +205,7 @@ setNotifier(
 void app.whenReady().then(() => {
   // safeStorage can only decrypt the saved session once the app is ready.
   configureAccount({ store: safeTokenStore, openExternal: (url) => void shell.openExternal(url) })
+  statusLog(isSignedIn() ? "session readable" : savedSessionUnreadable() ? "session unreadable" : "no session")
   applyTheme(settings().theme)
   allowOwnMicrophone()
   registerCommands()

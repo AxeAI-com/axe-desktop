@@ -13,7 +13,7 @@ async function open(page: Page, theme: "dark" | "light", mock: string) {
   await page.clock.setFixedTime(NOW)
   await page.goto(`/?theme=${theme}&mock=${mock}`)
   await page.evaluate(() => document.fonts.ready)
-  await page.getByRole("button", { name: /^Watching/ }).first().click()
+  await page.getByRole("button", { name: /^Oversight/ }).first().click()
 }
 
 async function settle(page: Page) {
@@ -29,7 +29,7 @@ async function pick(page: Page, label: string, target: string) {
   const box = page.getByRole("textbox").last()
   await box.fill(target)
   await box.press("Enter")
-  await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Add check" })).toBeVisible()
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -58,7 +58,8 @@ for (const theme of ["light", "dark"] as const) {
 
     test("watches with problems: failing tests and a service outage", async ({ page }) => {
       await open(page, theme, "watchmore")
-      await expect(row(page, "w-tests")).toContainText("Tests fail: 2 failed, 118 passed")
+      await expect(row(page, "w-tests")).toContainText("Tests fail in shop-web")
+      await expect(row(page, "w-tests")).toContainText("2 failed, 118 passed")
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-more-list.png`)
       await row(page, "w-tests").click()

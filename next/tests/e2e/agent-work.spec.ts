@@ -105,8 +105,9 @@ for (const theme of ["dark"] as const) {
       await open(page, theme)
       await page.getByRole("button", { name: "Auto", exact: true }).click()
       await page.getByRole("listbox", { name: "Choose who answers" }).getByText("Claude Code", { exact: true }).click()
-      await page.getByRole("button", { name: "Add files, tools and connectors" }).click()
-      await page.getByRole("menuitem", { name: "Work in a copy" }).click()
+      // Draft 3: Work in a copy is in the folder menu under the box.
+      await page.getByRole("button", { name: /axe-web|Choose a folder/ }).first().click()
+      await page.getByRole("menuitemradio", { name: /Work in a copy/ }).click()
       await page.getByRole("button", { name: "Mode: Ask before changes" }).click()
       await page.getByRole("menuitemradio", { name: /Plan first/ }).click()
       await expect(page.getByRole("button", { name: "Mode: Plan first" })).toBeVisible()

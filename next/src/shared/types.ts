@@ -159,7 +159,9 @@ export type FileChange = {
   binary?: boolean
 }
 
-export type ToolKind = "read" | "edit" | "delete" | "move" | "search" | "execute" | "think" | "fetch" | "other"
+export type AgentImageMime = "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml"
+
+export type ToolKind ="read" | "edit" | "delete" | "move" | "search" | "execute" | "think" | "fetch" | "other"
 /** declined: you said no when it asked first. */
 export type ToolState = "running" | "done" | "failed" | "declined"
 
@@ -192,6 +194,11 @@ export type Part =
       stage?: "proposed" | "started"
     }
   | { type: "error"; id: string; text: string }
+  /**
+   * A picture an agent made or opened (spec 0035). The bytes are Axe's own copy, fetched by part id
+   * ("chat:image", or the phone's "image" command); the part never carries a path.
+   */
+  | { type: "image"; id: string; name: string; mime: AgentImageMime; size: number; rev?: number }
   /** A card from one of the website's tools (show_map, draft_email); see shared/rich.ts. */
   | { type: "rich"; id: string; block: RichBlock }
   /** A research run: what it is doing, then the record of what it did. The report itself is the text parts. */
@@ -519,8 +526,11 @@ export type PhonesView = {
 /** One line of "What the phone did". */
 export type PhoneLogEntry = { at: number; phone: string; name: string; text: string }
 
-/** The pairing QR on screen: a link to axeai.com/connect, new every 2 minutes. */
-export type PairingCode = { link: string; expiresAt: number }
+/**
+ * The ways to pair on screen, both new every 2 minutes: a QR (a link to axeai.com/connect) and a 6-digit
+ * code. `code` is null after too many wrong tries, until `blockedUntil`.
+ */
+export type PairingCode = { link: string; expiresAt: number; code: string | null; codeExpiresAt: number; blockedUntil: number }
 
 export type RemoteState = {
   enabled: boolean

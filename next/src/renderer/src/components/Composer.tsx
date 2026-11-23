@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "motion/react"
+import { motion } from "motion/react"
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import type { Answerer, Attachment, SlashCommand } from "@shared/types"
@@ -17,16 +17,13 @@ import { filterSlash, firstPick, inMenuOrder, pickedText, slashItems, slashQuery
 import { chatMarkdown, mentionItems, mentionQuery, replaceMention, type MentionItem } from "@/lib/mentions"
 import {
   chooseFolder,
-  defaultAnswerer,
   draftFolder,
   getState,
   loadCommands,
   loadDraftCommands,
   loadInstructions,
   modeOf,
-  nextAnswerer,
   openInstructions,
-  pickAnswerer,
   sendInThread,
   sendNew,
   setCopy,
@@ -38,16 +35,14 @@ import {
 } from "@/lib/store"
 
 import { attachFiles, AttachmentTray } from "./Attachments"
-import { AxeTile, agentLogo, LogoTile, localModelLogo, modelLogo } from "./BrandLogo"
-import { chip, IconTile, Switch } from "./Kit"
-import { BranchIcon, CheckIcon, ChevronDown, FileIcon, FolderIcon, GlobeIcon, MonitorIcon, PaperclipIcon, PencilIcon, PlugIcon, PlusIcon, SearchIcon, TelescopeIcon, XIcon } from "./Icons"
+import { AnswererPicker, useAnswerer } from "./AnswererPicker"
+import { boxButton, Switch, underControl, underText } from "./Kit"
+import { ChevronDown as LineChevron, FolderIcon as LineFolderIcon, MagicIcon } from "./Icons"
+import { BranchIcon, FileIcon, GlobeIcon, MonitorIcon, PaperclipIcon, PlugIcon, SearchIcon, TelescopeIcon, XIcon } from "./SolarIcons"
 import { ConnectorLogo, HelperMark } from "./Library"
-import { AgentOptionsMenu } from "./AgentOptionsMenu"
 import { ModeMenu, nextMode } from "./ModeMenu"
 import { MentionMenu, mentionOrder } from "./MentionMenu"
-import { ModelPicker } from "./ModelPicker"
-import { FoxPet } from "./Pet"
-import { MenuItem, MenuLabel, MenuLine, Popover } from "./Popover"
+import { MenuItem, MenuLabel, MenuLine, MenuRow, Popover } from "./Popover"
 import { PromptInput } from "./ai/prompt-input"
 import { SlashMenu } from "./SlashMenu"
 import { UsageRing } from "./UsageRing"
@@ -90,19 +85,22 @@ export const Composer = forwardRef<
      * where /check, /pause and /resume apply to that watch straight away.
      */
     watching?: { id?: string }
+    /** Fill the parent's width instead of the 768 px column (Oversight lines it up with its tiles). */
+    fill?: boolean
   }
->(function Composer({ variant, threadId, onStart, hint, kind, onClearKind, busy, onEscape, onTextChange, answerer: ownAnswerer, onAnswerer, watching }, handle) {
+>(function Composer({ variant, threadId, onStart, hint, kind, onClearKind, busy, onEscape, onTextChange, answerer: ownAnswerer, onAnswerer, watching, fill }, handle) {
   const [text, setText] = useState("")
   useEffect(() => onTextChange?.(text), [text, onTextChange])
-  const [picker, setPicker] = useState(false)
-  // The list opens above the button and never runs past the top of the window.
-  const [room, setRoom] = useState(560)
   const [plus, setPlus] = useState(false)
+  const [folderOpen, setFolderOpen] = useState(false)
+  const folderBtn = useRef<HTMLButtonElement>(null)
+  const closeFolder = useCallback(() => setFolderOpen(false), [])
+  // The + menu opens above the box, or below it when the window has no room above (New chat sits high).
+  const [plusBelow, setPlusBelow] = useState(false)
   const [files, setFiles] = useState<Attachment[]>([])
   const [dropping, setDropping] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
-  const modelBtn = useRef<HTMLButtonElement>(null)
   const plusBtn = useRef<HTMLButtonElement>(null)
   const m = useMotion()
 
@@ -110,9 +108,7 @@ export const Composer = forwardRef<
   const draft = useStore((s) => s.draft)
   const thread = useStore((s) => (threadId ? s.threads.find((t) => t.id === threadId) : undefined))
   const running = useStore((s) => (threadId ? !!s.live[threadId] || !!thread?.running : false))
-  // Selected as a string: the helpers build fresh objects, and the store wants stable snapshots.
-  const answererKey = useStore((s) => JSON.stringify(ownAnswerer ?? (threadId ? nextAnswerer(threadId, s) : (s.draft.answerer ?? defaultAnswerer(s)))))
-  const answerer = useMemo(() => JSON.parse(answererKey) as Answerer, [answererKey])
+  const answerer = useAnswerer(threadId, ownAnswerer)
   const isAgent = answerer.kind === "agent"
   // A model on a local server: no web search or research (those are axeai.com's). With tools it gets Do it
   // and connectors like an Axe model; one that can't use tools only chats.
@@ -120,7 +116,6 @@ export const Composer = forwardRef<
   const isAxe = answerer.kind === "axe"
   const label = answererLabel(answerer, catalog)
   const model = answerer.kind === "axe" ? catalog?.axe.models.find((x) => x.id === answerer.modelId) : undefined
-  const agent = answerer.kind === "agent" ? catalog?.agents.find((x) => x.id === answerer.agentId) : undefined
   const localModel = answerer.kind === "local" ? catalog?.local.find((x) => x.id === answerer.modelId) : undefined
   // Unknown (a server that doesn't say) counts as yes: Axe tries, and remembers a no.
   const localTools = isLocal && localModel?.tools !== false
@@ -285,8 +280,11 @@ export const Composer = forwardRef<
     setText(next)
     requestAnimationFrame(() => {
       const el = area.current
-      el?.focus()
-      el?.setSelectionRange(at, at)
+      // Typing on before this frame (a fast "@saf⏎ and @…") already moved the caret: leave it, or the next
+      // Enter would send instead of picking.
+      if (!el || el.value !== next) return
+      el.focus()
+      el.setSelectionRange(at, at)
       setCaret(at)
     })
   }
@@ -314,7 +312,7 @@ export const Composer = forwardRef<
     // In a chat, a watch comes with its latest result and open problems, attached like a file.
     if (item.kind === "watch" && !onStart) {
       const w = getState().watching?.watches.find((x) => x.id === item.value)
-      if (w) add(async () => [await invoke("app:attachBytes", `${w.name.replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 60) || "Watch"}.md`, "text/markdown", new TextEncoder().encode(watchMarkdown(w)))])
+      if (w) add(async () => [await invoke("app:attachBytes", `${w.name.replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 60) || "Check"}.md`, "text/markdown", new TextEncoder().encode(watchMarkdown(w)))])
     }
     if (item.kind === "connector" && usesTools && !chatConnectors.includes(item.value)) void toggleChatConnector(item.value, threadId)
     const word = `@${item.kind === "folder" ? (item.detail ?? item.value) : item.label} `
@@ -439,12 +437,9 @@ export const Composer = forwardRef<
     </>
   )
 
-  const closePicker = useCallback(() => setPicker(false), [])
   const closePlus = useCallback(() => setPlus(false), [])
 
-  const doIt = usesTools && draft.doIt
-  // Local chats stay with local models, other chats never switch to one (a local chat lives only here).
-  const pagePicker: ("axe" | "agent" | "local")[] | undefined = thread?.source === "local" ? ["local"] : thread ? ["axe", "agent"] : undefined
+  const _doIt = usesTools && draft.doIt
   // A page's own words win (Watching's "Reply to Claude Code" on a fix's session too).
   const placeholder = hint
     ? hint
@@ -455,7 +450,7 @@ export const Composer = forwardRef<
     : variant === "start"
       ? helper
         ? `Ask ${helper.name}`
-        : "Ask anything, @ for tools, / for commands"
+        : "Describe a task or ask a question"
       : "Reply"
 
   // Keys the / menu and the mode switch take before the box sends on Enter.
@@ -517,34 +512,12 @@ export const Composer = forwardRef<
   }
 
   // The website's round controls in the box's bottom row.
-  const control =
-    "inline-flex size-8 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-muted-foreground transition-[color,background-color,scale] duration-150 hover:bg-fill-2 hover:text-foreground active:scale-[0.97] disabled:opacity-40"
+  const _control =
+    "inline-flex size-8 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-ink-3 transition-[color,background-color,scale] duration-150 hover:bg-fill-2 hover:text-ink active:scale-[0.97] disabled:opacity-40"
 
-  // Any chat can switch to any of Axe's models or CLIs; the next one gets the earlier turns as context.
-
-  const modelButton = (
-    <button
-      ref={modelBtn}
-      type="button"
-      aria-haspopup="listbox"
-      aria-expanded={picker}
-      onClick={() => {
-        if (!picker) setRoom(Math.min(560, (modelBtn.current?.getBoundingClientRect().top ?? 600) - 32))
-        setPicker((p) => !p)
-      }}
-      className={chip(picker)}
-    >
-      {isAgent ? (
-        <LogoTile logo={agent ? agentLogo(agent) : undefined} name={label} size={16} />
-      ) : answerer.kind === "local" ? (
-        <LogoTile logo={localModel ? localModelLogo(localModel) : undefined} name={label} size={16} />
-      ) : (
-        answerer.modelId === "auto" ? <AxeTile size={16} /> : <LogoTile logo={model ? modelLogo(model) : undefined} name={label} size={16} />
-      )}
-      {label}
-      <ChevronDown size={12} className="text-ink-4" />
-    </button>
-  )
+  // Who answers: the one picker, on the right under the box (2026-11-08). Any chat can switch to any of Axe's
+  // models or CLIs; the next one gets the earlier turns as context. On New chat a pick becomes the default.
+  const modelButton = <AnswererPicker place="above" threadId={threadId} answerer={ownAnswerer} onAnswerer={onAnswerer} />
   // An Ollama model loads into memory once picked; the first reply waits for it.
   // A local model without tools says so where Do it would be.
   const chatOnlyNote = onlyChats && (
@@ -563,34 +536,67 @@ export const Composer = forwardRef<
   // A chat in its own copy names the folder it came from, with the branch it works on.
   const copy = threadId ? thread?.copy : undefined
   const copying = threadId ? !!copy : draft.copy
-  const folderChip = isAgent && !cwd && !threadId ? (
-    <button
-      onClick={() => void chooseFolder()}
-      className={chip()}
-    >
-      <FolderIcon size={13} />
-      Choose a folder
-    </button>
-  ) : isAgent && cwd && (
-    <button
-      onClick={() => !threadId && void chooseFolder()}
-      disabled={!!threadId}
-      title={copy ? `${copy.branch ? `Branch ${copy.branch} in ` : "A copy in "}${cwd}` : cwd}
-      className={`${chip()} min-w-0 enabled:hover:bg-fill`}
-    >
-      {copying ? <BranchIcon size={13} /> : <FolderIcon size={13} />}
-      <span className="truncate">{copy ? folderName(copy.source) : folderName(cwd)}</span>
-      {copying && <span className="shrink-0 text-ink-4">{copy?.kind === "copy" ? "copy" : "worktree"}</span>}
-    </button>
+  // The folder, under the box. A new chat picks it (the folder dialog); a chat's folder can't change, so it is
+  // plain text there, with no chevron and no hover.
+  const folderLabel = cwd ? (copy ? folderName(copy.source) : folderName(cwd)) : ""
+  const folderTitle = cwd ? (copy ? `${copy.branch ? `Branch ${copy.branch} in ` : "A copy in "}${cwd}` : cwd) : undefined
+  const copyWord = <span className="shrink-0 text-ink-4">{copy?.kind === "copy" ? "copy" : "worktree"}</span>
+  const folderChip = !isAgent ? null : threadId ? (
+    cwd && (
+      <span title={folderTitle} className={underText}>
+        {copying ? <BranchIcon size={14} /> : <LineFolderIcon size={14} />}
+        <span className="truncate">{folderLabel}</span>
+        {copying && copyWord}
+      </span>
+    )
+  ) : (
+    <div className="relative min-w-0">
+      <button ref={folderBtn} type="button" aria-haspopup="menu" aria-expanded={folderOpen} onClick={() => setFolderOpen((o) => !o)} title={folderTitle} className={underControl(folderOpen)}>
+        {copying ? <BranchIcon size={14} /> : <LineFolderIcon size={14} />}
+        <span className="truncate">{cwd ? folderLabel : "Choose a folder"}</span>
+        {copying && copyWord}
+        <LineChevron size={12} className="shrink-0 opacity-70" />
+      </button>
+      {/* Draft 3's folder menu: recent folders, Choose a folder…, and Work in a copy. */}
+      <Popover open={folderOpen} onClose={closeFolder} anchor={folderBtn} origin="bottom left" className="bottom-[calc(100%+6px)] left-0" label="Folder">
+        {recentFolders.length > 0 && <MenuLabel>Recent folders</MenuLabel>}
+        {recentFolders.slice(0, 4).map((f) => (
+          <MenuRow
+            key={f}
+            role="menuitemradio"
+            checked={f === cwd}
+            title={f}
+            icon={<LineFolderIcon size={14} />}
+            onSelect={() => {
+              closeFolder()
+              setState((st) => ({ draft: { ...st.draft, cwd: f } }))
+            }}
+          >
+            {folderName(f)}
+          </MenuRow>
+        ))}
+        <MenuRow
+          icon={<span className="text-[13px] leading-none">…</span>}
+          onSelect={() => {
+            closeFolder()
+            void chooseFolder()
+          }}
+        >
+          Choose a folder…
+        </MenuRow>
+        <MenuLine />
+        <MenuRow role="menuitemradio" checked={!!draft.copy} onSelect={() => setCopy(!draft.copy)}>
+          Work in a copy (worktree)
+        </MenuRow>
+      </Popover>
+    </div>
   )
   const modeMenu = isAgent && <ModeMenu threadId={threadId} size="docked" />
-  // Hidden in the menu bar's narrow chat, like the folder chip.
-  const optionsMenu = answerer.kind === "agent" && !inTrayWindow() && <AgentOptionsMenu threadId={threadId} agentId={answerer.agentId} />
 
   const plusMenu = (
-    <Popover open={plus} onClose={closePlus} anchor={plusBtn} origin="bottom left" className="bottom-[calc(100%+14px)] left-0" label="Add">
+    <Popover dense open={plus} onClose={closePlus} anchor={plusBtn} origin={plusBelow ? "top left" : "bottom left"} className={`min-w-[220px] max-w-[280px] ${plusBelow ? "top-[calc(100%+4px)] left-0" : "bottom-[calc(100%+8px)] left-0"}`} label="Add">
       <MenuItem
-        icon={<IconTile tone="mute" size={18}><PaperclipIcon size={12} /></IconTile>}
+        icon={<PaperclipIcon size={14} />}
         onSelect={() => {
           closePlus()
           pickFiles()
@@ -599,8 +605,8 @@ export const Composer = forwardRef<
         Add files or photos
       </MenuItem>
       <MenuLine />
-      <MenuLabel>Watch</MenuLabel>
-      {(["uptime", "page", "price", "security", "repo"] as const).map((k) => (
+      <MenuLabel>Add a check</MenuLabel>
+      {(["uptime", "page", "price", "security"] as const).map((k) => (
         <MenuItem
           key={k}
           icon={<KindIcon kind={k} size={14} />}
@@ -612,36 +618,21 @@ export const Composer = forwardRef<
           {KIND_LABEL[k]}
         </MenuItem>
       ))}
-      <MenuLine />
-      {/* Watching: files, the Watch section and connectors only, whatever the model. */}
-      {!onStart && (isAgent ? (
-        <>
-          <MenuItem
-            icon={<FolderIcon size={14} />}
-            hint={cwd ? folderName(cwd) : undefined}
-            onSelect={() => {
-              closePlus()
-              void chooseFolder()
-            }}
-          >
-            Work in a folder
-          </MenuItem>
-          {!threadId && (
-            <MenuItem
-              icon={<BranchIcon size={14} />}
-              hint={<Switch on={!!draft.copy} />}
-              onSelect={() => {
-                closePlus()
-                setCopy(!draft.copy)
-              }}
-            >
-              Work in a copy
-            </MenuItem>
-          )}
-        </>
-      ) : isLocal ? (
+      <MenuItem
+        icon={<span className="text-[13px] leading-none">⋯</span>}
+        onSelect={() => {
+          closePlus()
+          openWatching()
+        }}
+      >
+        More checks
+      </MenuItem>
+      {/* An agent's folder and copy live in the folder menu under the box (Draft 3). */}
+      {!onStart && !isAgent && <MenuLine />}
+      {/* Watching: files, the checks and connectors only, whatever the model. */}
+      {!onStart && (isAgent ? null : isLocal ? (
         <MenuItem
-          icon={<IconTile tone="mute" size={18}><MonitorIcon size={12} /></IconTile>}
+          icon={<MonitorIcon size={14} />}
           hint={onlyChats ? "Not with this model" : <Switch on={!!draft.doIt} />}
           disabled={onlyChats}
           title={onlyChats ? ONLY_CHATS : undefined}
@@ -655,14 +646,14 @@ export const Composer = forwardRef<
       ) : (
         <>
           <MenuItem
-            icon={<IconTile tone={draft.webSearch && !researching ? "brand" : "mute"} size={18}><GlobeIcon size={12} /></IconTile>}
+            icon={<GlobeIcon size={14} />}
             hint={<Switch on={!!draft.webSearch && !researching} />}
             onSelect={() => setState((s) => ({ draft: { ...s.draft, webSearch: !s.draft.webSearch } }))}
           >
             Search the web
           </MenuItem>
           <MenuItem
-            icon={<IconTile tone="mute" size={18}><MonitorIcon size={12} /></IconTile>}
+            icon={<MonitorIcon size={14} />}
             hint={<Switch on={!!draft.doIt} />}
             onSelect={() => {
               closePlus()
@@ -672,7 +663,7 @@ export const Composer = forwardRef<
             Do it
           </MenuItem>
           <MenuItem
-            icon={<IconTile tone="mute" size={18}><SearchIcon size={12} /></IconTile>}
+            icon={<SearchIcon size={14} />}
             hint={!canResearch ? "Not with this model" : <Switch on={researching} />}
             onSelect={() => {
               if (!canResearch) return
@@ -684,7 +675,7 @@ export const Composer = forwardRef<
           </MenuItem>
         </>
       ))}
-      {!onStart && <MenuLine />}
+      <MenuLine />
       {isAgent || onStart ? (
         <MenuItem
           icon={<PlugIcon size={14} />}
@@ -704,7 +695,7 @@ export const Composer = forwardRef<
             .map((c) => (
               <MenuItem
                 key={c.id}
-                icon={<ConnectorLogo catalogId={c.catalogId} name={c.name} size={18} />}
+                icon={<ConnectorLogo catalogId={c.catalogId} name={c.name} size={14} />}
                 hint={onlyChats ? "Not with this model" : <Switch on={chatConnectors.includes(c.id)} />}
                 disabled={onlyChats}
                 title={onlyChats ? ONLY_CHATS : undefined}
@@ -748,13 +739,12 @@ export const Composer = forwardRef<
 
   const researchChip = researching && (
     <motion.button
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={false}
       transition={m.t(0.12)}
       onClick={() => setResearch(false)}
       title="Turn research off"
       aria-label="Research is on. Turn it off"
-      className="group/chip flex h-7 shrink-0 items-center gap-1.5 rounded-full border-0 bg-brand-soft px-2.5 text-[13px] text-brand-text"
+      className="group/chip flex h-[32px] shrink-0 items-center gap-[8px] rounded-full border-0 bg-fill-2 px-[12px] text-[13px] text-ink transition-transform duration-150 ease-out active:scale-[0.96]"
     >
       <TelescopeIcon size={13} className="group-hover/chip:hidden" />
       <XIcon size={12} className="hidden group-hover/chip:block" />
@@ -765,13 +755,12 @@ export const Composer = forwardRef<
   const activeConnectors = !usesTools ? [] : (connected ?? []).filter((c) => c.enabled && chatConnectors.includes(c.id))
   const connectorChip = activeConnectors.length > 0 && (
     <motion.button
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={false}
       transition={m.t(0.12)}
       onClick={() => setPlus(true)}
       title="Connectors in this chat"
       aria-label={`Connectors on: ${activeConnectors.map((c) => c.name).join(", ")}`}
-      className="flex h-7 shrink-0 items-center gap-1.5 rounded-[8px] border-0 bg-entity px-2 text-[13px] text-ink-2 hover:bg-fill-2"
+      className="flex h-[32px] shrink-0 items-center gap-[8px] rounded-full border-0 bg-fill px-[12px] text-[13px] text-ink-3 transition-[background-color,color,transform] duration-150 ease-out hover:bg-fill-2 hover:text-ink active:scale-[0.96]"
     >
       <span className="flex -space-x-1">
         {activeConnectors.slice(0, 3).map((c) => (
@@ -783,13 +772,12 @@ export const Composer = forwardRef<
   )
   const helperChip = helper && (
     <motion.button
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={false}
       transition={m.t(0.12)}
       onClick={clearHelper}
       title={`Stop using ${helper.name}`}
       aria-label={`${helper.name} is on. Turn it off`}
-      className="group/chip flex h-7 shrink-0 items-center gap-1.5 rounded-full border-0 bg-brand-soft pr-2.5 pl-1 text-[13px] text-brand-text"
+      className="group/chip flex h-[32px] shrink-0 items-center gap-[8px] rounded-full border-0 bg-fill-2 pr-[12px] pl-[4px] text-[13px] text-ink transition-transform duration-150 ease-out active:scale-[0.96]"
     >
       <span className="group-hover/chip:hidden">
         <HelperMark kind={helper.kind} size={20} />
@@ -813,16 +801,6 @@ export const Composer = forwardRef<
     />
   )
 
-  const picked = (a: Answerer) => {
-    if (onAnswerer) {
-      onAnswerer(a)
-      return setPicker(false)
-    }
-    void pickAnswerer(a, threadId).then((ok) => {
-      if (ok) setPicker(false)
-    })
-  }
-
   // Left of the text, inside the box, like the desktop app's.
   const plusButton = (
     <button
@@ -832,46 +810,51 @@ export const Composer = forwardRef<
       aria-expanded={plus}
       onClick={() => {
         if (!plus && threadId && isAgent) void loadInstructions(threadId)
+        if (!plus) setPlusBelow((plusBtn.current?.getBoundingClientRect().top ?? 900) < 440)
         setPlus((p) => !p)
       }}
-      className={`inline-flex size-[36px] shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-ink-2 transition-[color,background-color,scale] duration-150 hover:bg-fill-2 hover:text-foreground active:scale-[0.97] disabled:opacity-40 ${plus ? "bg-fill-2 text-foreground" : ""}`}
+      // The sparkle (2026-11-08): files, tools and connectors. Draft 3's 32 px icon button.
+      className={boxButton(plus)}
     >
-      <PlusIcon size={20} />
+      <MagicIcon size={16} />
     </button>
   )
 
-  // Under the box: where it works and how much it may do on the left; who answers and context on the right.
-  const toolbar = (
-    <div className="relative flex min-w-0 items-center gap-[2px] px-[6px] pt-[6px]">
-      <ModelPicker
-        sections={pagePicker}
-        open={picker}
-        onClose={closePicker}
-        anchor={modelBtn}
-        current={answerer}
-        onPick={picked}
-        className="right-0 bottom-[calc(100%-14px)]"
-        maxHeight={room}
-      />
-      <div className="flex min-w-0 flex-1 items-center gap-[4px]">
-        {/* The menu bar's chat works in your last folder without showing it. */}
-        {/* Watching (onStart) runs no agent turn here: only the model picker shows, as in the design. */}
+  // Claude Code's desktop composer (2026-11-08): inside the box one row, the wand, the text, the mic, and send only
+  // when there is something to send (or Stop while it runs). Under the box one quiet row of text controls.
+  const kindChip = kind && (
+    <span className="inline-flex h-[28px] shrink-0 items-center gap-[6px] rounded-full bg-fill-2 pr-[6px] pl-[10px] text-[13px] text-ink">
+      <KindIcon kind={kind} size={13} />
+      {KIND_LABEL[kind]}
+      <button type="button" aria-label="Remove" onClick={onClearKind} className="grid size-[18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent text-brand-text hover:bg-brand-soft">
+        <XIcon size={11} />
+      </button>
+    </span>
+  )
+  const under = (
+    <div className="flex min-h-[28px] items-center justify-between gap-[2px] px-[4px] pt-[8px]" data-testid="composer-under">
+      <div className="flex min-w-0 items-center gap-[2px]">
+        {kindChip}
+        {/* The menu bar's chat works in your last folder without showing it. Oversight (onStart) runs no agent turn. */}
         {!inTrayWindow() && !onStart && folderChip}
         {!onStart && modeMenu}
-        {!onStart && optionsMenu}
         {chatOnlyNote}
         {helperChip}
         {researchChip}
         {connectorChip}
       </div>
-      {loadingNote}
-      {modelButton}
-      {threadId && <UsageRing threadId={threadId} />}
+      <div className="flex min-w-0 shrink-0 items-center gap-[2px]">
+        {loadingNote}
+        {/* Who answers, with an agent's model and effort in the same control and menu. */}
+        {modelButton}
+        {/* While a chat runs, the small context ring (it opens the usage card). */}
+        {threadId && running && <UsageRing threadId={threadId} />}
+      </div>
     </div>
   )
 
   return (
-    <div className={`relative ${composerWidth}`}>
+    <div className={`relative ${fill ? "w-full" : composerWidth}`}>
       {slashMenu}
       <MentionMenu
         open={mentionOpen}
@@ -884,27 +867,7 @@ export const Composer = forwardRef<
       />
       {plusMenu}
       {tray}
-      <div className="relative">
-      {/* The fox greets you on a new chat; once a chat has messages it steps aside. */}
-      {variant === "start" && !onStart && <FoxPet className="absolute right-[72px] bottom-[calc(100%-3px)]" />}
       <PromptInput
-        inline
-        leading={
-          kind ? (
-            <>
-              {plusButton}
-              <span className="ml-[2px] inline-flex h-[26px] shrink-0 items-center gap-[6px] self-center rounded-[6px] bg-brand-soft pr-[4px] pl-[8px] text-[13px] text-brand-text">
-                <KindIcon kind={kind} size={14} />
-                {KIND_LABEL[kind]}
-                <button type="button" aria-label="Remove" onClick={onClearKind} className="grid size-[18px] cursor-pointer place-items-center rounded-[4px] border-0 bg-transparent text-brand-text hover:bg-brand-soft">
-                  <XIcon size={11} />
-                </button>
-              </span>
-            </>
-          ) : (
-            plusButton
-          )
-        }
         value={text}
         onValueChange={(v) => {
           setText(v)
@@ -924,7 +887,8 @@ export const Composer = forwardRef<
         textareaProps={{
           spellCheck: false,
           // The menu bar's chat is narrow: a touch smaller placeholder keeps it on one line.
-          className: `selectable max-h-[192px] min-h-[36px] pl-[2px] ${inTrayWindow() ? "placeholder:text-[15px]" : ""}`,
+          // Draft 3: 15/22, 5 px by 4 px, one line (32 px) to start, the placeholder in ink-4.
+          className: `selectable min-h-[32px] max-h-[186px] px-[4px] py-[5px] text-[15px]/[22px] md:text-[15px]/[22px] text-[var(--cx-ink)] placeholder:text-[var(--cx-ink4)] ${inTrayWindow() ? "placeholder:text-[15px]" : ""}`,
           onKeyDownCapture,
           onSelect: (e) => setCaret(e.currentTarget.selectionStart),
           onPaste: (e) => {
@@ -934,17 +898,15 @@ export const Composer = forwardRef<
             add(() => attachFiles(pasted))
           },
         }}
-        header={
-          <>
-            <DictationStrip target="composer" className="mb-1" />
-          </>
-        }
-        actions={<MicButton target="composer" size={36} />}
-        className={`relative transition-[box-shadow] duration-150 ${dropping ? "ring-[3px] ring-brand-soft" : ""}`}
+        header={<DictationStrip target="composer" className="mb-1" />}
+        inline
+        leading={plusButton}
+        actions={<MicButton target="composer" size={32} box />}
+        // Draft 3's box: radius 16, its own fill, an inset 1 px hairline, 8 px padding (6 on the left).
+        className={`relative rounded-[16px] border-0 bg-[var(--cx-box)] py-[8px] pr-[8px] pl-[6px] shadow-[inset_0_0_0_1px_var(--cx-edge)] ${dropping ? "ring-[3px] ring-brand-soft" : ""}`}
         {...dropProps}
       />
-      </div>
-      {toolbar}
+      {under}
     </div>
   )
 })

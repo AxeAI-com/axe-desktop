@@ -20,7 +20,7 @@ export function DiffBlock({ text }: { text: string }) {
 
 function DiffFileBox({ f }: { f: DiffFile }) {
   return (
-    <div className="overflow-hidden rounded-[12px] bg-entity">
+    <div className="overflow-hidden rounded-media bg-entity">
       {f.path && (
         <div className="flex h-[32px] items-center gap-[8px] px-[14px] font-mono text-[12px] leading-[20px] text-ink">
           <span className="min-w-0 flex-1 truncate" title={f.path}>

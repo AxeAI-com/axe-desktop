@@ -5,11 +5,11 @@ import { liveProblems } from "@shared/watching/findings"
 import { EVERY_LABEL } from "@shared/watching/schedule"
 import { money } from "@shared/watching/price"
 import { urlOf } from "@shared/watching/target"
-import { type Draft, type Every, type Kind, MORE_KINDS, type News, type NotifyWhen, type OpenFinding, type PastFinding, type Run, type Said, type Step, type WatchView } from "@shared/watching/types"
+import { type Draft, type Every, type FixTurn, type Kind, MORE_KINDS, type News, type NotifyWhen, type OpenFinding, type PastFinding, type Run, type Said, type Step, type WatchView } from "@shared/watching/types"
 import type { Answerer } from "@shared/types"
 
 import { invoke } from "@/lib/bridge"
-import { column, composerDock, composerWidth } from "@/lib/layout"
+import { column, composerDock, composerWidth, wideWidth } from "@/lib/layout"
 import { watchCommandOf } from "@/lib/slash"
 import { defaultAnswerer, getState, setState, useStore } from "@/lib/store"
 import {
@@ -40,18 +40,20 @@ import {
 
 import { ChangesPanel } from "@/components/ChangesPanel"
 import { Composer, type ComposerHandle } from "@/components/Composer"
-import { AlertIcon, BranchIcon, CheckIcon, ChevronDown, CopyIcon, ExternalIcon, EyeIcon, FolderIcon, PencilIcon, RetryIcon, SunIcon, TrashIcon, WifiOffIcon, XIcon } from "@/components/Icons"
+import { AlertIcon, BranchIcon, CheckIcon, ChevronDown, CopyIcon, ExternalIcon, EyeIcon, FolderIcon, PencilIcon, RetryIcon, SunIcon, TrashIcon, WifiOffIcon, XIcon } from "@/components/SolarIcons"
 import { ModelChip } from "@/components/watching/Model"
 import { MenuItem, MenuLabel, MenuLine, Popover } from "@/components/Popover"
 import { Select } from "@/components/Select"
 import { clock, Diff, day, PriceChart, SpeedChart, sameDay, span, Strip, stripLabel, UpStrip } from "@/components/watching/Evidence"
 import { KindIcon, KindTile, PauseIcon, PlayIcon, TypeIcon } from "@/components/WatchIcons"
-import { activeFix, CheckRows, FixBlock, FixedCard, RecordFix, RepoCard, useFixLabel } from "@/components/watching/Fix"
+import { Activity } from "@/components/watching/Activity"
+import { activeFix, CheckRows, FixBlock, RecordFix, RepoCard, useFixLabel } from "@/components/watching/Fix"
 import { Bubble, btn, card, Dot, Facts, Line, Meta, Spin, Undo } from "@/components/watching/parts"
 import { StartHeading, } from "@/screens/NewChat"
 import { DeleteDialog } from "@/components/watching/DeleteDialog"
 import { Catalogue } from "@/components/watching/Catalogue"
-import { Dashboard } from "@/components/watching/Dashboard"
+import { Dashboard, useWidth } from "@/components/watching/Dashboard"
+import { WIDE } from "@/components/watching/live/LiveDashboard"
 
 // Watching (design: docs/watching/design.html). The page lists watches, a starter puts its kind in the
 // chat's own composer, the plan confirms it, and a watch's screen shows its history. Quiet runs say
@@ -103,7 +105,7 @@ function Starters({ onPick, align = "center", hot }: { onPick: (k: Kind) => void
   const anchor = useRef<HTMLButtonElement>(null)
   const close = useCallback(() => setMore(false), [])
   const chipClass = (on: boolean) =>
-    `group inline-flex h-[30px] cursor-pointer items-center gap-[7px] rounded-full border-0 bg-card pr-[12px] pl-[10px] text-[13px] shadow-card transition-colors duration-150 hover:bg-raised hover:text-ink focus-visible:ring-2 focus-visible:ring-brand ${on ? "text-ink" : "text-ink-2"}`
+    `group inline-flex h-[30px] cursor-pointer items-center gap-[7px] rounded-full border-0 bg-card pr-[12px] pl-[10px] text-[13px] transition-colors duration-150 hover:bg-raised hover:text-ink focus-visible:ring-2 focus-visible:ring-brand ${on ? "text-ink" : "text-ink-2"}`
   return (
     <div role="group" aria-label="Starters" className={`flex flex-wrap gap-[6px] ${align === "center" ? "justify-center" : "justify-start"}`}>
       {STARTERS.map((k) => (
@@ -117,7 +119,7 @@ function Starters({ onPick, align = "center", hot }: { onPick: (k: Kind) => void
           More
           <ChevronDown size={12} className="text-ink-4" />
         </button>
-        <Popover open={more} onClose={close} anchor={anchor} origin="top right" className="top-[calc(100%+6px)] right-0" label="More to watch">
+        <Popover open={more} onClose={close} anchor={anchor} origin="top right" className="top-[calc(100%+6px)] right-0" label="More checks">
           {MORE.map((k) => (
             <MenuItem
               key={k}
@@ -192,7 +194,7 @@ function ReadThread() {
 }
 
 /** The 12 px line under the composer: the hint, "Checking …", or what's wrong with the target. */
-function Below() {
+function Below({ fill }: { fill?: boolean }) {
   const kind = useStore((s) => s.watchKind)
   const error = useStore((s) => s.watchError)
   const button = useStore((s) => s.watchErrorButton)
@@ -201,14 +203,14 @@ function Below() {
   const busyTarget = useStore((s) => s.watchBusyTarget)
   const repoMenuOpen = useStore((s) => s.watchRepoMenu)
   const reading = useStore((s) => !!s.watchAsk)
-  const row = `${composerWidth} flex min-h-[16px] items-center gap-[10px] px-[16px] text-[12px] leading-[16px] mt-[-4px]`
+  const row = `${fill ? "w-full" : composerWidth} flex min-h-[16px] items-center gap-[10px] px-[16px] text-[12px] leading-[16px] mt-[-4px]`
   if (error)
     return (
       <div className={`${row} text-warn`} role="alert">
         <AlertIcon size={13} className="shrink-0" />
         <span>{error}</span>
         {button && (
-          <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-brand-text hover:underline" onClick={() => {
+          <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-ink-2 hover:text-ink hover:underline" onClick={() => {
               // "Watch the page instead": your click switches the kind, and the link stays.
               if (button.kind !== kind) setState({ watchKind: button.kind })
               void draftWatch(button.kind, button.target, !!button.force)
@@ -238,7 +240,7 @@ function Below() {
 }
 
 /** The chat's own Composer, with the starter's chip; Return checks the target or reads the sentence. */
-function WatchingComposer({ placeholder, onTextChange, docked }: { placeholder: string; onTextChange?: (text: string) => void; docked?: boolean }) {
+function WatchingComposer({ placeholder, onTextChange, docked, fill }: { placeholder: string; onTextChange?: (text: string) => void; docked?: boolean; fill?: boolean }) {
   const kind = useStore((s) => s.watchKind)
   const askHint = useStore((s) => s.watchHint)
   const busy = useStore((s) => s.watchBusy)
@@ -321,9 +323,10 @@ function WatchingComposer({ placeholder, onTextChange, docked }: { placeholder: 
     }
   }
   return (
-    <div ref={wrap} className={`relative ${composerWidth}`} onKeyDownCapture={keys}>
+    <div ref={wrap} className={`relative ${fill ? "w-full" : composerWidth}`} onKeyDownCapture={keys}>
       <Composer
         ref={box}
+        fill={fill}
         variant="start"
         hint={kind && kind !== "custom" ? (askHint ?? (ASK[kind] || placeholder)) : placeholder}
         kind={kind}
@@ -374,6 +377,7 @@ export function Watching() {
   const ask = useStore((s) => s.watchAsk)
   const offline = useOffline()
   const summary = useStore((s) => s.watching?.summary)
+  const [root, width] = useWidth<HTMLDivElement>()
 
   // An error clears on the next keystroke: any edit in the box.
   useEffect(() => {
@@ -384,11 +388,19 @@ export function Watching() {
   }, [])
 
   const pick = (k: Kind) => setState({ watchKind: k, watchHint: null, watchAsk: null, watchError: null, watchErrorButton: null })
-  const dock = (placeholder: string) => (
+  const dock = (placeholder: string, fill?: boolean) => (
     <>
-      <WatchingComposer placeholder={placeholder} docked />
-      <Below />
+      <WatchingComposer placeholder={placeholder} docked fill={fill} />
+      <Below fill={fill} />
     </>
+  )
+  // The dashboard's and catalogue's composer shares their column: the same max width and side padding, plus the
+  // 4 px each side the page's scrollbar gutter takes, so its edges line up with the tiles.
+  const wide = width - 8 >= WIDE
+  const columnDock = (max: string, pad: string, placeholder: string) => (
+    <div className="shrink-0 px-[4px] pt-[8px] pb-[10px]" data-testid="oversight-dock">
+      <div className={`relative mx-auto flex flex-col items-center gap-[8px] ${max} ${pad}`}>{dock(placeholder, true)}</div>
+    </div>
   )
 
   if (ask)
@@ -399,27 +411,27 @@ export function Watching() {
             <ReadThread />
           </div>
         </div>
-        <div className={`${composerDock} flex-col items-center gap-[8px]`}>{dock("Say what to watch")}</div>
+        <div className={`${composerDock} flex-col items-center gap-[8px]`}>{dock("Say what to check")}</div>
       </div>
     )
 
   // No watches yet: the heading, the catalogue of everything Axe can watch, and the composer docked under it.
   if (loaded && !watches.length)
     return (
-      <div className="dash flex min-h-0 flex-1 flex-col">
+      <div ref={root} className="dash flex min-h-0 flex-1 flex-col">
         <div className="scroll flex min-h-0 flex-1 justify-center">
-          <div className="mx-auto flex w-full max-w-[1240px] flex-col items-center gap-[32px] px-[40px] pt-[40px] pb-[40px]">
-            <StartHeading text="What should Axe watch?" />
+          <div className={`mx-auto flex w-full ${wideWidth} flex-col items-center gap-[32px] px-[40px] pt-[40px] pb-[40px]`}>
+            <StartHeading text="What should Axe keep an eye on?" />
             <Catalogue onAdd={addElement} />
           </div>
         </div>
-        <div className={`${composerDock} flex-col items-center gap-[8px]`}>{dock("Say what to watch")}</div>
+        {columnDock(`w-full ${wideWidth}`, "px-[40px]", "Say what to check")}
       </div>
     )
 
   // Watches: the dashboard (design "Watching redesign"), and the chat's own composer docked under it.
   return (
-    <div className="dash flex min-h-0 flex-1 flex-col">
+    <div ref={root} className="dash flex min-h-0 flex-1 flex-col">
       <div className="scroll flex min-h-0 flex-1 justify-center">
         <Dashboard
           watches={watches}
@@ -428,9 +440,9 @@ export function Watching() {
               <div className="flex flex-col gap-[16px]">
                 {summary && <SummaryCard text={summary.text} />}
                 {offline && (
-                  <div role="status" className="flex items-center gap-[10px] rounded-[10px] bg-fill px-[14px] py-[10px] text-[13px] leading-[18px] text-ink-2">
+                  <div role="status" className="flex items-center gap-[10px] rounded-3xl bg-fill px-[14px] py-[10px] text-[13px] leading-[18px] text-ink-2">
                     <WifiOffIcon size={16} className="shrink-0 text-ink-3" />
-                    <span>This Mac is offline. Watches pick up again when it’s back.</span>
+                    <span>This Mac is offline. Checks pick up again when it’s back.</span>
                   </div>
                 )}
               </div>
@@ -441,7 +453,7 @@ export function Watching() {
           }
         />
       </div>
-      <div className={`${composerDock} flex-col items-center gap-[8px]`}>{dock("Watch something else")}</div>
+      {columnDock(`w-full ${wideWidth}`, wide ? "px-[40px]" : "px-[24px]", "Add a check")}
     </div>
   )
 }
@@ -484,7 +496,7 @@ function SummaryCard({ text }: { text: string }) {
           type="button"
           aria-label="Close summary"
           onClick={() => void closeSummary()}
-          className="ml-auto flex size-[22px] cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-ink-3 hover:bg-fill hover:text-ink"
+          className="ml-auto flex size-[22px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-ink-3 hover:bg-fill hover:text-ink"
         >
           <XIcon size={14} />
         </button>
@@ -522,7 +534,7 @@ export function NewWatch({ draft }: { draft: Draft }) {
       <div className="scroll flex min-h-0 flex-1 justify-center px-[16px]">
         <div className={`${column} flex h-max flex-col gap-[16px] pt-[24px] pb-[40px]`}>
           <Bubble>{draft.asked ?? sentence(draft.kind, draft.target, draft.condition, draft.limit)}</Bubble>
-          <div className="flex flex-col gap-[12px] rounded-[10px] bg-card p-[16px] shadow-card">
+          <div className="flex flex-col gap-[12px] rounded-3xl bg-card p-[24px]">
             <div className="flex items-center gap-[10px] text-[15px] text-ink">
               <KindTile kind={draft.kind} />
               <span className="truncate">{draft.name}</span>
@@ -556,7 +568,7 @@ export function NewWatch({ draft }: { draft: Draft }) {
             </div>
             <div className="flex items-center gap-[6px]">
               <button type="button" autoFocus disabled={saving} onClick={() => void start()} className={`${btn("pri")} ${saving ? "opacity-60" : ""}`}>
-                Start watching
+                Add check
               </button>
             </div>
           </div>
@@ -577,7 +589,7 @@ export function NewWatch({ draft }: { draft: Draft }) {
             if (r && (r.patch.every || r.patch.notify)) {
               changeDraft(draft, { every: r.patch.every, notify: r.patch.notify })
               setSaid((x) => [...x, { you: text, axe: "Done. The plan above is updated." }])
-            } else setSaid((x) => [...x, { you: text, axe: "I can change how often it checks and when it tells you. Start watching when it looks right." }])
+            } else setSaid((x) => [...x, { you: text, axe: "I can change how often it checks and when it tells you. Add the check when it looks right." }])
           }}
         />
       </div>
@@ -676,7 +688,7 @@ function ProblemCard({ w, f, closed }: { w: WatchView; f: OpenFinding | PastFind
   return (
     <div className={card(!closed)} data-testid={`problem-${f.key}`}>
       <Meta at={f.openedAt} tone={closed ? "mute" : "warn"} />
-      <div className="text-[17px] leading-[24px] text-ink">{f.headline}</div>
+      <div className="text-[20px] leading-[26px] text-ink">{f.headline}</div>
       {f.detail && <p className="m-0 text-[15px] leading-[22px] text-ink-2">{f.detail}</p>}
       {evidence}
       <Facts facts={facts} warn={warn} />
@@ -792,7 +804,7 @@ function NewsCard({ w, n, acts }: { w: WatchView; n: News; acts: boolean }) {
   } else if (ev.quote) {
     // Custom: the words on the page the model relied on, checked to be there.
     evidence = (
-      <div className="selectable truncate rounded-[6px] bg-fill px-[12px] py-[8px] font-mono text-[12.5px] leading-[19px] whitespace-nowrap text-ink-2" title={ev.quote} data-testid="custom-quote">
+      <div className="selectable truncate rounded-full bg-fill px-[12px] py-[8px] font-mono text-[12px] leading-[19px] whitespace-nowrap text-ink-2" title={ev.quote} data-testid="custom-quote">
         {`“${ev.quote}”`}
       </div>
     )
@@ -801,7 +813,7 @@ function NewsCard({ w, n, acts }: { w: WatchView; n: News; acts: boolean }) {
   return (
     <div className={card(false)} data-testid={`news-${w.kind}`}>
       <Meta at={n.at} tone="news" />
-      <div className="text-[17px] leading-[24px] text-ink">{n.headline}</div>
+      <div className="text-[20px] leading-[26px] text-ink">{n.headline}</div>
       {n.detail && <p className="m-0 text-[15px] leading-[22px] text-ink-2">{n.detail}</p>}
       {evidence}
       <Facts facts={facts} />
@@ -819,20 +831,6 @@ function NewsCard({ w, n, acts }: { w: WatchView; n: News; acts: boolean }) {
         </div>
       )}
     </div>
-  )
-}
-
-/** An earlier change, folded to one line: "Oct 19. Down to $45 from $48." Clicking opens its card. */
-function FoldedNews({ w, n }: { w: WatchView; n: News }) {
-  const [open, setOpen] = useState(false)
-  const when = sameDay(n.at, Date.now()) ? clock(n.at) : day(n.at)
-  return (
-    <>
-      <Line icon={<Dot tone="mute" />} onClick={() => setOpen((o) => !o)}>
-        {`${when}. ${(n.line ?? n.headline).replace(/\.$/, "")}.`}
-      </Line>
-      {open && <NewsCard w={w} n={n} acts={false} />}
-    </>
   )
 }
 
@@ -886,12 +884,12 @@ function EditPanel({ w }: { w: WatchView }) {
     return () => window.removeEventListener("keydown", key)
   }, [])
   return (
-    <div role="dialog" aria-label="Edit" className="absolute top-[-4px] left-[14px] z-20 flex w-[380px] flex-col gap-[6px] rounded-[10px] bg-pop px-[16px] py-[14px] shadow-[var(--elevation-overlay)]">
-      <EditRow label="Watching">
+    <div role="dialog" aria-label="Edit" className="absolute top-[-4px] left-[14px] z-20 flex w-[380px] flex-col gap-[6px] rounded-3xl border border-hairline bg-pop p-[24px]">
+      <EditRow label="Checking">
         <input
           autoFocus
-          aria-label="Watching"
-          className={`selectable h-[28px] w-[240px] rounded-[6px] border-0 bg-fill px-[10px] text-[13px] text-ink outline-none ${error ? "shadow-[inset_0_0_0_1px_var(--warn)]" : "shadow-[inset_0_0_0_1px_var(--line-2)] focus:shadow-[inset_0_0_0_1px_var(--brand),0_0_0_3px_var(--brand-soft)]"}`}
+          aria-label="Checking"
+          className={`selectable h-[28px] w-[240px] rounded-full border-0 bg-fill px-[16px] text-[13px] text-ink outline-none ring-1 ring-inset ${error ? "ring-warn" : "ring-line-2 focus:ring-brand"}`}
           value={target}
           disabled={checking}
           onChange={(e) => {
@@ -1037,79 +1035,61 @@ export function Watch({ id }: { id: string }) {
     return () => window.removeEventListener("keydown", key)
   }, [id])
 
-  if (!w) return <div className="flex flex-1 items-center justify-center text-[13px] text-ink-3">This watch was deleted.</div>
+  if (!w) return <div className="flex flex-1 items-center justify-center text-[13px] text-ink-3">This check was deleted.</div>
 
   // While "Checking now" shows, the first result waits (page and price already ran it while validating).
   const firstRun: Run | undefined = w.steps ? undefined : (w.first ?? w.latest)
   const open = w.open.filter((f) => f.level === "problem")
-  // The thread after the first result, in order: problems that closed, fixes, changes, and your replies.
-  // A repo's alerts that opened or closed together read as one.
-  const fixedBy = (key: string) => w.fixes.some((t) => t.keys.includes(key))
+  // History (closed problems, changes, finished fixes) is the Activity timeline above. The thread under it keeps
+  // what still needs you, in order: a fix in progress, the latest change's card, an expected you can undo, your replies.
   const groups = new Map<string, PastFinding[]>()
-  for (const f of w.past) {
-    const g = w.kind === "repo" || f.how === "fixed" ? `${f.how}:${f.closedAt}` : `${f.how}:${f.key}:${f.openedAt}`
+  for (const f of w.past.filter((x) => x.how === "expected" && undoable.has(`${w.id}:${x.key}`) && w.past.findLast((y) => y.key === x.key) === x)) {
+    const g = w.kind === "repo" ? `${f.how}:${f.closedAt}` : `${f.how}:${f.key}:${f.openedAt}`
     groups.set(g, [...(groups.get(g) ?? []), f])
   }
+  const live = (t: FixTurn, i: number) => t.state === "asking" || t.state === "working" || (t.state === "kept" && !t.result) || (t.result === "still" && i === w.fixes.length - 1)
   const items: { at: number; news?: boolean; node: (last: boolean) => React.ReactNode }[] = [
     ...[...groups.values()].map((fs) => {
       const f = fs[0]!
-      const label = w.kind === "repo" && fs.length > 1 ? `${clock(f.openedAt)}. ${repoHeadline(fs.length, w.name)}.` : undefined
-      const k = `p-${f.how}-${f.key}-${f.closedAt}`
-      if (f.how === "fixed")
-        return {
-          at: f.closedAt,
-          node: () => (
-            <div key={k} className="flex flex-col gap-[16px]">
-              {!fs.some((x) => fixedBy(x.key)) && <Folded w={w} f={f} how="fixed" text={label} />}
-              <FixedCard w={w} found={fs} run={w.latest && w.latest.at >= f.closedAt ? w.latest : undefined} />
-            </div>
-          ),
-        }
-      if (f.how === "expected")
-        return {
-          at: f.openedAt,
-          node: () => (
-            <div key={k} className="flex flex-col gap-[10px]">
-              <Folded w={w} f={f} how="expected" text={label} />
-              <div className="flex flex-col gap-[10px] text-[15px] leading-[22px] text-ink">
-                <span>{expectedSay(w.target, f.key, f.key === "slow" ? (w.usual?.ms ?? f.value) : undefined)}</span>
-                {undoable.has(`${w.id}:${f.key}`) && w.past.findLast((x) => x.key === f.key) === f && (
-                  <Undo
-                    onClick={() => {
-                      for (const x of fs) undoable.delete(`${w.id}:${x.key}`)
-                      rerender((n) => n + 1)
-                      void actOnAll(
-                        w.id,
-                        fs.map((x) => x.key),
-                        "unexpected",
-                      )
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-          ),
-        }
-      return { at: f.openedAt, node: () => <Folded key={k} w={w} f={f} how="cleared" text={label} /> }
-    }),
-    // A fix: the problem folds to one line above it while the agent works.
-    ...w.fixes.map((t, i) => {
-      const first = [...w.open, ...w.past].filter((f) => t.keys.includes(f.key)).sort((a, b) => a.openedAt - b.openedAt)[0]
       return {
-        at: t.at,
-        node: (last: boolean) => (
-          <div key={`f-${t.at}`} className="flex flex-col gap-[16px]">
-            {first && <Line icon={<Dot tone="mute" />}>{`${clock(first.openedAt)}. ${t.headline.replace(/\.$/, "")}.`}</Line>}
-            <FixBlock w={w} turn={t} last={last || i === w.fixes.length - 1} />
+        at: f.closedAt,
+        node: () => (
+          <div key={`p-${f.key}-${f.closedAt}`} className="flex flex-col gap-[10px] text-[15px] leading-[22px] text-ink">
+            <span>{expectedSay(w.target, f.key, f.key === "slow" ? (w.usual?.ms ?? f.value) : undefined)}</span>
+            <Undo
+              onClick={() => {
+                for (const x of fs) undoable.delete(`${w.id}:${x.key}`)
+                rerender((n) => n + 1)
+                void actOnAll(
+                  w.id,
+                  fs.map((x) => x.key),
+                  "unexpected",
+                )
+              }}
+            />
           </div>
         ),
       }
     }),
-    // The latest change shows as its card; earlier ones fold to a line.
-    ...w.news.map((n, i) => ({
+    ...w.fixes.flatMap((t, i) =>
+      live(t, i)
+        ? [
+            {
+              at: t.at,
+              node: (last: boolean) => (
+                <div key={`f-${t.at}`} className="flex flex-col gap-[16px]">
+                  <FixBlock w={w} turn={t} last={last || i === w.fixes.length - 1} />
+                </div>
+              ),
+            },
+          ]
+        : [],
+    ),
+    // The latest change shows as its card while nothing happened after it; otherwise it's a line in Activity.
+    ...w.news.slice(-1).filter((n) => n.at >= Math.max(0, ...w.past.map((f) => f.closedAt), ...w.fixes.map((t) => t.checkedAt ?? t.endedAt ?? t.at))).map((n) => ({
       at: n.at,
       news: true,
-      node: (last: boolean) => (i === w.news.length - 1 ? <NewsCard key={`n-${n.at}`} w={w} n={n} acts={last && !open.length} /> : <FoldedNews key={`n-${n.at}`} w={w} n={n} />),
+      node: (last: boolean) => <NewsCard key={`n-${n.at}`} w={w} n={n} acts={last && !open.length} />,
     })),
     ...w.said.map((s) => ({ at: s.at, node: () => <SaidItem key={`s-${s.at}`} w={w} s={s} /> })),
   ].sort((a, b) => a.at - b.at)
@@ -1141,7 +1121,8 @@ export function Watch({ id }: { id: string }) {
             <div className="flex flex-col gap-[10px] text-[15px] leading-[22px] text-ink">
               <span>{firstMessage(w.kind, w.target, firstRun, w.firstEvery ?? w.every)}</span>
               {firstRun.facts && w.kind !== "custom" && <Facts facts={firstRun.facts} />}
-              {firstRun.rows && <CheckRows rows={firstRun.rows} />}
+              {/* The rows once: here until a later run has its own, then only under the strip (current state). */}
+              {firstRun.rows && !quietRows && <CheckRows rows={firstRun.rows} />}
             </div>
           ) : (
             <Live steps={w.steps ?? [{ label: `Loading ${w.target}`, state: "run" }]} />
@@ -1169,6 +1150,7 @@ export function Watch({ id }: { id: string }) {
             </div>
           )}
           {firstRun && quietRows && <CheckRows rows={quietRows} />}
+          {firstRun && <Activity w={w} />}
           {items.map((x, i) => x.node(i === items.length - 1))}
           {repoLive.length > 0 && <RepoCard w={w} findings={repoLive} paused={w.paused} acts={<RepoActs w={w} keys={repoLive.map((f) => f.key)} />} />}
           {repoSnoozed.length > 0 && (
@@ -1213,7 +1195,7 @@ export function Watch({ id }: { id: string }) {
           )}
           {cantRun && !w.paused && (
             <div className="flex flex-wrap items-center gap-[8px] text-[15px] leading-[22px] text-ink" data-testid="model-missing">
-              <span>{cantRun.replace("so this can’t run", "so this watch can’t run")} Use another model:</span>
+              <span>{cantRun.replace("so this can’t run", "so this check can’t run")} Use another model:</span>
               <ModelChip
                 up
                 value={w.answerer ?? defaultAnswerer()}
@@ -1231,8 +1213,8 @@ export function Watch({ id }: { id: string }) {
       </div>
       <div className={composerDock}>
         {w.paused ? (
-          <div className={`${composerWidth} flex items-center rounded-[16px] bg-composer px-[16px] py-[10px] pr-[10px] shadow-[var(--composer-edge)]`}>
-            <span className="text-[15px] text-ink-3">This watch is paused.</span>
+          <div className={`${composerWidth} flex items-center rounded-3xl bg-composer px-[16px] py-[10px] pr-[10px]`}>
+            <span className="text-[15px] text-ink-3">This check is paused.</span>
             <button type="button" className={`${btn("pri")} ml-auto`} onClick={() => void setPaused(w.id, false)}>
               <PlayIcon size={14} className="opacity-80" />
               Resume
@@ -1244,7 +1226,7 @@ export function Watch({ id }: { id: string }) {
         ) : (
           <Composer
             variant="docked"
-            hint="Reply to change this watch"
+            hint="Reply to change this check"
             busy={!!replying}
             answerer={w.answerer ?? defaultAnswerer()}
             onAnswerer={(a) => void updateWatch(w.id, { answerer: a })}
@@ -1276,13 +1258,13 @@ export function WatchTitle({ id }: { id: string }) {
   const editing = useStore((s) => s.watchEditing)
   const anchor = useRef<HTMLButtonElement>(null)
   const close = useCallback(() => setOpen(false), [])
-  if (!w) return <span className="text-[15px] text-ink">Watching</span>
+  if (!w) return <span className="text-[15px] text-ink">Oversight</span>
   if (renaming)
     return (
       <input
         autoFocus
         defaultValue={w.name}
-        className="no-drag selectable h-[30px] w-[320px] rounded-[6px] border-0 bg-fill px-[8px] text-[15px] text-ink outline-none ring-1 ring-brand"
+        className="no-drag selectable h-[28px] w-[320px] rounded-[7px] border-0 bg-fill px-[8px] text-[15px] text-ink outline-none ring-1 ring-line-3"
         onBlur={(e) => {
           const name = e.target.value.trim()
           if (name && name !== w.name) void updateWatch(w.id, { name })
@@ -1301,7 +1283,7 @@ export function WatchTitle({ id }: { id: string }) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={`no-drag relative left-[-8px] flex max-w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[10px] border-0 px-[8px] text-left text-[15px] leading-[20px] text-ink transition-colors duration-150 hover:bg-fill ${open || editing ? "bg-fill" : "bg-transparent"}`}
+        className={`no-drag relative left-[-8px] flex max-w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-full border-0 px-[8px] text-left text-[15px] leading-[20px] text-ink transition-colors duration-150 hover:bg-fill ${open || editing ? "bg-fill" : "bg-transparent"}`}
       >
         <span className="truncate">{w.name}</span>
         <ChevronDown className="shrink-0 text-ink-3" />

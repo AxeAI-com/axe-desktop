@@ -218,7 +218,7 @@ describe("page and price watches in the engine", () => {
     setBody("<p>About us</p>")
     expect(await e.draft({ kind: "price", target: "northclay.com/about" })).toEqual({
       error: "There’s no price on that page that Axe can read.",
-      button: { label: "Watch the page instead", kind: "page", target: "northclay.com/about" },
+      button: { label: "Check the page instead", kind: "page", target: "northclay.com/about" },
     })
     setBody(product(48))
     const d = await e.draft({ kind: "price", target: "northclay.com/stoneware-25" })

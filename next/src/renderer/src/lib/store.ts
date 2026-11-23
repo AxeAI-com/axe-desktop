@@ -52,8 +52,6 @@ export type State = {
   boot: "loading" | "ready"
   profile: Profile | null
   signingIn: boolean
-  /** The fox was clicked: the forest shows behind the chat, rippling out from where the fox sits (window point). */
-  forest: { x: number; y: number } | null
   settings: Settings
   catalog: ModelCatalog | null
   threads: ThreadSummary[]
@@ -160,7 +158,6 @@ let state: State = {
   boot: "loading",
   profile: null,
   signingIn: false,
-  forest: null,
   settings: defaultSettings,
   catalog: null,
   threads: [],

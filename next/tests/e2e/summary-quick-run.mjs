@@ -144,7 +144,7 @@ try {
   check(notices().filter((n) => n.title === "Good morning").length === 1, "only one summary")
 
   // 5. The card on top of Watching.
-  await win.getByRole("button", { name: /^Watching/ }).first().click()
+  await win.getByRole("button", { name: /^Oversight/ }).first().click()
   const card = main.getByLabel("Morning summary")
   await card.waitFor()
   const cardText = await card.innerText()
@@ -160,7 +160,7 @@ try {
   await box().fill("/")
   await win.getByRole("listbox", { name: "Commands" }).waitFor()
   const cmds = await win.getByRole("listbox", { name: "Commands" }).innerText()
-  check(/Watching[\s\S]*\/check[\s\S]*Check a watch now[\s\S]*\/pause[\s\S]*\/resume[\s\S]*\/summary[\s\S]*Show the morning summary now/.test(cmds), "the / menu lists Watching's four commands")
+  check(/Oversight[\s\S]*\/check[\s\S]*Run a check now[\s\S]*\/pause[\s\S]*\/resume[\s\S]*\/summary[\s\S]*Show the morning summary now/.test(cmds), "the / menu lists Watching's four commands")
   check(!/\/write|\/research/.test(cmds), "and nothing of the chat's own starters")
   await win.waitForTimeout(450)
   await shot("sum-02-slash")
@@ -174,7 +174,7 @@ try {
   await box().fill("/pa")
   await box().press("Enter")
   check((await box().inputValue()) === "/pause @", "picking /pause puts /pause @ in the box")
-  const mention = win.getByRole("listbox").filter({ hasText: "Watches" })
+  const mention = win.getByRole("listbox").filter({ hasText: "Checks" })
   await mention.waitFor()
   await win.waitForTimeout(450)
   await shot("sum-03-pause-mention")
@@ -210,7 +210,7 @@ try {
   await box().fill("Check @lane")
   await mention.waitFor()
   const mText = await mention.innerText()
-  check(mText.trim().startsWith("Watches"), "Watches come first")
+  check(mText.trim().startsWith("Checks"), "Watches come first")
   await win.waitForTimeout(450)
   await shot("sum-06-mention")
   await box().fill("")
@@ -223,7 +223,7 @@ try {
   await cdp.send("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
   await win.waitForTimeout(5000)
   check(!(await main.getByText("This Mac is offline.", { exact: false }).isVisible()), "no banner in the first 30 s")
-  await main.getByText("This Mac is offline. Watches pick up again when it’s back.").waitFor({ timeout: 40_000 })
+  await main.getByText("This Mac is offline. Checks pick up again when it’s back.").waitFor({ timeout: 40_000 })
   await shot("sum-07-offline")
   await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
   await main.getByText("This Mac is offline.", { exact: false }).waitFor({ state: "detached", timeout: 10_000 })
@@ -238,7 +238,7 @@ try {
   const nset = win.locator("#settings-notifications")
   await nset.waitFor()
   await nset.scrollIntoViewIfNeeded()
-  check(/Watches[\s\S]*On[\s\S]*Morning summary[\s\S]*8:00 am/.test(await nset.innerText()), "Settings, Notifications: Watches On, Morning summary 8:00 am")
+  check(/Checks[\s\S]*On[\s\S]*Morning summary[\s\S]*8:00 am/.test(await nset.innerText()), "Settings, Notifications: Watches On, Morning summary 8:00 am")
   await shot("sum-08-settings")
 
   // 11b. In a chat: @ a watch attaches its evidence; the + menu's Watch item opens Watching with the chip.
@@ -246,7 +246,7 @@ try {
   await win.waitForTimeout(500)
   await box().click()
   await box().fill("Why is @lane")
-  await win.getByRole("listbox").filter({ hasText: "Watches" }).waitFor()
+  await win.getByRole("listbox").filter({ hasText: "Checks" }).waitFor()
   await win.getByRole("option", { name: /^lane-ceramics\.com Uptime and speed/ }).click()
   await win.getByTitle("lane-ceramics.com.md").waitFor()
   check(/@lane-ceramics\.com/.test(await box().inputValue()), "the watch's name goes in the box, and its evidence is attached")
@@ -260,7 +260,7 @@ try {
   check(true, "the chat's + menu Security opens Watching with the Security chip")
   await win.keyboard.press("Escape")
 
-  // 12. The quick bar: /wa, the Watch chip, a sentence, the plan, Start watching, Open.
+  // 12. The quick bar: /wa, the Watch chip, a sentence, the plan, Add check, Open.
   const quick = await quickWindow()
   await app.evaluate(() => globalThis.__axeToggleQuickBar())
   await quick.waitForTimeout(700)
@@ -268,17 +268,17 @@ try {
   await ask.fill("/wa")
   await quick.getByRole("listbox", { name: "Commands" }).waitFor()
   const qs = await quick.getByRole("listbox", { name: "Commands" }).innerText()
-  check(/^Watch\s+Check something on a schedule/.test(qs.trim()), `quick / menu: ${qs.replace(/\n/g, " | ")}`)
+  check(/^Check\s+Keep an eye on something/.test(qs.trim()), `quick / menu: ${qs.replace(/\n/g, " | ")}`)
   await shotQuick("quick-01-slash")
   await ask.press("Enter")
-  await quick.getByText("Watch", { exact: true }).first().waitFor()
-  check((await ask.getAttribute("placeholder")) === "Say what to watch", "the Watch chip, and the box asks what to watch")
+  await quick.getByText("Check", { exact: true }).first().waitFor()
+  check((await ask.getAttribute("placeholder")) === "Say what to check", "the Watch chip, and the box asks what to watch")
   await ask.fill("tell me if studio-booking.com goes down")
   await shotQuick("quick-02-typed")
   await ask.press("Enter")
-  await quick.getByRole("button", { name: "Start watching" }).waitFor({ timeout: 60_000 })
+  await quick.getByRole("button", { name: "Add check" }).waitFor({ timeout: 60_000 })
   const plan = await quick.getByRole("dialog", { name: "Quick bar" }).innerText()
-  check(/studio-booking\.com[\s\S]*Up now, (under )?\d+\.\d s\. I’ll check every 5 minutes and tell you right away if it goes down or gets much slower\.[\s\S]*Change it later in Watching\./.test(plan), `inline plan: ${plan.replace(/\n/g, " | ")}`)
+  check(/studio-booking\.com[\s\S]*Up now, (under )?\d+\.\d s\. I’ll check every 5 minutes and tell you right away if it goes down or gets much slower\.[\s\S]*Change it later in Oversight\./.test(plan), `inline plan: ${plan.replace(/\n/g, " | ")}`)
   await shotQuick("quick-03-plan")
   await ask.press("Enter")
   await quick.getByText("Watching studio-booking.com").waitFor({ timeout: 30_000 })
@@ -292,7 +292,7 @@ try {
   // 13. A plain sentence in the bar stays a normal question (no chip, no plan).
   await app.evaluate(() => globalThis.__axeToggleQuickBar())
   await quick.waitForTimeout(500)
-  check((await ask.getAttribute("placeholder")) !== "Say what to watch", "the bar opens without the chip after a watch started")
+  check((await ask.getAttribute("placeholder")) !== "Say what to check", "the bar opens without the chip after a watch started")
 
   void siteId
   log(failures ? `FAILED ${failures}` : "OK")

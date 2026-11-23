@@ -21,6 +21,19 @@ export function target(text: string): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+const SETTLE_GRACE_MS = 50
+const SETTLE_QUIET_MS = 60
+const SETTLE_CAP_MS = 500
+
+/** Watches the DOM for changes; the click script arms it before the click so nothing is missed. */
+export const ARM_QUIET_JS = `if (!window.__axeQuiet) { const q = (window.__axeQuiet = { last: performance.now() }); new MutationObserver(() => { q.last = performance.now() }).observe(document, { subtree: true, childList: true, attributes: true, characterData: true }) } else { window.__axeQuiet.last = performance.now() };`
+
+/** Resolves once the DOM has had no mutations for SETTLE_QUIET_MS, or after capMs. */
+export function quietScript(capMs: number): string {
+  return `(() => { ${ARM_QUIET_JS} return new Promise((resolve) => { const end = performance.now() + ${Math.trunc(capMs)};
+    const tick = () => { const now = performance.now(); if (now >= end || now - window.__axeQuiet.last >= ${SETTLE_QUIET_MS}) resolve(true); else setTimeout(tick, 10) }; tick() }) })()`
+}
+
 export class OwnBrowser implements PageBrowser {
   private win?: BrowserWindow
 
@@ -92,7 +105,7 @@ export class OwnBrowser implements PageBrowser {
   async click(id: number) {
     this.ensureOpen()
     const ok = await this.wc.executeJavaScript(
-      `(() => { const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return false; el.scrollIntoView({block: 'center'}); el.click(); return true; })()`,
+      `(() => { ${ARM_QUIET_JS} const el = document.querySelector('[data-axe-id="${Math.trunc(id)}"]'); if (!el) return false; el.scrollIntoView({block: 'center'}); el.click(); return true; })()`,
       true,
     )
     if (!ok) throw new Error(`Element ${id} isn't on the page any more. Read the page again.`)
@@ -152,15 +165,39 @@ export class OwnBrowser implements PageBrowser {
     this.win = undefined
   }
 
-  /** After a click: if navigation starts, wait for it; else a short pause. */
+  /** After a click: if navigation starts, wait for it; else wait until the page has been quiet, at most 500 ms. */
   private async settle() {
-    await sleep(300)
+    const started = Date.now()
     const wc = this.wc
-    if (wc.isLoading()) {
-      await Promise.race([new Promise<void>((r) => wc.once("did-stop-loading", () => r())), sleep(20_000)])
-      await sleep(150)
-    } else {
-      await sleep(200)
+    let navigating = false
+    const onStart = () => {
+      navigating = true
+    }
+    wc.on("did-start-loading", onStart)
+    try {
+      await sleep(SETTLE_GRACE_MS) // let a navigation begin
+      if (!navigating && !wc.isLoading()) {
+        const left = Math.max(0, SETTLE_CAP_MS - (Date.now() - started))
+        let startedNav!: () => void
+        const navStarted = new Promise<void>((r) => (startedNav = r))
+        wc.once("did-start-loading", startedNav)
+        try {
+          await Promise.race([
+            wc.executeJavaScript(quietScript(left), true).catch(() => {}),
+            navStarted,
+          ])
+        } finally {
+          wc.removeListener("did-start-loading", startedNav)
+        }
+      }
+      if (navigating || wc.isLoading()) {
+        if (wc.isLoading()) {
+          await Promise.race([new Promise<void>((r) => wc.once("did-stop-loading", () => r())), sleep(20_000)])
+        }
+        await sleep(150)
+      }
+    } finally {
+      wc.removeListener("did-start-loading", onStart)
     }
   }
 }

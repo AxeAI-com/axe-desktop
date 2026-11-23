@@ -19,7 +19,7 @@ export function DeleteDialog({ w, onClose }: { w: WatchView; onClose: () => void
   }, [onClose])
   return createPortal(
     <div className="fixed inset-0 z-50 grid place-items-center" style={{ background: "var(--scrim)" }} onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="alertdialog" aria-modal="true" aria-label={`Delete ${w.name}?`} className="flex w-[380px] max-w-[calc(100%-48px)] flex-col gap-[8px] rounded-[16px] bg-pop p-[20px] shadow-[var(--shadow)]">
+      <div role="alertdialog" aria-modal="true" aria-label={`Delete ${w.name}?`} className="flex w-[380px] max-w-[calc(100%-48px)] flex-col gap-[8px] rounded-3xl border border-hairline bg-pop p-[24px]">
         <h5 className="m-0 text-[15px] leading-[22px] font-normal text-ink">Delete {w.name}?</h5>
         <p className="m-0 text-[13px] leading-[18px] text-ink-3">It stops checking, and its history is deleted. This can’t be undone.</p>
         <div className="mt-[10px] flex items-center justify-end gap-[6px]">
@@ -29,7 +29,7 @@ export function DeleteDialog({ w, onClose }: { w: WatchView; onClose: () => void
           <button
             type="button"
             autoFocus
-            className="inline-flex h-[28px] cursor-pointer items-center rounded-[6px] border-0 bg-bad px-[12px] text-[13px] text-white outline-none focus:shadow-[0_0_0_2px_var(--pop),0_0_0_4px_var(--brand)]"
+            className="inline-flex h-[28px] cursor-pointer items-center rounded-full border-0 bg-bad px-[12px] text-[13px] text-white outline-none focus-visible:ring-2 focus-visible:ring-brand"
             onClick={() => {
               onClose()
               void deleteWatch(w.id)

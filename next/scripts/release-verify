@@ -4,12 +4,20 @@
 #
 #   next/scripts/release-verify <version> [--prev <x.y.z>]   the published release
 #   next/scripts/release-verify <version> --dmg <file.dmg>     only the fresh install, from a local build (dry runs)
+#   next/scripts/release-verify <version> --keychain <old.app> <new.app>   only the Keychain check, between two local builds
 #
 # 1. https://axeai.com/api/downloads/desktop reports <version> (it caches for up to 5 minutes, so this waits).
 # 2. Fresh install: the .dmg from axeai.com, copied out to a temp folder, starts, stays up 60 seconds without a
 #    crash report, and quits cleanly when asked.
 # 3. Update (with --prev): <prev>'s zip from axeai.com, started, finds <version> on the real feed, downloads it,
 #    and once quit puts <version> in its own place. The swapped app then starts and stays up.
+# 4. Still signed in after the update (with --prev, or --keychain): only an Apple Team ID (Developer ID) keeps the
+#    Keychain open across builds (see same_signature). With one on both builds, live: the old build saves a session
+#    and its remote-control device keys under a Keychain item of its own ("Axe AI Verify <n> Safe Storage", never the
+#    installed app's), the bundle is swapped, and the new build must read the same session and device id back
+#    without a prompt and come up online: on the relay at AXE_VERIFY_BASE (default https://axeai.com) with
+#    AXE_VERIFY_TOKEN (a desktop session of a test account), else on a local stand-in that only knows the saved
+#    token. Without a Team ID it says WARN and why (every update asks for Keychain access) and skips the live part.
 #
 # Every copy runs from a temp folder with its own --user-data-dir, never the user's own app or its data. AXE_SELFTEST
 # keeps it off the Keychain, the axedesktop:// handler, the menu bar and notifications (the updater still reads
@@ -18,14 +26,15 @@
 # with `open`, without --user-data-dir, which would reach a running copy.
 set -euo pipefail
 
-usage() { echo "usage: next/scripts/release-verify <x.y.z> [--prev <x.y.z>] [--dmg file.dmg]" >&2; exit 2; }
+usage() { echo "usage: next/scripts/release-verify <x.y.z> [--prev <x.y.z>] [--dmg file.dmg] [--keychain old.app new.app]" >&2; exit 2; }
 VERSION="${1:-}"
-PREV="" DMG=""
+PREV="" DMG="" KC_OLD="" KC_NEW=""
 [ $# -gt 0 ] && shift
 while [ $# -gt 0 ]; do
   case $1 in
     --prev) [ $# -ge 2 ] || usage; PREV=$2; shift ;;
     --dmg) [ $# -ge 2 ] || usage; DMG=$2; shift ;;
+    --keychain) [ $# -ge 3 ] || usage; KC_OLD=${2%/}; KC_NEW=${3%/}; shift 2 ;;
     *) usage ;;
   esac
   shift
@@ -34,6 +43,8 @@ done
 [ -z "$PREV" ] || [[ "$PREV" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || usage
 [ -z "$DMG" ] || [ -f "$DMG" ] || { echo "release-verify: no file $DMG" >&2; exit 2; }
 [ -z "$DMG" ] || [ -z "$PREV" ] || { echo "release-verify: --dmg checks a local build only, without --prev" >&2; exit 2; }
+[ -z "$KC_OLD" ] || { [ -d "$KC_OLD" ] && [ -d "$KC_NEW" ]; } || { echo "release-verify: --keychain needs two .app folders" >&2; exit 2; }
+[ -z "$KC_OLD" ] || { [ -z "$PREV" ] && [ -z "$DMG" ]; } || { echo "release-verify: --keychain runs on its own" >&2; exit 2; }
 [ "$(uname)" = Darwin ] || { echo "release-verify: runs on a Mac" >&2; exit 2; }
 
 FEED_URL="https://axeai.com/downloads/desktop"
@@ -50,11 +61,19 @@ MOUNT="" FAILED=0
 
 say() { printf '%4ds  %s\n' $((SECONDS - START)) "$*"; }
 pass() { say "PASS  $*"; }
+warn() { say "WARN  $*"; }
 fail() { say "FAIL  $*"; FAILED=1; }
+
+# The Keychain check's own item ("<name> Safe Storage"); removed again when the script ends.
+KC_NAME="Axe AI Verify $$"
+VERIFY_BASE="${AXE_VERIFY_BASE:-https://axeai.com}"
+STANDIN_PID="" STANDIN_TOKEN="verify-$$-$RANDOM$RANDOM"
 
 cleanup() {
   local code=$?
   stop_ours
+  security delete-generic-password -s "$KC_NAME Safe Storage" >/dev/null 2>&1 || true
+  [ -n "$STANDIN_PID" ] && kill "$STANDIN_PID" 2>/dev/null || true
   [ -n "$MOUNT" ] && hdiutil detach -quiet "$MOUNT" 2>/dev/null || true
   # Launch Services learns of every app that starts; forget the temp copies again.
   find "$WORK" -maxdepth 3 -name "$APP" -type d -exec "$LSREGISTER" -u {} \; 2>/dev/null || true
@@ -104,7 +123,133 @@ stays_up() {
   [ -z "$crash" ] || { echo "crash report $crash"; return 1; }
 }
 
-say "verifying Axe AI $VERSION ($ARCH${PREV:+, update from $PREV}${DMG:+, local build $DMG}), work in $WORK"
+# ---- Keychain: still signed in after an update -------------------------------------------------------------
+requirement() { codesign -d -r- "$1" 2>&1 | sed -n 's/^designated => //p'; }
+
+# Whether the swap from $1 to $2 keeps Keychain access. The Keychain item Electron makes ("Axe AI Safe Storage")
+# lets in only apps in its partition list: "teamid:<id>" for an app signed with an Apple Team ID (Developer ID),
+# otherwise "cdhash:<that exact build>". So without a Team ID every update is a stranger to the Keychain: macOS asks
+# (password, Always Allow), and a denied prompt leaves the app signed out and offline on axeai.com (2026-11-15).
+# A self-made certificate doesn't help, its partition is still the cdhash. Sets KC_LIVE=1 when both builds share a
+# Team ID and requirement (the live check then runs and must pass); otherwise sets KC_NOTE (a warning) and the live
+# check is skipped, because it would only put a Keychain prompt on the screen. Returns 1 when the signature regressed.
+KC_LIVE=0 KC_NOTE=""
+team_of() { codesign -dv "$1" 2>&1 | sed -n 's/^TeamIdentifier=//p'; }
+same_signature() {
+  local ot nt
+  ot="$(team_of "$1")" nt="$(team_of "$2")"
+  [ "$nt" = "not set" ] && nt=""
+  [ "$ot" = "not set" ] && ot=""
+  if [ -z "$nt" ]; then
+    [ -z "$ot" ] || { echo "$(version_of "$2") lost the Team ID $ot: every update would ask for Keychain access again"; return 1; }
+    KC_NOTE="$(version_of "$2") has no Team ID (ad-hoc, no Developer ID): macOS asks for Keychain access after every update, and if it's denied the sidebar offers Allow Keychain access instead of a silent sign-out"
+    return 0
+  fi
+  if [ "$ot" != "$nt" ]; then
+    KC_NOTE="first update signed with Team ID $nt: macOS asks for Keychain access once, later updates don't"
+    return 0
+  fi
+  [ "$(requirement "$1")" = "$(requirement "$2")" ] || { echo "the designated requirement changed: $(requirement "$1") -> $(requirement "$2")"; return 1; }
+  KC_LIVE=1
+}
+
+# Without AXE_VERIFY_TOKEN: a stand-in for axeai.com on a local port that knows one made-up token. It answers
+# /api/account/me and the relay's /api/remote/connect ("ready", what makes axeai.com show the Mac online) only
+# for that token, so "remote online" means the app connected with the session it read back from the Keychain.
+standin() {
+  STANDIN_TOKEN=$STANDIN_TOKEN node -e '
+    const http = require("node:http")
+    const ok = (req) => req.headers.authorization === `Bearer ${process.env.STANDIN_TOKEN}`
+    const server = http.createServer((req, res) => {
+      const path = req.url.split("?")[0]
+      if (!ok(req)) return res.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: { code: "unauthorized", message: "Signed out" } }))
+      if (path === "/api/account/me") return res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ profile: { id: "verify", email: "verify@axeai.invalid" } }))
+      if (path === "/api/remote/connect") return res.writeHead(200, { "Content-Type": "text/event-stream" }).write("event: ready\ndata: {}\n\n")
+      res.writeHead(404, { "Content-Type": "application/json" }).end("{}")
+    })
+    server.listen(0, "127.0.0.1", () => console.log(server.address().port))
+  ' >"$WORK/standin.port" 2>"$WORK/standin.log" &
+  STANDIN_PID=$!
+  for _ in $(seq 1 50); do [ -s "$WORK/standin.port" ] && return 0; sleep 0.1; done
+  return 1
+}
+
+# Starts the app at $1 for the live Keychain check with data folder $2. $3=1 saves the token, the way a sign-in does.
+kc_launch() {
+  local app=$1 data=$2 save=$3 base=$VERIFY_BASE token=${AXE_VERIFY_TOKEN:-}
+  [ -n "$token" ] || { base="http://127.0.0.1:$(cat "$WORK/standin.port")" token=$STANDIN_TOKEN; }
+  mkdir -p "$data"
+  env AXE_SELFTEST=1 AXE_HEADLESS=1 AXE_KEYCHAIN_NAME="$KC_NAME" AXE_REMOTE=1 AXE_BASE_URL="$base" AXE_STATUS_LOG="$data.status" \
+    ${save:+AXE_TOKEN="$token"} "$app/$BIN" --user-data-dir="$data" >>"$data.log" 2>&1 &
+  LAUNCHED=$!
+}
+
+# Waits up to $3 seconds for line $2 in the status log of data folder $1.
+kc_wait() {
+  local i
+  for i in $(seq 1 "$3"); do grep -qx "$2" "$1.status" 2>/dev/null && return 0; sleep 1; done
+  return 1
+}
+
+# Before the swap: the old build at $1 saves a session and its device keys in the Keychain. Sets KC_DEVICE.
+kc_before() {
+  local data="$WORK/kc-data"
+  kc_launch "$1" "$data" 1
+  local pid=$LAUNCHED
+  kc_wait "$data" "session readable" 30 || { echo "the old build didn't start signed in (log: $data.log)"; return 1; }
+  for _ in $(seq 1 30); do grep -q "^device " "$data.status" 2>/dev/null && break; sleep 1; done
+  KC_DEVICE="$(sed -n 's/^device //p' "$data.status" | head -1)"
+  [ -n "$KC_DEVICE" ] || { echo "the old build made no device keys: $(tr '\n' ' ' <"$data.status")"; return 1; }
+  kc_wait "$data" "remote online" 60 || { echo "the old build never came online ($(where_online))"; return 1; }
+  quit_app "$pid" || { echo "the old build didn't quit within 20 seconds of being asked"; return 1; }
+  : >"$data.status"
+}
+
+# After the swap: the new build at $1, never given the token, reads the same session and device back.
+kc_after() {
+  local data="$WORK/kc-data"
+  kc_launch "$1" "$data" ""
+  local pid=$LAUNCHED
+  kc_wait "$data" "session readable" 30 || { echo "signed out after the update: $(tr '\n' ' ' <"$data.status") (log: $data.log)"; return 1; }
+  kc_wait "$data" "device $KC_DEVICE" 30 || { echo "the device keys changed or didn't open: $(tr '\n' ' ' <"$data.status")"; return 1; }
+  kc_wait "$data" "remote online" 60 || { echo "not online after the update ($(where_online))"; return 1; }
+  quit_app "$pid" || { echo "the new build didn't quit within 20 seconds of being asked"; return 1; }
+}
+
+where_online() { [ -n "${AXE_VERIFY_TOKEN:-}" ] && echo "the relay at $VERIFY_BASE" || echo "a local stand-in for axeai.com; AXE_VERIFY_TOKEN checks the real relay"; }
+
+kc_result() {
+  local live="same session and device id read back after the swap with no Keychain prompt, online on $(where_online)"
+  if [ $KC_LIVE = 1 ]; then echo "$live"; else echo "WARN $KC_NOTE"; fi
+}
+
+say "verifying Axe AI $VERSION ($ARCH${PREV:+, update from $PREV}${DMG:+, local build $DMG}${KC_OLD:+, Keychain $KC_OLD -> $KC_NEW}), work in $WORK"
+
+# The stand-in runs in this shell (the checks run in subshells), so cleanup can stop it.
+if [ -z "${AXE_VERIFY_TOKEN:-}" ] && { [ -n "$KC_OLD" ] || [ -n "$PREV" ]; }; then
+  standin || { echo "release-verify: the local stand-in for axeai.com didn't start ($(cat "$WORK/standin.log"))" >&2; exit 1; }
+fi
+
+if [ -n "$KC_OLD" ]; then
+  keychain_local() {
+    local app="$WORK/kc/$APP"
+    mkdir -p "$WORK/kc"
+    ditto "$KC_OLD" "$app" || { echo "can't copy $KC_OLD"; return 1; }
+    same_signature "$app" "$KC_NEW" || return 1
+    if [ $KC_LIVE = 1 ]; then kc_before "$app" || return 1; fi
+    # The updater's swap (updates/mac.ts INSTALL_SCRIPT): the new bundle copied next to it, then renamed into place.
+    ditto "$KC_NEW" "$app.new" && mv "$app" "$app.old" && mv "$app.new" "$app" && rm -rf "$app.old" || { echo "the swap failed"; return 1; }
+    if [ $KC_LIVE = 1 ]; then kc_after "$app" || return 1; fi
+    kc_result
+  }
+  if why="$(keychain_local)"; then
+    case $why in WARN\ *) warn "Keychain after $(version_of "$KC_OLD") -> $(version_of "$KC_NEW"): ${why#WARN }" ;; *) pass "still signed in after $(version_of "$KC_OLD") -> $(version_of "$KC_NEW"): $why" ;; esac
+  else fail "Keychain: $why"; fi
+  stop_ours
+  echo
+  if [ $FAILED = 0 ]; then echo "Axe AI Keychain check passed in $((SECONDS - START))s."; else echo "Axe AI Keychain check FAILED." >&2; exit 1; fi
+  exit 0
+fi
 
 # ---- 1. The download API ---------------------------------------------------------------------------------
 if [ -z "$DMG" ]; then
@@ -149,6 +294,11 @@ update() {
   mkdir -p "$WORK/update"
   ditto -x -k "$zip" "$WORK/update" || { echo "can't unpack $PREV's zip"; return 1; }
   [ "$(version_of "$app")" = "$PREV" ] || { echo "$PREV's zip holds $(version_of "$app")"; return 1; }
+  # Check 4 needs the new build's signature, from the fresh install's .dmg (saved by check 2).
+  if [ -d "$WORK/fresh/$APP" ]; then
+    same_signature "$app" "$WORK/fresh/$APP" >"$WORK/kc-why" || { echo "KEYCHAIN $(cat "$WORK/kc-why")" >"$WORK/kc-result"; KC_LIVE=0; }
+    if [ $KC_LIVE = 1 ]; then kc_before "$app" >"$WORK/kc-why" || { echo "KEYCHAIN $(cat "$WORK/kc-why")" >"$WORK/kc-result"; KC_LIVE=0; }; fi
+  fi
   launch "$app" "$data" "$data.log"
   local pid=$LAUNCHED
   # The first check runs 10 seconds after launch; "update ready" is noted once the new app is unpacked and checked.
@@ -172,10 +322,21 @@ update() {
   pid=$LAUNCHED
   stays_up "$app" "$pid" "$WORK/updated-data" 20 || return 1
   quit_app "$pid" || { echo "the updated app didn't quit within 20 seconds of being asked"; return 1; }
+  if [ ! -s "$WORK/kc-result" ] && [ -d "$WORK/fresh/$APP" ]; then
+    if [ $KC_LIVE = 1 ] && ! kc_after "$app" >"$WORK/kc-why"; then echo "KEYCHAIN $(cat "$WORK/kc-why")" >"$WORK/kc-result"
+    else echo "OK $(kc_result)" >"$WORK/kc-result"; fi
+  fi
 }
 if [ -n "$PREV" ]; then
   if why="$(update)"; then pass "$PREV updates itself to $VERSION from the real feed, and $VERSION starts"; else fail "update from $PREV: $why"; fi
   stop_ours
+  kc="$(cat "$WORK/kc-result" 2>/dev/null || true)"
+  case $kc in
+    OK\ WARN\ *) warn "Keychain after $PREV -> $VERSION: ${kc#OK WARN }" ;;
+    OK\ *) pass "still signed in after $PREV -> $VERSION: ${kc#OK }" ;;
+    KEYCHAIN\ *) fail "Keychain after $PREV -> $VERSION: ${kc#KEYCHAIN }" ;;
+    *) fail "Keychain after $PREV -> $VERSION: not checked (no fresh install of $VERSION to compare, or the update failed first)" ;;
+  esac
 elif [ -z "$DMG" ]; then
   say "skip  the update check (no --prev)"
 fi

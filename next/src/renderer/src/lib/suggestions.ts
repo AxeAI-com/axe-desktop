@@ -20,7 +20,7 @@ export function suggestionText(id: SuggestionId, agent = "Your CLI", folder?: st
     case "doit":
       return { title: "Use this computer", note: "Files, apps, browser. Asks first." }
     case "watch":
-      return { title: "Watch a site", note: "Tells you only when something’s wrong." }
+      return { title: "Check a site", note: "Tells you only when something’s wrong." }
     case "skill":
       return { title: "Use a skill", note: "Type / to pick one." }
     case "install":

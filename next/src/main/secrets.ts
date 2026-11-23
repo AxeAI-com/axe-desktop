@@ -3,7 +3,7 @@ import { safeStorage } from "electron"
 
 import type { TokenStore } from "./axe/account"
 import type { ConnectorSecret, SecretBox } from "./libraries/oauth"
-import { dataPath, isSelfTest } from "./paths"
+import { dataPath, usesKeychain } from "./paths"
 
 // The Axe session token, encrypted by the OS: the Keychain on macOS, DPAPI on
 // Windows, the Secret Service (GNOME Keyring / KWallet) on Linux. Self-tests
@@ -11,25 +11,37 @@ import { dataPath, isSelfTest } from "./paths"
 
 const file = () => dataPath("session.bin")
 
+// A saved sign-in the OS wouldn't open this run. On a Mac that means the Keychain said no: an update
+// signed differently from the build that saved it (every ad-hoc build up to 0.13.0), and Deny or a
+// dismissed prompt. Electron remembers the answer until the app restarts, so the window offers a
+// restart (account:unlock) instead of looking signed out. The file stays, so the session comes back.
+let unreadable = false
+export const savedSessionUnreadable = () => unreadable
+
 export const safeTokenStore: TokenStore = {
   read() {
-    if (isSelfTest()) return undefined
+    unreadable = false
+    if (!usesKeychain() || !existsSync(file())) return undefined
     try {
-      if (!existsSync(file()) || !safeStorage.isEncryptionAvailable()) return undefined
+      if (!safeStorage.isEncryptionAvailable()) throw new Error("No secret store")
       return safeStorage.decryptString(readFileSync(file()))
     } catch {
+      // Linux without a secret store never writes the file, so only a store that said no lands here.
+      unreadable = true
       return undefined
     }
   },
   /** False when the OS has no secret store (some minimal Linux desktops): then the token lives in memory only. */
   write(token) {
-    if (isSelfTest() || !safeStorage.isEncryptionAvailable()) return false
+    if (!usesKeychain() || !safeStorage.isEncryptionAvailable()) return false
     if (process.platform === "linux" && safeStorage.getSelectedStorageBackend?.() === "basic_text") return false
     writeFileSync(file(), safeStorage.encryptString(token), { mode: 0o600 })
+    unreadable = false
     return true
   },
   clear() {
     rmSync(file(), { force: true })
+    unreadable = false
   },
 }
 
@@ -39,7 +51,7 @@ export const safeTokenStore: TokenStore = {
  * the (temporary) data folder.
  */
 export function connectorSecretBox(): SecretBox | undefined {
-  if (isSelfTest() || !safeStorage.isEncryptionAvailable()) return undefined
+  if (!usesKeychain() || !safeStorage.isEncryptionAvailable()) return undefined
   if (process.platform === "linux" && safeStorage.getSelectedStorageBackend?.() === "basic_text") return undefined
   const file = () => dataPath("connector-secrets.bin")
   const readAll = (): Record<string, ConnectorSecret> => {

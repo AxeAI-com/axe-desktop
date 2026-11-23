@@ -12,7 +12,8 @@ export type Applied = { state: WatchState; opened: OpenFinding[]; resolved: Past
 
 /**
  * Folds one run into the watch's state. A problem resolves after `cleanRuns` runs that don't see it
- * (one for uptime, two for the rest). An open finding keeps the words it opened with.
+ * (one for uptime, two for the rest). An open finding keeps the words it opened with, except a package count,
+ * which follows the latest run.
  */
 export function applyRun(prev: WatchState, run: Run, target: string, cleanRuns = 2): Applied {
   const at = run.at
@@ -30,7 +31,12 @@ export function applyRun(prev: WatchState, run: Run, target: string, cleanRuns =
   const opened: OpenFinding[] = []
   const resolved: PastFinding[] = []
   for (const f of prev.open) {
-    if (seen.has(f.key)) open.push({ ...f, lastSeenAt: at, clean: 0 })
+    if (seen.has(f.key)) {
+      // A count that moves (packages behind) takes the new words, so every place says the same number.
+      const now = seen.get(f.key)!
+      const words = f.key.startsWith("outdated:") ? { headline: now.headline, line: now.line, detail: now.detail, ev: now.ev } : {}
+      open.push({ ...f, ...words, lastSeenAt: at, clean: 0 })
+    }
     else if (blind) open.push(f)
     else if (f.level === "problem") {
       // A good run clears "unreachable" straight away; other problems wait for enough clean runs.

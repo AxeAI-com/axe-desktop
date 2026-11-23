@@ -64,13 +64,13 @@ export function CommunitySkillSheet({ skill, targets, onClose }: { skill?: Commu
       {skill && (
         <>
           <div className="flex flex-col gap-1.5 pr-8">
-            <h2 className="m-0 text-[20px] leading-7 font-normal">{skill.name}</h2>
+            <h2 className="m-0 text-[20px] leading-[26px] font-normal">{skill.name}</h2>
             <p className="m-0 text-[13px] leading-5 text-ink-3">{skill.description}</p>
             <span className="text-[12px] text-ink-3">
               {SOURCE_NAME[skill.source]}, from {repoLink(skill.url, skill.repo)}
             </span>
           </div>
-          <div className="scroll max-h-[300px] rounded-[10px] bg-muted px-5 py-1 text-[13px]">
+          <div className="scroll max-h-[300px] rounded-3xl bg-muted px-5 py-1 text-[13px]">
             {text === null ? <p className="text-ink-3">Loading</p> : body ? <Markdown text={body} /> : <p className="text-ink-3">No preview. Open it on GitHub to read it.</p>}
           </div>
           <CliPicker targets={targets} picked={picked} onChange={setPicked} />

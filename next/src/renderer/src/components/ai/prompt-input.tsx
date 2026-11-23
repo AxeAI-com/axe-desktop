@@ -54,7 +54,7 @@ interface PromptInputProps extends Omit<React.ComponentProps<"form">, "onSubmit"
 }
 
 // Eight 22.5px lines (1.5rem on the 15px root) plus the padding.
-const MAX_HEIGHT = 192
+const MAX_HEIGHT = 186
 
 const chipEnterClass =
   "transition-[opacity,scale,background-color] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] starting:scale-95 starting:opacity-0 motion-reduce:starting:scale-100"
@@ -163,9 +163,14 @@ function PromptInput({
   const sendButton = (
     <Button
       aria-label={pending ? stopLabel : submitLabel}
+      // Axe AI: spec 0001: send is the 40px blue round button, Stop the raised one; hover and press are 150ms ease-out.
       className={cn(
-        "size-[34px] rounded-full border-0 shadow-none hover:brightness-110 dark:bg-none",
-        pending ? "bg-primary text-primary-foreground" : "bg-brand text-white",
+        // Axe AI (2026-11-08, Draft 3): a 32 px square, radius 8, the ink colour with a dark arrow. In the inline
+        // layout it shows only when there is something to send, or as Stop while it runs.
+        inline
+          ? "size-[32px] rounded-[8px] border-0 bg-[var(--cx-ink)] text-[var(--background)] shadow-none transition-opacity duration-150 ease-out hover:bg-[var(--cx-ink)] hover:opacity-90 dark:bg-[var(--cx-ink)] disabled:opacity-40"
+          : "size-[32px] rounded-[10px] border-0 shadow-none transition-[background-color,color] duration-150 ease-out dark:bg-none disabled:opacity-100",
+        !inline && (pending ? "bg-raised text-foreground hover:bg-fill-3" : sendable ? "bg-brand text-white hover:bg-brand-hover" : "bg-fill-2 text-ink-4"),
       )}
       variant="default"
       disabled={checking || (!pending && !sendable)}
@@ -193,9 +198,9 @@ function PromptInput({
   return (
     <form
       data-slot="prompt-input"
-      // Axe AI: the flat kit (2026-10-26); in light an edge and a soft lift so it stands off the page (--composer-edge).
+      // Axe AI: spec 0001: 24px container on the composer fill, no shadow or edge.
       className={cn(
-        "w-full rounded-[22px] border-0 bg-composer p-[8px] shadow-[var(--composer-edge)]",
+        "w-full rounded-3xl border-0 bg-composer p-[8px]",
         className,
       )}
       onSubmit={(event) => {
@@ -255,7 +260,7 @@ function PromptInput({
       )}
       {header}
       {inline ? (
-        <div className="flex items-end gap-[6px] pr-[2px]">
+        <div className="flex items-end gap-[4px]">
           {leading}
           <div className="min-w-0 flex-1">{textArea}</div>
           {actions}
@@ -265,7 +270,7 @@ function PromptInput({
         textArea
       )}
       {!inline && (
-        <div className="flex items-center justify-between gap-2 pt-2">
+        <div className="flex items-center justify-between gap-2 pt-[10px]">
           {toolbar ?? (
             <div className="flex items-center gap-1">
               <PromptToolsMenu

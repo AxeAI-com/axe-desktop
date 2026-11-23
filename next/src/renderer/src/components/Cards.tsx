@@ -11,6 +11,7 @@ import { ToolError } from "./ai/tool-error"
 import { Markdown } from "./Markdown"
 import { relativeTo } from "./StepGroup"
 import { Button } from "./ui/button"
+import { button } from "./Kit"
 
 type PlanPart = Extract<Part, { type: "plan" }>
 
@@ -30,9 +31,9 @@ export function PlanCard({ part, onStart, onChange, compact }: { part: PlanPart;
   }
   const title = part.summary || "Plan"
   return (
-    <section aria-label="Plan" className="flex flex-col items-start gap-2">
+    <section aria-label="Plan" className="flex flex-col items-start gap-[8px]">
       {whole && part.text ? (
-        <div className="w-full rounded-[16px] bg-card p-5 shadow-card">
+        <div className="w-full rounded-3xl bg-card p-6">
           <div className="plan-text scroll max-h-[360px] text-[15px]">
             <Markdown text={part.text} />
           </div>
@@ -60,7 +61,7 @@ export function PlanCard({ part, onStart, onChange, compact }: { part: PlanPart;
         />
       )}
       {part.text && !stepless && (
-        <Button type="button" variant="ghost" size="sm" className="h-7 rounded-full px-3 text-muted-foreground" onClick={() => setWhole((w) => !w)} aria-expanded={whole}>
+        <Button type="button" variant="ghost" size="sm" className="h-[32px] rounded-full px-[16px] text-ink-3" onClick={() => setWhole((w) => !w)} aria-expanded={whole}>
           {whole ? "Show the steps" : "Show the whole plan"}
         </Button>
       )}
@@ -71,13 +72,13 @@ export function PlanCard({ part, onStart, onChange, compact }: { part: PlanPart;
 /** Start and Edit for a plan written in words: under the whole plan, or under a reply in Plan mode. */
 export function PlanActions({ onStart, onChange, note, starting, bare }: { onStart: () => void; onChange?: () => void; note?: string; starting?: boolean; bare?: boolean }) {
   return (
-    <div className={`flex items-center gap-1.5 ${bare ? "mt-4" : "border-t border-border px-4 py-3"}`}>
+    <div className={`flex items-center gap-[8px] ${bare ? "mt-[16px]" : "border-t border-border px-[24px] py-[16px]"}`}>
       {onChange && (
-        <Button type="button" variant="ghost" className="h-7 rounded-full px-3 text-sm font-[450] text-muted-foreground" disabled={starting} onClick={onChange}>
+        <Button type="button" variant="ghost" className="h-[32px] rounded-full px-[16px] text-[13px] text-ink-3 hover:bg-fill-2 hover:text-ink" disabled={starting} onClick={onChange}>
           Edit
         </Button>
       )}
-      <span className="flex-1 text-right text-xs text-muted-foreground">{note}</span>
+      <span className="flex-1 text-right text-[12px] text-ink-3">{note}</span>
       <Button type="button" variant="default" className={PRIMARY} disabled={starting} onClick={onStart}>
         Start
       </Button>
@@ -85,9 +86,8 @@ export function PlanActions({ onStart, onChange, note, starting, bare }: { onSta
   )
 }
 
-/** Pasta UI's primary button (Plan Approval Card's Start). */
-const PRIMARY =
-  "h-7 rounded-full border-0 bg-primary px-3 text-sm font-[450] text-primary-foreground hover:brightness-110 dark:bg-none"
+/** The plan card's one main action: Start, in Axe Blue. */
+const PRIMARY = button.primary
 
 export function PermissionCard({ request, cwd }: { request: PermissionRequest; cwd?: string }) {
   const allowOnce = request.options.find((o) => o.kind === "allow_once") ?? request.options.find((o) => o.kind.startsWith("allow"))

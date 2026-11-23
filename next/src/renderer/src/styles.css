@@ -10,17 +10,18 @@
  * Keep in step with the website when its palette changes.
  */
 :root,
-.light {
+.light,
+.popover-new {
   /* Light is "Paper" (2026-10-31): warm off-white page, white cards with a hairline. */
-  --background: #f7f6f3;
-  --foreground: #1c1b18;
-  --surface: #ffffff;
+  --background: #e8e5e4;
+  --foreground: #1d1d1f;
+  --surface: #f4f2f2;
   /* Cards, boxes and rows sit on their own fill instead of a border. */
-  --tile: #ffffff;
-  --tile-hover: #fbfaf8;
+  --tile: #f4f2f2;
+  --tile-hover: #ffffff;
   --surface-foreground: var(--foreground);
-  --surface-secondary: #efece6;
-  --surface-tertiary: #e3dfd6;
+  --surface-secondary: #ffffff;
+  --surface-tertiary: #ffffff;
   --surface-hover: color-mix(in oklch, var(--foreground) 7%, transparent);
   /* Sidebar rows (Pasta UI's site): soft hover, faintly violet selected row. */
   --sidebar-item-hover: #e9e6df;
@@ -29,113 +30,105 @@
   --popover: #ffffff;
   --popover-foreground: var(--foreground);
   --muted: var(--surface-secondary);
-  --muted-foreground: #7a766d;
-  --border: #eeebe5;
-  --input: #dcd8cf;
+  --muted-foreground: #7a7a7e;
+  --border: rgb(0 0 0 / 6%);
+  --input: rgb(0 0 0 / 4%);
   /* The kit's one faint line around fields, cards and menus, and its darker hover. */
-  --hairline: #e6e2da;
-  --hairline-strong: #dcd8cf;
-  --primary: #141413;
+  --hairline: rgb(0 0 0 / 6%);
+  --hairline-strong: rgb(0 0 0 / 10%);
+  --primary: #1d1d1f;
   --primary-foreground: #faf9f5;
   --secondary: var(--surface-tertiary);
   --secondary-foreground: var(--foreground);
-  --destructive: oklch(0.6532 0.2328 25.74);
+  --destructive: #c0503f;
   --destructive-foreground: oklch(0.9911 0 0);
-  --success: oklch(0.7329 0.1935 150.81);
-  --warning: oklch(0.7819 0.1585 72.33);
-  --overlay: rgb(0 0 0 / 50%);
-  --ring: #060ae6;
+  --success: #3d8a52;
+  --warning: #a87414;
+  --overlay: rgb(0 0 0 / 30%);
+  --ring: #3438ff;
   /* Brand: Axe AI electric blue. Used for the main action on a screen, links,
      selection and focus, never as a large background. */
-  --brand: #060ae6;
-  --brand-hover: #0508c4;
+  --brand: #3438ff;
+  --brand-hover: #4a4eff;
   --brand-foreground: #ffffff;
-  --brand-soft: rgb(6 10 230 / 0.08);
-  --brand-text: #060ae6;
-  /* The fox that sits on the composer, and the forest it shows when clicked. */
-  --pet: #d9661f;
-  --forest: #3d7a4c;
-  --forest-far: #a9c7ae;
-  --forest-ground: #86ad8b;
-  --moon: #c49a2c;
-  --star: #b4b6c4;
-  --forest-sky: rgb(46 92 140 / 0.07);
-  --radius: 10px;
-  --composer-surface: #ffffff;
-  --composer-surface-hover: #ffffff;
-  --composer-control: rgb(28 27 24 / 0.06);
-  --composer-control-hover: rgb(28 27 24 / 0.1);
-  --composer-button: #efece6;
+  --brand-soft: rgb(52 56 255 / 10%);
+  --brand-text: #3438ff;
+  --radius: 24px;
+  --composer-surface: #f4f2f2;
+  --composer-surface-hover: #f4f2f2;
+  --composer-control: rgb(0 0 0 / 4%);
+  --composer-control-hover: rgb(0 0 0 / 7%);
+  --composer-button: #ffffff;
   --composer-button-hover: color-mix(in oklab, var(--composer-button) 96%, var(--foreground) 4%);
   --scrollbar-track: var(--background);
   --scrollbar-thumb: color-mix(in srgb, var(--foreground) 20%, transparent);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 38%, transparent);
   /* Flat (2026-10-26): surfaces are a fill and a hairline; only what floats casts one small shadow. */
-  --elevation-surface: 0 0 0 1px var(--hairline);
-  --elevation-overlay: 0 0 0 1px var(--hairline), 0 8px 24px -12px rgb(0 0 0 / 28%);
+  --elevation-surface: none;
+  --elevation-overlay: none;
   /* The composer stands off the page by an edge and a soft lift (none in dark). */
-  --composer-edge: 0 0 0 1px #dcd8cf, 0 6px 20px -12px rgb(28 27 24 / 0.18);
+  --composer-edge: none;
+  --label-foreground: #8a8a8e;
+  --radius-media: 16px;
+  --accent-orange: #d9772a;
 }
 
-.dark {
+.dark,
+.dark .popover-new {
   /* Raycast style (board RC-*, 2026-10-28): dark only. Warm graphite, surfaces step up by fill, no borders.
      Colour only for status: teal = live, orange = needs you. Axe Blue is the one brand colour. */
   --sidebar-item-hover: rgb(255 255 255 / 5%);
   --sidebar-item-active: rgb(255 255 255 / 10%);
   --sidebar: #1f1a1c;
-  --background: #151517;
-  --sheet: #151517;
-  --foreground: #ededf0;
-  --surface: #1d1d20;
-  --tile: #1d1d20;
-  --tile-hover: #232326;
-  --surface-secondary: #1d1d20;
-  --surface-tertiary: #2c2c30;
-  --popover: #2a2a2e;
-  --muted-foreground: #8e8e96;
-  --border: transparent;
-  --input: transparent;
-  --hairline: transparent;
-  --hairline-strong: transparent;
-  --primary: #ededf0;
-  --primary-foreground: #151517;
-  --ring: #3438ff;
+  --background: #161514;
+  --sheet: #161514;
+  --foreground: #f2f0ed;
+  --surface: #1f1e1d;
+  --tile: #1f1e1d;
+  --tile-hover: #2a2928;
+  --surface-secondary: #2a2928;
+  --surface-tertiary: #2a2928;
+  --popover: #2a2928;
+  --muted-foreground: #a19e9a;
+  --border: rgb(255 255 255 / 7%);
+  --input: rgb(255 255 255 / 5%);
+  --hairline: rgb(255 255 255 / 7%);
+  --hairline-strong: rgb(255 255 255 / 10%);
+  --primary: #f2f0ed;
+  --primary-foreground: #161514;
+  --ring: #9396ff;
   --brand: #3438ff;
-  --brand-hover: #4d51ff;
+  --brand-hover: #4a4eff;
   --brand-foreground: #ffffff;
-  --brand-soft: rgba(52, 56, 255, 0.22);
-  --brand-text: #a7a9ff;
-  --entity: #1c1c1f;
-  --pet: #e8834a;
-  --forest: #45b06d;
-  --forest-far: #1f4d33;
-  --forest-ground: #2c6843;
-  --moon: #f2e2a0;
-  --star: #5d6178;
-  --forest-sky: rgb(40 70 150 / 0.2);
-  --destructive: #ff6b6b;
-  --success: oklch(0.7329 0.1935 150.81);
-  --warning: #ff9d5c;
-  --overlay: rgba(5, 6, 8, 0.55);
-  --composer-surface: #2a2a2e;
+  --brand-soft: rgba(52, 56, 255, 0.16);
+  --brand-text: #9396ff;
+  --entity: #161514;
+  --destructive: #e07a6a;
+  --success: #7fb38a;
+  --warning: #e0b062;
+  --overlay: rgba(0, 0, 0, 0.55);
+  --composer-surface: #1f1e1d;
   --composer-edge: none;
-  --composer-surface-hover: #2e2e32;
-  --composer-control: #36363b;
-  --composer-control-hover: #404046;
-  --composer-button: #36363b;
-  --scrollbar-track: #151517;
+  --composer-surface-hover: #1f1e1d;
+  --composer-control: rgb(255 255 255 / 5%);
+  --composer-control-hover: rgb(255 255 255 / 8%);
+  --composer-button: #2a2928;
+  --scrollbar-track: #161514;
   --elevation-surface: none;
-  --elevation-overlay: 0 28px 64px -12px rgba(0, 0, 0, 0.75), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --elevation-overlay: none;
+  --label-foreground: #8c8985;
+  --accent-orange: #f5a25d;
 }
 
 /* Pasta UI (components/ai and components/ui, MIT, copied from the website): the tokens it expects. */
 /* Pasta UI (src/components/ai, MIT): the tokens, utilities and motion its components expect. */
-:root {
+:root,
+.popover-new {
   --card: var(--surface);
   --card-foreground: var(--foreground);
-  --card-outline: lch(0 0 0 / 8.8%);
-  --card-shadow: 0 0 0 1px var(--hairline);
-  --linear-surface-shadow: 0 0 0 1px var(--hairline);
+  --card-outline: transparent;
+  --card-shadow: none;
+  --linear-surface-shadow: none;
   --audio-surface: var(--muted);
   --audio-track: var(--border);
   --audio-progress: var(--muted-foreground);
@@ -148,7 +141,8 @@
   --syntax-property: oklch(0.48 0.14 20);
   --syntax-punctuation: oklch(0.4 0 0);
 }
-.dark {
+.dark,
+.dark .popover-new {
   /* Re-resolve the aliases here so a .dark island inside a light page (the homepage demo
      cards) gets dark cards too. */
   --card: var(--surface);
@@ -182,11 +176,12 @@
   color: var(--muted-foreground);
 }
 @keyframes agent-text-shimmer {
-  from {
-    background-position: 200% 0;
+  0%,
+  100% {
+    color: var(--muted-foreground);
   }
-  to {
-    background-position: -200% 0;
+  50% {
+    color: var(--foreground);
   }
 }
 @keyframes voice-input-scroll {
@@ -198,17 +193,8 @@
   }
 }
 .agent-text-shimmer {
-  color: transparent;
-  background-image: linear-gradient(
-    90deg,
-    var(--muted-foreground),
-    var(--foreground),
-    var(--muted-foreground)
-  );
-  background-size: 200% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: agent-text-shimmer 1.6s linear infinite;
+  color: var(--muted-foreground);
+  animation: agent-text-shimmer 1.6s ease-in-out infinite;
 }
 .voice-input-waveform {
   animation: voice-input-scroll 8s linear infinite;
@@ -216,7 +202,6 @@
 @media (prefers-reduced-motion: reduce) {
   .agent-text-shimmer {
     color: var(--muted-foreground);
-    background-image: none;
     animation: none;
   }
   .voice-input-waveform {
@@ -226,7 +211,299 @@
 
 /* The app's older names, as aliases of the website's tokens. New code uses the website names. */
 :root,
-.dark {
+.dark,
+.popover-new {
+  --ground: var(--background);
+  --side: var(--sidebar);
+  --ink: var(--foreground);
+  --ink-2: #7a7a7e;
+  --ink-3: var(--muted-foreground);
+  --ink-4: var(--label-foreground);
+  --composer: var(--composer-surface);
+  --pop: var(--popover);
+  --bubble: var(--user-bubble);
+  --line: var(--hairline);
+  --line-2: var(--hairline);
+  --line-3: rgb(0 0 0 / 10%);
+  --fill: rgb(0 0 0 / 4%);
+  --fill-2: #ffffff;
+  /* Hover on a white control: a visible step down from white (it used to equal --fill-2, so hovers didn't show). */
+  --fill-3: #efedec;
+  --fill-4: #ffffff;
+  /* The switch: an off track that shows on white and on cards, a white knob with a hairline. */
+  --switch-off: rgb(0 0 0 / 14%);
+  --knob: #ffffff;
+  --knob-edge: rgb(0 0 0 / 12%);
+  --accent: var(--brand);
+  --accent-ink: var(--brand-text);
+  --accent-2: var(--brand-text);
+  --accent-bg: var(--brand-soft);
+  --accent-line: color-mix(in srgb, var(--brand) 55%, transparent);
+  --avatar: #ffffff;
+  --avatar-ink: #1d1d1f;
+  --button: #ffffff;
+  --button-ink: var(--foreground);
+  /* A card on hover, a selected pill and sidebar text: one step up from their ground in each theme. */
+  --raised: #ffffff;
+  --raised-2: #ffffff;
+  --side-ink: #33312c;
+  /* The track behind a switcher (tabs, theme); its selected pill is --raised-2. Light only: dark keeps its own fills. */
+  --segment: rgb(0 0 0 / 4%);
+  --ok: var(--success);
+  --bad: var(--destructive);
+  --shadow: var(--elevation-overlay);
+  --scrim: var(--overlay);
+  --entity: #ffffff;
+  --menu-hover: rgb(0 0 0 / 5%);
+}
+
+/* Raycast style: the app's older names, set where the board has its own value. */
+.dark,
+.dark .popover-new {
+  --ground: var(--background);
+  --ink-2: #a19e9a;
+  --ink-3: #a19e9a;
+  --ink-4: #8c8985;
+  --fill: rgb(255 255 255 / 5%);
+  --fill-2: #2a2928;
+  --fill-3: #302f2d;
+  --fill-4: #363533;
+  --switch-off: #3a3937;
+  --knob: #f2f0ed;
+  --knob-edge: transparent;
+  --button: #2a2928;
+  --button-ink: #f2f0ed;
+  --raised: #2a2928;
+  --raised-2: #2a2928;
+  --side-ink: #e4e2e3;
+  --line: rgb(255 255 255 / 7%);
+  --line-2: rgb(255 255 255 / 7%);
+  --line-3: rgb(255 255 255 / 10%);
+  --composer: #1f1e1d;
+  --pop: #2a2928;
+  --avatar: #2a2928;
+  --avatar-ink: #f2f0ed;
+  --segment: rgb(255 255 255 / 5%);
+  --entity: #161514;
+  --menu-hover: rgb(255 255 255 / 7%);
+}
+
+/* App-only colours with no website token (charts, maps, diffs, the quick bar, Talk's orb). */
+:root,
+.popover-new {
+  color-scheme: light;
+  --bad-bg: rgba(192, 80, 63, 0.1);
+  --bad-ink: #c0503f;
+  /* Live data (pages, charts that stream); one teal in both themes. */
+  --live: #3d8a52;
+  --warn: #a87414;
+  --warn-ink: #a87414;
+  --warn-bg: rgba(168, 116, 20, 0.12);
+  /* Watching: the hairline over a card's facts and a quiet tick on the strip. Dark keeps them visible. */
+  --watch-line: var(--hairline);
+  --watch-tick: rgb(0 0 0 / 10%);
+  /* A page change's line diff (design: Page changes, changed). */
+  --watch-add-bg: rgb(61 138 82 / 12%);
+  --watch-add-ink: #3d8a52;
+  --watch-del-bg: rgb(192 80 63 / 11%);
+  --watch-del-ink: #c0503f;
+  --add-bg: rgb(61 138 82 / 12%);
+  --add-ink: #3d8a52;
+  --del-bg: rgb(192 80 63 / 11%);
+  --del-ink: #c0503f;
+  --chart-1: #3438ff;
+  --chart-2: #138a7e;
+  --chart-3: #c77c12;
+  --chart-4: #c2417a;
+  --chart-5: #8a8983;
+  --chart-grid: rgba(31, 30, 29, 0.07);
+  --map-ground: #f2f1ec;
+  --map-dot: rgba(31, 30, 29, 0.1);
+  --card-hi: var(--card);
+  --quick: #f4f2f2;
+  --quick-field: rgba(0, 0, 0, 0.04);
+  --quick-shadow: 0 0 0 1px var(--hairline);
+  --desk: #d9d6cf;
+  --orb-1: #dcdcff;
+  --orb-2: #4f53ff;
+  --orb-3: #2125b8;
+  --orb-glow: rgba(52, 56, 255, 0.3);
+  --talk-scrim: rgba(250, 249, 245, 0.8);
+}
+.dark,
+.dark .popover-new {
+  color-scheme: dark;
+  --bad-bg: rgba(224, 122, 106, 0.12);
+  --bad-ink: #e07a6a;
+  --warn: #e0b062;
+  --warn-ink: #e0b062;
+  --warn-bg: rgba(224, 176, 98, 0.14);
+  --watch-line: var(--hairline);
+  --watch-tick: rgb(255 255 255 / 10%);
+  --watch-add-bg: rgb(127 179 138 / 14%);
+  --watch-add-ink: #7fb38a;
+  --watch-del-bg: rgb(224 122 106 / 13%);
+  --watch-del-ink: #e07a6a;
+  --live: #7fb38a;
+  --add-bg: rgb(127 179 138 / 14%);
+  --add-ink: #7fb38a;
+  --del-bg: rgb(224 122 106 / 13%);
+  --del-ink: #e07a6a;
+  --chart-1: #6f72ff;
+  --chart-2: #4fc3b5;
+  --chart-3: #f2b35b;
+  --chart-4: #e879a6;
+  --chart-5: #a3a29c;
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --map-ground: #1f2124;
+  --map-dot: rgba(255, 255, 255, 0.09);
+  --card-hi: var(--card);
+  --quick: #1f1e1d;
+  --quick-field: rgba(255, 255, 255, 0.05);
+  --quick-shadow: 0 0 0 1px var(--hairline);
+  --desk: #2b2d33;
+  --orb-1: #b9bbff;
+  --orb-2: #5a5eff;
+  --orb-3: #1c1f8f;
+  --orb-glow: rgba(70, 74, 255, 0.55);
+  --talk-scrim: rgba(12, 12, 12, 0.72);
+}
+
+/* The sidebar keeps today's look (spec 0001): every token it reads is set back to its value before the web-final
+   palette. The scope is the sidebar root only; menus drawn in a portal use the new look. */
+.sidebar-frozen {
+  /* Light is "Paper" (2026-10-31): warm off-white page, white cards with a hairline. */
+  --background: #f7f6f3;
+  --foreground: #1c1b18;
+  --surface: #ffffff;
+  /* Cards, boxes and rows sit on their own fill instead of a border. */
+  --tile: #ffffff;
+  --tile-hover: #fbfaf8;
+  --surface-foreground: var(--foreground);
+  --surface-secondary: #efece6;
+  --surface-tertiary: #e3dfd6;
+  --surface-hover: color-mix(in oklch, var(--foreground) 7%, transparent);
+  /* Sidebar rows (Pasta UI's site): soft hover, faintly violet selected row. */
+  --popover: #ffffff;
+  --popover-foreground: var(--foreground);
+  --muted: var(--surface-secondary);
+  --muted-foreground: #7a766d;
+  --border: #eeebe5;
+  --input: #dcd8cf;
+  /* The kit's one faint line around fields, cards and menus, and its darker hover. */
+  --hairline: #e6e2da;
+  --hairline-strong: #dcd8cf;
+  --primary: #141413;
+  --primary-foreground: #faf9f5;
+  --secondary: var(--surface-tertiary);
+  --secondary-foreground: var(--foreground);
+  --destructive: oklch(0.6532 0.2328 25.74);
+  --destructive-foreground: oklch(0.9911 0 0);
+  --success: oklch(0.7329 0.1935 150.81);
+  --warning: oklch(0.7819 0.1585 72.33);
+  --overlay: rgb(0 0 0 / 50%);
+  --ring: #060ae6;
+  /* Brand: Axe AI electric blue. Used for the main action on a screen, links,
+     selection and focus, never as a large background. */
+  --brand: #060ae6;
+  --brand-hover: #0508c4;
+  --brand-foreground: #ffffff;
+  --brand-soft: rgb(6 10 230 / 0.08);
+  --brand-text: #060ae6;
+  --radius: 10px;
+  --composer-surface: #ffffff;
+  --composer-surface-hover: #ffffff;
+  --composer-control: rgb(28 27 24 / 0.06);
+  --composer-control-hover: rgb(28 27 24 / 0.1);
+  --composer-button: #efece6;
+  --composer-button-hover: color-mix(in oklab, var(--composer-button) 96%, var(--foreground) 4%);
+  --scrollbar-track: var(--background);
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 20%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 38%, transparent);
+  /* Flat (2026-10-26): surfaces are a fill and a hairline; only what floats casts one small shadow. */
+  --elevation-surface: 0 0 0 1px var(--hairline);
+  --elevation-overlay: 0 0 0 1px var(--hairline), 0 8px 24px -12px rgb(0 0 0 / 28%);
+  /* The composer stands off the page by an edge and a soft lift (none in dark). */
+  --composer-edge: 0 0 0 1px #dcd8cf, 0 6px 20px -12px rgb(28 27 24 / 0.18);
+}
+.dark .sidebar-frozen {
+  /* Raycast style (board RC-*, 2026-10-28): dark only. Warm graphite, surfaces step up by fill, no borders.
+     Colour only for status: teal = live, orange = needs you. Axe Blue is the one brand colour. */
+  --background: #151517;
+  --sheet: #151517;
+  --foreground: #ededf0;
+  --surface: #1d1d20;
+  --tile: #1d1d20;
+  --tile-hover: #232326;
+  --surface-secondary: #1d1d20;
+  --surface-tertiary: #2c2c30;
+  --popover: #2a2a2e;
+  --muted-foreground: #8e8e96;
+  --border: transparent;
+  --input: transparent;
+  --hairline: transparent;
+  --hairline-strong: transparent;
+  --primary: #ededf0;
+  --primary-foreground: #151517;
+  --ring: #3438ff;
+  --brand: #3438ff;
+  --brand-hover: #4d51ff;
+  --brand-foreground: #ffffff;
+  --brand-soft: rgba(52, 56, 255, 0.22);
+  --brand-text: #a7a9ff;
+  --entity: #1c1c1f;
+  --destructive: #ff6b6b;
+  --success: oklch(0.7329 0.1935 150.81);
+  --warning: #ff9d5c;
+  --overlay: rgba(5, 6, 8, 0.55);
+  --composer-surface: #2a2a2e;
+  --composer-edge: none;
+  --composer-surface-hover: #2e2e32;
+  --composer-control: #36363b;
+  --composer-control-hover: #404046;
+  --composer-button: #36363b;
+  --scrollbar-track: #151517;
+  --elevation-surface: none;
+  --elevation-overlay: 0 28px 64px -12px rgba(0, 0, 0, 0.75), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.sidebar-frozen {
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --card-outline: lch(0 0 0 / 8.8%);
+  --card-shadow: 0 0 0 1px var(--hairline);
+  --linear-surface-shadow: 0 0 0 1px var(--hairline);
+  --audio-surface: var(--muted);
+  --audio-track: var(--border);
+  --audio-progress: var(--muted-foreground);
+  --audio-shadow: oklch(0 0 0 / 12%);
+  --syntax-comment: oklch(0.556 0 0);
+  --syntax-keyword: oklch(0.49 0.2 292);
+  --syntax-string: oklch(0.45 0.13 153);
+  --syntax-function: oklch(0.48 0.15 255);
+  --syntax-number: oklch(0.53 0.16 55);
+  --syntax-property: oklch(0.48 0.14 20);
+  --syntax-punctuation: oklch(0.4 0 0);
+}
+.dark .sidebar-frozen {
+  /* Re-resolve the aliases here so a .dark island inside a light page (the homepage demo
+     cards) gets dark cards too. */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --card-outline: transparent;
+  --card-shadow: none;
+  --audio-surface: oklch(0.08 0 0);
+  --audio-track: oklch(0.26 0 0);
+  --audio-progress: oklch(0.62 0 0);
+  --audio-shadow: oklch(0 0 0 / 35%);
+  --syntax-comment: oklch(0.708 0 0);
+  --syntax-keyword: oklch(0.75 0.16 292);
+  --syntax-string: oklch(0.76 0.13 153);
+  --syntax-function: oklch(0.76 0.12 255);
+  --syntax-number: oklch(0.78 0.13 65);
+  --syntax-property: oklch(0.75 0.12 20);
+  --syntax-punctuation: oklch(0.78 0 0);
+}
+.sidebar-frozen {
   --ground: var(--background);
   --side: var(--sidebar);
   --ink: var(--foreground);
@@ -263,9 +540,7 @@
   --shadow: var(--elevation-overlay);
   --scrim: var(--overlay);
 }
-
-/* Raycast style: the app's older names, set where the board has its own value. */
-.dark {
+.dark .sidebar-frozen {
   --ground: #101012;
   --ink-2: #c2c2c8;
   --ink-3: #8e8e96;
@@ -287,10 +562,7 @@
   --avatar: var(--brand);
   --avatar-ink: #ffffff;
 }
-
-/* App-only colours with no website token (charts, maps, diffs, the quick bar, Talk's orb). */
-:root {
-  color-scheme: light;
+.sidebar-frozen {
   --bad-bg: rgba(201, 60, 60, 0.07);
   --bad-ink: #a32d2d;
   /* Live data (pages, charts that stream); one teal in both themes. */
@@ -329,8 +601,7 @@
   --orb-glow: rgba(52, 56, 255, 0.3);
   --talk-scrim: rgba(250, 249, 245, 0.8);
 }
-.dark {
-  color-scheme: dark;
+.dark .sidebar-frozen {
   --bad-bg: rgba(255, 107, 107, 0.11);
   --bad-ink: #ffc4c4;
   --warn: #ff9d5c;
@@ -366,6 +637,16 @@
   --orb-glow: rgba(70, 74, 255, 0.55);
   --talk-scrim: rgba(12, 12, 12, 0.72);
 }
+.sidebar-frozen {
+  --user-bubble: #ecebe8;
+}
+.dark .sidebar-frozen {
+  --user-bubble: #2a2a2e;
+}
+
+.sidebar-frozen {
+  color: var(--ink);
+}
 
 @theme inline {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -394,6 +675,10 @@
   --color-composer-button-hover: var(--composer-button-hover);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-label-foreground: var(--label-foreground);
+  --color-hairline: var(--hairline);
+  --color-menu-hover: var(--menu-hover);
+  --color-orange: var(--accent-orange);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-primary: var(--primary);
@@ -406,7 +691,7 @@
   --color-warning: var(--warning);
   --color-overlay: var(--overlay);
   --color-ring: var(--ring);
-  /* The kit's four sizes (2026-10-26): 20 titles, 15 reading, 13 controls, 12 hints. Tailwind's names map onto them. */
+  /* The kit's four sizes (spec 0001): 17 titles, 15 reading, 13 controls, 12 hints. Tailwind's names map onto them. */
   --text-2xs: 12px;
   --text-2xs--line-height: 16px;
   --text-xs: 12px;
@@ -421,33 +706,41 @@
   --text-base--line-height: 22px;
   --text-lg: 15px;
   --text-lg--line-height: 22px;
-  --text-xl: 20px;
-  --text-xl--line-height: 28px;
-  --text-2xl: 20px;
-  --text-2xl--line-height: 28px;
+  --text-xl: 17px;
+  --text-xl--line-height: 24px;
+  --text-2xl: 17px;
+  --text-2xl--line-height: 24px;
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-soft: var(--brand-soft);
   --color-brand-text: var(--brand-text);
-  /* Three corners: 6 controls, 10 cards and menus, 16 the composer and sheets. */
-  --radius-sm: 6px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-xl: 10px;
-  --radius-2xl: 16px;
-  --radius-3xl: 16px;
+  /* Two radii (spec 0001, web spec 0011): 999 for every control, 24 for containers, 16 for media nested in a card. */
+  --radius-sm: 999px;
+  --radius-md: 999px;
+  --radius-lg: 999px;
+  --radius-xl: 24px;
+  --radius-2xl: 24px;
+  --radius-3xl: 24px;
+  --radius-media: 16px;
+  /* Motion (spec 0012): one curve, three durations. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --spacing-control-sm: 32px;
+  --spacing-control: 40px;
   --shadow-surface: var(--elevation-surface);
   --shadow-overlay: var(--elevation-overlay);
 
-  --animate-in: axe-in 150ms ease-out;
+  --animate-in: axe-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
   --animate-out: axe-out 120ms ease-in forwards;
-  --animate-fade-in: axe-fade-in 150ms ease-out;
+  --animate-fade-in: axe-fade-in 120ms cubic-bezier(0.23, 1, 0.32, 1);
   --animate-fade-out: axe-fade-out 120ms ease-in forwards;
-  --animate-slide-in-left: axe-slide-in-left 200ms ease-out;
-  --animate-slide-in-right: axe-slide-in-right 200ms ease-out;
-  --animate-slide-in-bottom: axe-slide-in-bottom 200ms ease-out;
-  --animate-toast-in: axe-toast-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-slide-in-left: axe-slide-in-left 320ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-slide-in-right: axe-slide-in-right 320ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-slide-in-bottom: axe-slide-in-bottom 320ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-toast-in: axe-toast-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
 
   @keyframes axe-in {
     from {
@@ -476,7 +769,6 @@
     from {
       opacity: 0;
       transform: translateY(6px);
-      filter: blur(3px);
     }
   }
   @keyframes axe-slide-in-left {
@@ -536,6 +828,7 @@
   --color-bad: var(--bad);
   --color-bad-ink: var(--bad-ink);
   --color-warn: var(--warn);
+  --color-news: var(--news);
   --color-warn-ink: var(--warn-ink);
   --color-warn-bg: var(--warn-bg);
   --color-live: var(--live);
@@ -619,6 +912,46 @@ textarea {
   border-width: 0.5px;
 }
 
+/* Solar Bold Duotone icons (components/SolarIcons.tsx): the primary layer is the icon's colour, the secondary
+   layer the same colour at .35; it goes to 1 on hover, focus and the current item (spec 0001, web spec 0010). */
+@property --solar-secondary-opacity {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.35;
+}
+.axe-icon {
+  --solar-secondary-opacity: 0.35;
+  transition: --solar-secondary-opacity var(--duration-fast, 120ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+:is(a, button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="option"], [role="tab"], label, summary):is(:hover, :focus-visible)
+  .axe-icon,
+:is([aria-current], [data-state="active"], [aria-pressed="true"], [aria-selected="true"], [data-on="true"]) .axe-icon,
+.axe-icon:is([aria-current], [data-state="active"], [aria-pressed="true"]),
+.group:is(:hover, :focus-visible) .axe-icon-on-group {
+  --solar-secondary-opacity: 1;
+}
+.axe-icon.axe-icon-static,
+/* Cards and tiles keep their icons as they are on hover: only small controls light their icon up. */
+:is(.dash-el, .lv-tile) .axe-icon {
+  --solar-secondary-opacity: 0.35 !important;
+}
+/* The one extra: the paperclip turns 8 degrees on hover (not with reduced motion). */
+@media (prefers-reduced-motion: no-preference) {
+  .axe-icon-tilt {
+    transition:
+      --solar-secondary-opacity var(--duration-fast, 120ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+      transform var(--duration-fast, 120ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  }
+  :is(a, button, [role="button"], [role="menuitem"], label):is(:hover, :focus-visible) .axe-icon-tilt {
+    transform: rotate(-8deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .axe-icon {
+    transition: none;
+  }
+}
+
 .selectable {
   user-select: text;
   cursor: auto;
@@ -639,70 +972,10 @@ textarea {
   scrollbar-color: var(--fill-4) transparent;
 }
 
-/* ---------- Live work: three Axe-blue dots and a shimmering step ---------- */
-
-.dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.dots > i {
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--accent);
-  animation: dot 1.2s ease-in-out infinite;
-}
-.dots > i:nth-child(2) {
-  animation-delay: 0.16s;
-}
-.dots > i:nth-child(3) {
-  animation-delay: 0.32s;
-}
-.dots.small > i {
-  width: 4px;
-  height: 4px;
-}
-.dark .dots > i {
-  background: #5357ff;
-}
-
-@keyframes dot {
-  0%,
-  80%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  40% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
+/* ---------- Live work (calm since 2026-11-08): the 12 px spinner moves; the step's words stay still ---------- */
 
 .shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--ink-3) 0%,
-    var(--ink-3) 35%,
-    var(--ink) 50%,
-    var(--ink-3) 65%,
-    var(--ink-3) 100%
-  );
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 1.8s linear infinite;
-}
-
-@keyframes shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -150% 0;
-  }
+  color: var(--ink-3);
 }
 
 /* Streamed words fade in as they arrive. */
@@ -724,8 +997,8 @@ textarea {
 
 .md {
   padding: 0;
-  font-size: 16px;
-  line-height: 26px;
+  font-size: 15px;
+  line-height: 22px;
   overflow-wrap: anywhere;
 }
 .md > * + * {
@@ -739,18 +1012,18 @@ textarea {
   letter-spacing: -0.005em;
 }
 .md h1 {
-  font-size: 20px;
-  line-height: 28px;
+  font-size: 17px;
+  line-height: 24px;
 }
 .md h2 {
-  font-size: 20px;
-  line-height: 28px;
+  font-size: 17px;
+  line-height: 24px;
   letter-spacing: -0.01em;
 }
 .md h3,
 .md h4 {
-  font-size: 16px;
-  line-height: 26px;
+  font-size: 15px;
+  line-height: 22px;
 }
 .md > h1:not(:first-child),
 .md > h2:not(:first-child),
@@ -810,20 +1083,20 @@ textarea {
 .md blockquote {
   padding: 2px 0 2px 16px;
   border-left: 0;
-  box-shadow: inset 2px 0 0 var(--fill-3);
+  box-shadow: inset 2px 0 0 var(--hairline-strong);
   color: var(--ink-2);
 }
 .md hr {
   border: 0;
   height: 1px;
-  background: var(--fill-2);
+  background: var(--hairline);
 }
 .md :not(pre) > code {
   font-family: var(--font-mono);
   font-size: 13.5px;
-  background: var(--fill-2);
-  border-radius: 5px;
-  padding: 1px 5px;
+  background: var(--fill);
+  border-radius: 999px;
+  padding: 1px 8px;
 }
 /* Tables and code use the whole reading column, past the text's inset. */
 .md .wide {
@@ -835,7 +1108,7 @@ textarea {
   border-collapse: separate;
   border-spacing: 0;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-media);
   overflow: hidden;
   background: var(--card);
   font-size: 14px;
@@ -860,11 +1133,11 @@ textarea {
 .md tr + tr td,
 .md tbody tr:first-child td {
   border-top: 0;
-  box-shadow: inset 0 1px 0 var(--fill);
+  box-shadow: inset 0 1px 0 var(--hairline);
 }
 .code {
   border: 0;
-  border-radius: 12px;
+  border-radius: var(--radius-media);
   overflow: hidden;
   background: var(--card);
 }
@@ -883,17 +1156,6 @@ textarea {
 /* ---------- Reduced motion: short fades, no loops ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .dots > i,
-  .shimmer {
-    animation: none;
-  }
-  .dots > i {
-    opacity: 0.7;
-  }
-  .shimmer {
-    color: var(--ink-3);
-    background: none;
-  }
   .w {
     animation: wordFade 120ms linear both;
   }
@@ -966,14 +1228,14 @@ textarea {
 }
 .rich-card {
   border: 0;
-  border-radius: 16px;
+  border-radius: 24px;
   background: var(--card);
   box-shadow: none;
 }
 /* A card still arriving: its outline in quiet blocks (no loop; the live step line says it's working). */
 .rich-skeleton {
   background: var(--fill-2);
-  border-radius: 6px;
+  border-radius: 999px;
 }
 .rich-table th button {
   all: unset;
@@ -1060,7 +1322,7 @@ html.tray .md h4 {
   line-height: 19px;
 }
 html.tray .md table {
-  border-radius: 8px;
+  border-radius: var(--radius-media);
   background: var(--tray-open);
   font-size: 13px;
   line-height: 18px;
@@ -1089,7 +1351,7 @@ html.tray .group\/steps h3 {
 html.tray .bubble {
   background: var(--tray-field);
   max-width: 440px;
-  border-radius: 14px;
+  border-radius: 24px;
   padding: 5px 12px;
   font-size: 13px;
   line-height: 19px;
@@ -1104,10 +1366,6 @@ html.tray {
 html.tray .bg-card {
   border-color: transparent;
   box-shadow: none;
-}
-/* The fox and its forest stay in the app. */
-html.tray [aria-label^="Fox:"] {
-  display: none;
 }
 html.tray-glass,
 html.tray-glass body {
@@ -1149,12 +1407,8 @@ html.tray-glass[data-theme="light"] {
 /* The step line while a reply works (StepGroup on Pasta's Tool Group): its title shimmers like
    Pasta's Thinking Shimmer; waiting on you, it turns Axe blue. */
 .steps-live h3 {
-  color: transparent;
-  background-image: linear-gradient(90deg, var(--muted-foreground), var(--foreground), var(--muted-foreground));
-  background-size: 200% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: agent-text-shimmer 1.6s linear infinite;
+  color: var(--muted-foreground);
+  animation: agent-text-shimmer 1.6s ease-in-out infinite;
 }
 .steps-waiting h3 {
   color: var(--brand-text);
@@ -1162,7 +1416,6 @@ html.tray-glass[data-theme="light"] {
 @media (prefers-reduced-motion: reduce) {
   .steps-live h3 {
     color: var(--muted-foreground);
-    background-image: none;
     animation: none;
   }
 }
@@ -1172,34 +1425,29 @@ html.tray-glass[data-theme="light"] {
   color: var(--ink);
 }
 
-/* Regular weight only, everywhere : hierarchy comes from size and tone, not bold. */
-*,
-*::before,
-*::after {
-  font-weight: 400 !important;
-}
-/* The one exception: bold inside an answer. */
+/* Weight (2026-11-08): text is regular; headings, window titles and section labels are semibold, and explicit
+   font-medium / font-semibold keep their weight (the "regular weight only" rule flattened every page). */
 .md b,
 .md strong {
-  font-weight: 600 !important;
+  font-weight: 600;
 }
 
 /* The user's message: a quiet grey bubble (board "Chat messages", grey, 2026-10-26). */
 :root {
-  --user-bubble: #ecebe8;
+  --user-bubble: #ffffff;
 }
 .dark {
-  --user-bubble: #2a2a2e;
+  --user-bubble: #2a2928;
 }
 
-/* Starter cards' icon tiles: flat brand colours, a white icon on top. */
-.tile-brand { background: var(--brand); }
+/* Starter cards' icon tiles: a flat circle on the raised fill, the Solar icon in ink on top. */
+.tile-brand,
 .tile-live,
 .tile-warn,
 .tile-bad,
 .tile-violet,
 .tile-ink,
-.tile-mute { background: #2c2c30; }
+.tile-mute { background: var(--raised); }
 
 /* Long chats: rows far above the last three are skipped by layout and paint until they scroll near. */
 .msg-far {
@@ -1217,87 +1465,54 @@ html.tray-glass[data-theme="light"] {
   text-wrap: balance;
 }
 
-/* Watching dashboard (2026-11-02, design "Watching redesign", https://claude.ai/artifact/AVL5nteGWrwB1WkheQYDAo).
-   Apple's label colours, on the design's dark page; light uses the system's light labels on the app's paper. */
+/* Watching dashboard (spec 0001): the web-final palette. Panels are cards, status colours are the status tokens. */
 :root,
 .light {
   --dash-bg: var(--background);
-  --dash-glow: rgb(0 122 255 / 5%);
-  --dash-label: rgb(0 0 0 / 85%);
-  --dash-label-2: rgb(60 60 67 / 68%);
-  --dash-label-3: rgb(60 60 67 / 30%);
-  --dash-panel: #ffffff;
-  --dash-panel-edge: rgb(0 0 0 / 7%);
-  --dash-row: rgb(0 0 0 / 2.5%);
-  --dash-row-edge: rgb(0 0 0 / 5%);
-  --dash-tile: rgb(0 0 0 / 5%);
-  --dash-chip: rgb(0 0 0 / 5%);
-  --dash-btn: rgb(0 0 0 / 6%);
-  --dash-btn-edge: rgb(0 0 0 / 6%);
-  --dash-btn-pri: rgb(0 0 0 / 85%);
-  --dash-btn-pri-ink: #ffffff;
-  --dash-ok: #1f9d55;
-  --dash-ok-soft: rgb(52 199 89 / 14%);
-  --dash-ok-wash: rgb(52 199 89 / 10%);
-  --dash-ok-glow: rgb(52 199 89 / 18%);
-  --dash-warn: #b86200;
-  --dash-warn-tick: #f0a030;
-  --dash-warn-soft: rgb(255 149 0 / 14%);
-  --dash-warn-wash: rgb(255 149 0 / 6%);
-  --dash-warn-edge: rgb(255 149 0 / 34%);
-  --dash-warn-glow: rgb(255 149 0 / 26%);
-  --dash-bad: #d70015;
-  --dash-blue: #007aff;
-  --dash-blue-soft: rgb(0 122 255 / 12%);
-  --dash-blue-wash: rgb(0 122 255 / 5%);
-  --dash-blue-edge: rgb(0 122 255 / 24%);
+  --dash-label: var(--foreground);
+  --dash-label-2: var(--muted-foreground);
+  --dash-label-3: var(--label-foreground);
+  --dash-panel: var(--card);
+  --dash-panel-edge: transparent;
+  --dash-row: var(--raised);
+  --dash-row-edge: transparent;
+  --dash-tile: var(--raised);
+  --dash-chip: var(--input);
+  --dash-btn: var(--raised);
+  --dash-btn-edge: transparent;
+  --dash-btn-pri: var(--foreground);
+  --dash-btn-pri-ink: var(--background);
+  --dash-ok: var(--success);
+  --dash-ok-soft: rgb(61 138 82 / 14%);
+  --dash-ok-wash: rgb(61 138 82 / 10%);
+  --dash-warn: var(--warning);
+  --dash-warn-tick: var(--warning);
+  --dash-warn-soft: rgb(168 116 20 / 14%);
+  --dash-warn-wash: transparent;
+  --dash-warn-edge: rgb(224 176 98 / 35%);
+  --dash-bad: var(--destructive);
+  --dash-blue: var(--news);
+  --dash-blue-soft: color-mix(in srgb, var(--news) 16%, transparent);
+  --dash-blue-wash: transparent;
+  --dash-blue-edge: transparent;
   --dash-ring-track: rgb(0 0 0 / 7%);
   --dash-tick-empty: rgb(0 0 0 / 6%);
-  --dash-tick-fail: rgb(60 60 67 / 26%);
+  --dash-tick-fail: rgb(0 0 0 / 22%);
   --dash-bar: rgb(0 0 0 / 7%);
-  --dash-shadow: 0 1px 2px rgb(0 0 0 / 4%);
 }
 .dark {
-  --dash-bg: #0b0c0f;
-  --dash-glow: rgb(10 132 255 / 8%);
-  --dash-label: rgb(255 255 255 / 85%);
-  --dash-label-2: rgb(255 255 255 / 55%);
-  --dash-label-3: rgb(255 255 255 / 25%);
-  --dash-panel: rgb(255 255 255 / 4.5%);
-  --dash-panel-edge: rgb(255 255 255 / 8%);
-  --dash-row: rgb(255 255 255 / 4%);
-  --dash-row-edge: rgb(255 255 255 / 5%);
-  --dash-tile: rgb(255 255 255 / 6%);
-  --dash-chip: rgb(255 255 255 / 6%);
-  --dash-btn: rgb(255 255 255 / 8%);
-  --dash-btn-edge: rgb(255 255 255 / 6%);
-  --dash-btn-pri: rgb(255 255 255 / 88%);
-  --dash-btn-pri-ink: #0b0c0f;
-  --dash-ok: #34d399;
-  --dash-ok-soft: rgb(52 211 153 / 14%);
-  --dash-ok-wash: rgb(52 211 153 / 8%);
-  --dash-ok-glow: rgb(52 211 153 / 28%);
-  --dash-warn: #f5b14c;
-  --dash-warn-tick: #f5b14c;
-  --dash-warn-soft: rgb(245 177 76 / 14%);
-  --dash-warn-wash: rgb(245 177 76 / 6%);
-  --dash-warn-edge: rgb(245 177 76 / 32%);
-  --dash-warn-glow: rgb(245 177 76 / 45%);
-  --dash-bad: #ff6961;
-  --dash-blue: #409cff;
-  --dash-blue-soft: rgb(10 132 255 / 14%);
-  --dash-blue-wash: rgb(10 132 255 / 6%);
-  --dash-blue-edge: rgb(64 156 255 / 22%);
+  --dash-ok-soft: rgb(127 179 138 / 14%);
+  --dash-ok-wash: rgb(127 179 138 / 8%);
+  --dash-warn-soft: rgb(224 176 98 / 14%);
   --dash-ring-track: rgb(255 255 255 / 8%);
   --dash-tick-empty: rgb(255 255 255 / 6%);
   --dash-tick-fail: rgb(255 255 255 / 25%);
   --dash-bar: rgb(255 255 255 / 8%);
-  --dash-shadow: none;
 }
 
 .dash {
   --spring: cubic-bezier(0.32, 0.72, 0, 1);
-  background: radial-gradient(1200px 480px at 18% -8%, var(--dash-glow), transparent 60%), var(--dash-bg);
+  background: var(--dash-bg);
   color: var(--dash-label);
   font-size: 13px;
   line-height: 1.38;
@@ -1315,55 +1530,41 @@ html.tray-glass[data-theme="light"] {
   letter-spacing: 0;
 }
 .dash-panel {
-  border-radius: 12px;
+  border-radius: 24px;
   background: var(--dash-panel);
-  box-shadow: inset 0 0 0 1px var(--dash-panel-edge), var(--dash-shadow);
 }
 .dash-row {
-  border-radius: 10px;
+  border-radius: 24px;
   background: var(--dash-row);
-  box-shadow: inset 0 0 0 1px var(--dash-row-edge);
 }
 .dash-warn {
   position: relative;
-  background: var(--dash-warn-wash);
-}
-.dash-warn::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px var(--dash-warn-edge), 0 16px 48px -16px var(--dash-warn-glow);
-  opacity: 0.8;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--dash-warn-edge);
 }
 .dash-live {
   position: relative;
   overflow: hidden;
-  background: var(--dash-blue-wash);
-  box-shadow: inset 0 0 0 1px var(--dash-blue-edge);
 }
 .dash-sweep {
-  width: 40%;
+  width: 30%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, var(--dash-blue), transparent);
+  border-radius: 999px;
+  background: var(--dash-blue);
+  opacity: 0.5;
   transform: translateX(120%);
 }
 .dash button,
 .dash .dash-btn {
-  transition: transform 240ms var(--spring), opacity 240ms var(--spring), background-color 240ms var(--spring);
-}
-.dash button:active,
-.dash .dash-btn:active {
-  transform: scale(0.97);
+  transition: opacity 120ms ease-out, background-color 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out;
 }
 .dash button:focus-visible,
 .dash a:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--dash-blue) 80%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--dash-blue) 80%, transparent);
   outline-offset: 2px;
 }
 .dash-tick {
-  border-radius: 2px;
+  border-radius: 999px;
   height: 16px;
 }
 .dash-tick[data-t="ok"] { background: var(--dash-ok); }
@@ -1373,59 +1574,173 @@ html.tray-glass[data-theme="light"] {
 .dash-tick[data-t="fail"] { background: var(--dash-tick-fail); }
 .dash-tick[data-t="empty"] { background: var(--dash-tick-empty); }
 
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes dash-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  .dash-rise { animation: dash-rise 400ms var(--spring) both; animation-delay: calc(var(--i, 0) * 40ms); }
-  @keyframes dash-ring { from { stroke-dasharray: 0 400; } }
-  .dash-ring-ok { animation: dash-ring 900ms var(--spring) 120ms both; }
-  @keyframes dash-fade { from { opacity: 0; } }
-  .dash-ring-late { animation: dash-fade 320ms var(--spring) 760ms both; }
-  @keyframes dash-num { from { opacity: 0; transform: translateY(6px); } }
-  .dash-num { display: inline-block; animation: dash-num 320ms var(--spring) both; animation-delay: calc(var(--i, 0) * 40ms + 160ms); }
-  @keyframes dash-tick { from { opacity: 0; transform: scaleY(0.4); } }
-  .dash-tick { transform-origin: 50% 100%; animation: dash-tick 320ms var(--spring) both; animation-delay: calc(var(--j, 0) * 18ms + 240ms); }
-  @keyframes dash-sweep { 0% { transform: translateX(-100%); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(260%); opacity: 0; } }
-  .dash-sweep { animation: dash-sweep 1.6s ease-in-out infinite; }
-  @keyframes dash-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
-  .dash-warn::after { animation: dash-breathe 3s ease-in-out infinite; }
-  @keyframes dash-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-  .dash-pulse { animation: dash-pulse 1.6s ease-in-out infinite; }
-  @keyframes dash-grow { from { transform: scaleX(0); } }
-  .dash-grow { transform-origin: 0 50%; animation: dash-grow 400ms var(--spring) 240ms both; }
-}
-
-/* Available elements (design "Watching redesign", Elements board): the catalogue's cards. */
-:root {
-  --dash-el-hover: rgb(0 0 0 / 4.5%);
-}
-.dark {
-  --dash-el-hover: rgb(255 255 255 / 6.5%);
-}
+/* Available elements: the catalogue's cards (2026-11-08). Hover is quiet: the fill lifts by a few percent and a
+   hairline appears; the icon and the Add mark never change colour, nothing scales or moves. */
 .dash-el {
   background: var(--dash-panel);
-  box-shadow: inset 0 0 0 1px var(--dash-panel-edge);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
-  transition:
-    transform 240ms var(--spring, cubic-bezier(0.32, 0.72, 0, 1)),
-    opacity 240ms var(--spring, cubic-bezier(0.32, 0.72, 0, 1)),
-    background 240ms var(--spring, cubic-bezier(0.32, 0.72, 0, 1));
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: background-color 120ms ease-out, box-shadow 120ms ease-out;
 }
 .dash-el:hover {
-  background: var(--dash-el-hover);
+  background: color-mix(in srgb, var(--dash-panel) 96%, var(--foreground) 4%);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
 }
-.dash-el:active {
-  transform: scale(0.98);
+.dash-el .dash-el-add {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.dash-el:hover .dash-el-add,
+.dash-el:focus-visible .dash-el-add {
+  opacity: 1;
 }
 .dash-el:focus-visible {
-  outline: 3px solid rgb(10 132 255 / 80%);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .dash-el {
+  .dash-el,
+  .dash-el .dash-el-add {
     transition: none;
   }
-  .dash-el:active {
-    transform: none;
-  }
+}
+
+/* ---------- Type and text colour (2026-11-08) ----------
+   Four real text levels instead of two (ink-2 and ink-3 used to be the same grey), each passing WCAG AA for its
+   use on the page and on cards: ink for content, ink-2 for supporting text, ink-3 for hints and times, ink-4 only
+   for placeholders and disabled text. Headings get tighter tracking; weight stays regular (see the rule at the end).
+   These rules sit outside Tailwind's layers on purpose: they win over `font-normal` on older headings. */
+:root,
+.light {
+  --ink: #1d1d1f;
+  --ink-2: #48484d;
+  --ink-3: #6b6b70;
+  --ink-4: #8e8e93;
+  --muted-foreground: var(--ink-3);
+  --label-foreground: var(--ink-3);
+}
+.dark,
+.dark .popover-new {
+  --ink: #f2f0ed;
+  --ink-2: #c2bfbb;
+  --ink-3: #94918d;
+  --ink-4: #6f6c69;
+  --muted-foreground: var(--ink-3);
+  --label-foreground: var(--ink-3);
+}
+body {
+  letter-spacing: -0.01em;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+h1,
+h2,
+h3 {
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+h1 {
+  letter-spacing: -0.02em;
+}
+/* Small section labels (Needs you, Recent, sidebar groups): 12 px, regular, ink-3. */
+.type-label {
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+
+/* ---------- Scrollbars that never move the page (2026-11-08) ----------
+   Every scrolling page keeps the scrollbar's space, so content doesn't jump sideways when a page grows long
+   enough to scroll. Centred pages keep it on both sides so they stay centred. Menus and popovers are left alone. */
+main .scroll:not(.popover-new),
+main [class*="overflow-y-auto"]:not(.popover-new):not([role="listbox"]):not([role="menu"]) {
+  scrollbar-gutter: stable both-edges;
+}
+aside .scroll,
+nav .scroll {
+  scrollbar-gutter: stable;
+}
+
+/* The composer, its row and the compact menus (2026-11-08): the values of Draft 3's mock, dark as drawn and an
+   equivalent light set. Scoped tokens, so the rest of the app keeps its own greys. */
+:root,
+.light {
+  --composer-edge: none;
+  --cx-ink: #1c1b19;
+  --cx-ink2: #4a4744;
+  --cx-ink3: #6b6864;
+  --cx-ink4: #8f8b86;
+  --cx-box: #ffffff;
+  --cx-edge: rgb(0 0 0 / 0.09);
+  --cx-pop: #ffffff;
+  --cx-hover: rgb(0 0 0 / 0.05);
+  --cx-sep: rgb(0 0 0 / 0.07);
+  --cx-warn: #b7791f;
+  --cx-menu-shadow: 0 0 0 1px var(--cx-edge), 0 10px 28px -12px rgb(0 0 0 / 0.25);
+}
+.dark {
+  --composer-edge: none;
+  --cx-ink: #f2f0ed;
+  --cx-ink2: #c2bfbb;
+  --cx-ink3: #94918d;
+  --cx-ink4: #6f6c69;
+  --cx-box: #232221;
+  --cx-edge: rgb(255 255 255 / 0.09);
+  --cx-pop: #1f1e1d;
+  --cx-hover: rgb(255 255 255 / 0.06);
+  --cx-sep: rgb(255 255 255 / 0.06);
+  --cx-warn: #e0b062;
+  --cx-menu-shadow: 0 0 0 1px var(--cx-edge), 0 10px 28px -12px rgb(0 0 0 / 0.7);
+}
+
+
+
+/* ---------- Regular weight only, again (2026-11-08) ----------
+   Bold read badly: every piece of text is regular. Hierarchy comes from size and the four text colours. Bold
+   inside an answer's own text stays, because it carries meaning. */
+*,
+*::before,
+*::after {
+  font-weight: 400 !important;
+}
+.md b,
+.md strong {
+  font-weight: 600 !important;
+}
+
+/* ---------- Very thin scrollbars (2026-11-08) ----------
+   4 px, a soft thumb, no track. Chromium only draws ::-webkit-scrollbar when scrollbar-width and scrollbar-color
+   are auto, so those are reset everywhere. Hidden scrollbars (.no-scrollbar) stay hidden. */
+* {
+  scrollbar-width: auto !important;
+  scrollbar-color: auto !important;
+}
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+  background: transparent;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 32%, transparent);
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- News, a status colour of its own (2026-11-08, UI audit C4) ----------
+   A check that found a change. It used to be Axe Blue, which is kept for the one main action of a view. */
+:root,
+.light {
+  --news: #4f7196;
+}
+.dark {
+  --news: #8fa9c7;
 }

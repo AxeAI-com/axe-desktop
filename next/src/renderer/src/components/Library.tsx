@@ -21,7 +21,8 @@ import { openLibrary } from "@/lib/libraries"
 import { useMotion } from "@/lib/motion"
 
 import { BrandLogo } from "./BrandLogo"
-import { button } from "./Kit"
+import { button, compact, iconButton, IconTile, inputClass, press, Switch } from "./Kit"
+import { PAGE } from "@/lib/layout"
 import {
   AgentIcon,
   BoltIcon,
@@ -51,41 +52,26 @@ import {
   TerminalIcon,
   VoiceIcon,
   XIcon,
-} from "./Icons"
+} from "./SolarIcons"
 
 // The pieces every library page is made of: a calm page with a title, filter chips, a grid of cards,
 // a sheet for details and forms, and the brands' logos.
 
-// The board's 16px side padding (Kit's px-4 is 15px at the 15px root).
-export const ghost = button.secondary.replace("px-4", "px-[16px]")
-export const primary = button.primary.replace("px-4", "px-[16px]")
-/** The 28px secondary pill on a card's foot: Add, Connect, Sign in. */
-export const small =
-  "inline-flex h-[28px] shrink-0 items-center justify-center rounded-full border-0 bg-fill-4 px-[12px] text-[13px] text-ink transition-colors duration-150 enabled:hover:bg-fill-3 disabled:opacity-40"
+export const ghost = button.secondary
+export const primary = button.primary
+/** The 28 px secondary button on a card's foot: Add, Connect, Sign in. */
+export const small = compact(button.secondary)
+export { inputClass, Switch }
 
 type IconC = (p: { size?: number }) => ReactNode
 
-/** A skill's or agent's mark: its icon in its own colour on a soft tint of that colour, readable in both themes. */
-export function SkillTile({ icon: Icon, name, tint, size = 36 }: { icon: IconC; name: string; tint?: string; size?: number }) {
-  const c = tint ?? tintFor(name)
+/** A skill's or agent's mark: its icon in ink on the kit's raised circle. */
+export function SkillTile({ icon: Icon, size = 36 }: { icon: IconC; size?: number }) {
   return (
-    <span
-      aria-hidden="true"
-      className="flex shrink-0 items-center justify-center rounded-[10px]"
-      style={{ width: size, height: size, color: c, background: `color-mix(in srgb, ${c} 16%, transparent)` }}
-    >
+    <IconTile size={size}>
       <Icon size={Math.round(size * 0.5)} />
-    </span>
+    </IconTile>
   )
-}
-
-const TINTS = ["#3b82f6", "#e11d48", "#d97706", "#db2777", "#059669", "#7c3aed", "#0d9488", "#ea580c", "#0284c7", "#4f46e5"]
-
-/** A stable colour for a name, so a skill keeps its colour. */
-export function tintFor(name: string): string {
-  let h = 0
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return TINTS[h % TINTS.length]!
 }
 
 /** Words in a skill's or agent's name and description, and the icon they suggest. First match wins. */
@@ -139,7 +125,7 @@ export function pickIcons(items: { key: string; name: string; text?: string; fir
 }
 
 /** A sheet's action row that stays in view while the form scrolls. */
-export const sheetFooter = "sticky -bottom-[24px] z-10 -mx-[24px] -mb-[24px] flex items-center gap-[8px] bg-pop px-[24px] py-[16px]"
+export const sheetFooter = "sticky -bottom-[24px] z-10 -mx-[24px] -mb-[24px] flex items-center gap-[8px] rounded-b-3xl bg-pop px-[24px] py-[16px]"
 
 export { Select } from "./Select"
 
@@ -173,18 +159,18 @@ export function LibraryPage({
   const m = useMotion()
   return (
     <div className={`${PAGE_TOP} px-[24px]`}>
-      <div className="flex h-max w-full max-w-[920px] flex-col gap-[24px] pt-[24px] pb-[200px]">
+      <div style={{ maxWidth: PAGE }} className="flex h-max w-full flex-col gap-[24px] pt-[24px] pb-[200px]">
         <motion.header {...m.rise} className="flex flex-col gap-[24px]">
           {tab && (
             <div className="flex items-center gap-[16px]">
-              <div role="tablist" aria-label="Customize" className="flex h-[38px] items-center gap-[2px] rounded-full bg-segment p-[3px] dark:bg-card">
+              <div role="tablist" aria-label="Customize" className="flex h-[32px] items-center gap-[2px] rounded-[8px] bg-segment p-[2px]">
                 {CUSTOMIZE_TABS.map((t) => (
                   <button
                     key={t.kind}
                     role="tab"
                     aria-selected={t.kind === tab}
                     onClick={() => openLibrary(t.kind)}
-                    className={`h-[32px] min-w-[104px] rounded-full border-0 px-[16px] text-[14px] transition-colors duration-150 ${t.kind === tab ? "bg-raised-2 text-ink shadow-card" : "bg-transparent text-ink-3 hover:text-ink-2"}`}
+                    className={`h-[28px] min-w-[96px] rounded-[6px] border-0 px-[12px] text-[13px] ${press} ${t.kind === tab ? "bg-raised-2 text-ink" : "bg-transparent text-ink-3 hover:text-ink"}`}
                   >
                     {t.label}
                   </button>
@@ -195,7 +181,7 @@ export function LibraryPage({
               {actions && <div className="flex shrink-0 items-center gap-[8px]">{actions}</div>}
             </div>
           )}
-          {!tab && actions && <div className="flex min-h-[40px] items-center justify-end gap-[8px]">{actions}</div>}
+          {!tab && actions && <div className="flex min-h-[32px] items-center justify-end gap-[8px]">{actions}</div>}
         </motion.header>
         {children}
       </div>
@@ -214,7 +200,7 @@ export function FilterChips<T extends string>({ options, value, onChange, label 
             role="radio"
             aria-checked={on}
             onClick={() => onChange(o.id)}
-            className={`h-[28px] rounded-full border-0 px-[14px] text-[13px] transition-colors duration-150 ${on ? "bg-fill-4 text-ink" : "bg-transparent text-ink-3 hover:bg-fill hover:text-ink-2"}`}
+            className={`h-[28px] rounded-[7px] border-0 px-[10px] text-[13px] ${press} ${on ? "bg-fill-2 text-ink" : "bg-transparent text-ink-3 hover:bg-fill-2 hover:text-ink"}`}
           >
             {o.label}
           </button>
@@ -233,7 +219,7 @@ export function Grid({ children, cols = 3 }: { children: ReactNode; cols?: 2 | 3
   )
 }
 
-/** A gallery card: rises in after the one before, lifts on hover. */
+/** A gallery card: rises in after the one before, raised on hover. */
 export function Card({ i, onOpen, label, children, className = "" }: { i: number; onOpen?: () => void; label: string; children: ReactNode; className?: string }) {
   const m = useMotion()
   return (
@@ -245,7 +231,7 @@ export function Card({ i, onOpen, label, children, className = "" }: { i: number
       aria-label={label}
       onClick={onOpen}
       onKeyDown={(e) => onOpen && (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onOpen())}
-      className={`relative flex h-[136px] flex-col gap-[8px] rounded-[16px] bg-card p-[16px] text-left outline-none transition-colors duration-150 focus-visible:bg-raised ${onOpen ? "cursor-default hover:bg-raised" : ""} ${className}`}
+      className={`relative flex h-[160px] flex-col gap-[8px] rounded-3xl bg-card p-[24px] text-left outline-none transition-colors duration-150 ease-out focus-visible:bg-raised ${onOpen ? "cursor-default hover:bg-raised" : ""} ${className}`}
     >
       {children}
     </motion.div>
@@ -282,14 +268,14 @@ export function Sheet({ open, onClose, label, children, width = 560 }: { open: b
             aria-modal="true"
             aria-label={label}
             style={{ width, ...m.pop("top center").style }}
-            className="scroll relative box-border flex max-h-[76vh] max-w-[calc(100%-48px)] flex-col gap-[20px] rounded-[16px] bg-pop p-[24px] shadow-[var(--shadow)]"
+            className="scroll relative box-border flex max-h-[76vh] max-w-[calc(100%-48px)] flex-col gap-[20px] rounded-3xl border border-hairline bg-pop p-[24px]"
           >
             <button
               aria-label="Close"
               onClick={onClose}
-              className="absolute top-[16px] right-[16px] flex h-[28px] w-[28px] items-center justify-center rounded-[6px] border-0 bg-transparent text-ink-3 hover:bg-fill-2 hover:text-ink"
+              className={`absolute top-[16px] right-[16px] ${iconButton()}`}
             >
-              <XIcon size={14} />
+              <XIcon size={16} />
             </button>
             {children}
           </motion.div>
@@ -306,24 +292,6 @@ export function Field({ label, children, hint }: { label: string; children: Reac
       {children}
       {hint && <span className="text-[12px] text-ink-3">{hint}</span>}
     </label>
-  )
-}
-
-export const inputClass =
-  "box-border w-full rounded-[6px] border-0 bg-composer px-[12px] py-[9px] text-[13px] leading-[20px] text-ink outline-none placeholder:text-ink-4 focus:shadow-[0_0_0_1px_var(--accent-2)]"
-
-export function Switch({ on, onChange, label, flat }: { on: boolean; onChange: (on: boolean) => void; label: string; flat?: boolean }) {
-  const m = useMotion()
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={(e) => (e.stopPropagation(), onChange(!on))}
-      className={`flex shrink-0 items-center rounded-full border-0 p-[2px] transition-colors duration-150 ${flat ? "h-[20px] w-[34px]" : "h-[22px] w-[38px]"} ${on ? "justify-end bg-brand" : flat ? "justify-start bg-fill-4" : "justify-start bg-fill-4"}`}
-    >
-      <motion.span layout transition={m.t(0.12)} className={`block rounded-full bg-white ${flat ? "size-[16px]" : "h-[18px] w-[18px]"}`} />
-    </button>
   )
 }
 
@@ -374,45 +342,12 @@ export function ConnectorLogo({ catalogId, name, size = 36 }: { catalogId?: stri
   const tile = catalogId ? BRAND_TILES[catalogId] : undefined
   if (logo && tile)
     return (
-      <span aria-hidden="true" className="flex shrink-0 items-center justify-center" style={{ width: size, height: size, borderRadius: Math.round(size / 4) + 1, background: tile.bg }}>
+      <span aria-hidden="true" className="flex shrink-0 items-center justify-center" style={{ width: size, height: size, borderRadius: 999, background: tile.bg }}>
         <img src={logo.src} alt="" style={{ width: Math.round(size * 0.61), height: Math.round(size * 0.61), filter: tile.white ? "brightness(0) invert(1)" : undefined }} />
       </span>
     )
   if (logo) return <BrandLogo logo={logo} name={name} size={size} />
-  return <IconTile icon={PlugIcon} colors={["#64748b", "#334155"]} size={size} />
-}
-
-/** A coloured icon, like an app icon: a two-tone tile with a white glyph. Skills and agents use it. */
-export function IconTile({ icon: Icon, colors, size = 36 }: { icon: (p: { size?: number }) => ReactNode; colors: readonly [string, string]; size?: number }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="flex shrink-0 items-center justify-center text-white [&_svg]:text-white"
-      style={{ width: size, height: size, borderRadius: Math.round(size / 4) + 1, background: `linear-gradient(145deg, ${colors[0]}, ${colors[1]})` }}
-    >
-      <Icon size={Math.round(size * 0.5)} />
-    </span>
-  )
-}
-
-const TILE_COLORS: readonly (readonly [string, string])[] = [
-  ["#3b82f6", "#1d4ed8"],
-  ["#f43f5e", "#be123c"],
-  ["#f59e0b", "#d97706"],
-  ["#ec4899", "#a21caf"],
-  ["#10b981", "#047857"],
-  ["#a78bfa", "#7c3aed"],
-  ["#2dd4bf", "#0e7490"],
-  ["#fb923c", "#e11d48"],
-  ["#38bdf8", "#4f46e5"],
-  ["#64748b", "#312e81"],
-]
-
-/** A stable colour pair for a name, so a skill keeps its colour. */
-export function tileColors(name: string): readonly [string, string] {
-  let h = 0
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return TILE_COLORS[h % TILE_COLORS.length]!
+  return <SkillTile icon={PlugIcon} size={size} />
 }
 
 export const KIND_ICONS: Record<Helper["kind"], IconC> = {
@@ -426,19 +361,7 @@ export const KIND_ICONS: Record<Helper["kind"], IconC> = {
   custom: SparkIcon,
 }
 
-/** An agent's mark: its kind's icon on a quiet tile. */
-const KIND_COLORS: Record<Helper["kind"], readonly [string, string]> = {
-  write: ["#fb923c", "#e11d48"],
-  research: ["#38bdf8", "#4f46e5"],
-  code: ["#64748b", "#312e81"],
-  plan: ["#a78bfa", "#7c3aed"],
-  support: ["#2dd4bf", "#0e7490"],
-  data: ["#34d399", "#0d9488"],
-  design: ["#f472b6", "#a21caf"],
-  custom: ["#fbbf24", "#d97706"],
-}
-
-export function HelperMark({ kind, size = 36, flat, icon, name }: { kind: Helper["kind"]; size?: number; flat?: boolean; icon?: IconC; name?: string }) {
-  if (flat) return <SkillTile icon={icon ?? KIND_ICONS[kind] ?? SparkIcon} name={name ?? kind} tint={name ? undefined : KIND_COLORS[kind]?.[0]} size={size} />
-  return <IconTile icon={KIND_ICONS[kind] ?? SparkIcon} colors={KIND_COLORS[kind] ?? KIND_COLORS.custom} size={size} />
+/** An agent's mark: its kind's icon (or its own) on the raised circle. */
+export function HelperMark({ kind, size = 36, icon }: { kind: Helper["kind"]; size?: number; flat?: boolean; icon?: IconC; name?: string }) {
+  return <SkillTile icon={icon ?? KIND_ICONS[kind] ?? SparkIcon} size={size} />
 }

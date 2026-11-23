@@ -42,7 +42,8 @@ function ToolError({
         <DangerIcon aria-hidden="true" className="size-3.5 shrink-0" />
         <span>{label}</span>
       </div>
-      <div className="rounded-[1rem] bg-muted/40 p-4 shadow-card">
+      {/* Axe AI: spec 0001: 24px container on the card fill, 24 padding, no shadow. */}
+      <div className="rounded-3xl bg-card p-[24px]">
         <h3 className="text-sm leading-5 font-[450]">{title ?? `${tool} connection lost partway through`}</h3>
         <p className="mt-1 text-sm leading-5 text-foreground">{message}</p>
         {(code || attempts !== undefined) && (
@@ -59,7 +60,7 @@ function ToolError({
                 onClick={onFix}
                 size="sm"
                 variant="default"
-                className="h-7 rounded-md border-0 bg-primary px-3 text-sm font-[450] text-primary-foreground shadow-none hover:brightness-110 dark:bg-none"
+                className="h-[32px] rounded-full border-0 bg-brand px-[16px] text-[13px] font-normal text-white shadow-none hover:bg-brand-hover dark:bg-brand"
               >
                 {fixLabel}
               </Button>
@@ -69,7 +70,7 @@ function ToolError({
                 onClick={onRetry}
                 size="sm"
                 variant="outline"
-                className="h-7 rounded-md bg-card px-3 text-sm font-[450]"
+                className="h-[32px] rounded-full border-0 bg-fill-2 px-[16px] text-[13px] font-normal hover:bg-fill-3"
               >
                 Retry
               </Button>

@@ -1,27 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { alertDetail, fixedLine, repoBody, repoHeadline } from "@shared/watching/copy"
-import { liveProblems } from "@shared/watching/findings"
-import type { CheckRow, DnsRecord, FixTurn, OpenFinding, PastFinding, RepoAlert, Run, WatchView } from "@shared/watching/types"
+import { alertDetail, repoBody, repoHeadline } from "@shared/watching/copy"
+import type { CheckRow, DnsRecord, FixTurn, OpenFinding, RepoAlert, WatchView } from "@shared/watching/types"
 import type { ChatMessage } from "@shared/types"
 
 import { totals } from "@/lib/changes"
+import { liveLabel, type StepPart } from "@/lib/steps"
 import { invoke } from "@/lib/bridge"
 import { keepChanges, loadChanges, loadMessages, openReview, openThread, undoChanges, useStore } from "@/lib/store"
 import { checkNow, fixAgain, fixDone, fixWatch } from "@/lib/watching"
 
 import { agentLogo, LogoTile } from "@/components/BrandLogo"
-import { CheckIcon, FileIcon, FolderIcon, RetryIcon, WarnIcon } from "@/components/Icons"
+import { CheckIcon, FileIcon, FolderIcon, RetryIcon, WarnIcon } from "@/components/SolarIcons"
 import { PermissionCard } from "@/components/Cards"
-import { AssistantMessage } from "@/screens/Thread"
-import { clock, day, sameDay, SpeedChart } from "@/components/watching/Evidence"
-import { Bubble, btn, card, Line, Spin } from "@/components/watching/parts"
+import { clock, day, sameDay } from "@/components/watching/Evidence"
+import { btn, card, Line, Spin } from "@/components/watching/parts"
 
 // Security and repo evidence, and the fix handoff in a watch's own thread (design: "The fix handoff").
 // A fix is an agent turn: the plan card (Start), the agent's steps, the changed files (Keep all, Undo all),
 // then Axe checks again. Only a run that shows the problem gone marks it fixed.
 
 const EMPTY: ChatMessage[] = []
+const EMPTY_PARTS: ChatMessage["parts"] = []
 
 /** "/Users/mia/Code/shop-web" → "~/Code/shop-web". */
 export const tilde = (p?: string) => (p ?? "").replace(/^\/(Users|home)\/[^/]+(?=\/|$)/, "~")
@@ -56,11 +56,11 @@ export function CheckRows({ rows }: { rows: CheckRow[] }) {
 export function RecordFix({ r }: { r: DnsRecord }) {
   return (
     <>
-      <div className="selectable truncate rounded-[6px] bg-fill px-[12px] py-[8px] font-mono text-[12.5px] leading-[19px] whitespace-nowrap text-ink-2" data-testid="record-found">
+      <div className="selectable truncate rounded-full bg-fill px-[12px] py-[8px] font-mono text-[12px] leading-[19px] whitespace-nowrap text-ink-2" data-testid="record-found">
         {`${r.name}  ${r.type}  ${r.found ? `"${r.found}"` : "(none)"}`}
       </div>
       <p className="m-0 text-[13px] leading-[20px] text-ink-3">{r.how}</p>
-      <div className="selectable overflow-hidden rounded-[6px] bg-fill font-mono text-[12.5px] leading-[19px]" data-testid="record-diff">
+      <div className="selectable overflow-hidden rounded-media bg-fill font-mono text-[12px] leading-[19px]" data-testid="record-diff">
         {r.found && <div className="px-[12px] py-[3px] break-words whitespace-pre-wrap bg-[var(--watch-del-bg)] text-[var(--watch-del-ink)]">− {r.found}</div>}
         <div className="px-[12px] py-[3px] break-words whitespace-pre-wrap bg-[var(--watch-add-bg)] text-[var(--watch-add-ink)]">+ {r.want}</div>
       </div>
@@ -82,7 +82,7 @@ export function AlertRows({ alerts, fixed }: { alerts: RepoAlert[]; fixed?: bool
             fixed ? (
               <span className="text-right text-[12px] text-ink-3">Fixed</span>
             ) : a.url && a.source !== "key" ? (
-              <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-right text-[12px] text-ink-3 hover:text-brand-text hover:underline" onClick={() => void invoke("app:openExternal", a.url!)}>
+              <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-right text-[12px] text-ink-3 hover:text-ink hover:underline" onClick={() => void invoke("app:openExternal", a.url!)}>
                 {a.id ?? "Details"}
               </button>
             ) : (
@@ -122,7 +122,7 @@ export function RepoCard({ w, findings, paused, acts }: { w: WatchView; findings
   return (
     <div className={card(true)} data-testid="problem-repo">
       <WarnMeta at={openedAt} />
-      <div className="text-[17px] leading-[24px] text-ink">{repoHeadline(findings.length, w.name)}</div>
+      <div className="text-[20px] leading-[26px] text-ink">{repoHeadline(findings.length, w.name)}</div>
       <p className="m-0 text-[15px] leading-[22px] text-ink-2">{repoBody(alerts)}</p>
       <AlertRows alerts={alerts} />
       <div className="flex flex-wrap items-center gap-[6px]">
@@ -152,34 +152,7 @@ function WarnMeta({ at }: { at: number }) {
  * A problem a run showed gone after your fix: green tick and time, what's true now, and the evidence
  * (the record as it is now, the check list, or the alerts marked fixed). No notification: you did it.
  */
-export function FixedCard({ w, found, run }: { w: WatchView; found: PastFinding[]; run?: Run }) {
-  const at = found[0]!.closedAt
-  const keys = found.map((f) => f.key)
-  const left = w.kind === "repo" ? liveProblems(w, Date.now()).length : 0
-  const alerts = found.map((f) => f.ev?.alert).filter((a): a is RepoAlert => !!a)
-  const record = found.find((f) => f.ev?.record)?.ev?.record
-  const github = w.kind === "repo" && !w.target.startsWith("/") && !w.target.startsWith("~")
-  return (
-    <div className={card(false)} data-testid="fixed-card">
-      <div className="flex items-center gap-[8px] text-[12px] leading-[16px] text-ink-3 tabular-nums">
-        <CheckIcon size={13} className="text-ok" />
-        <span className="text-ok">Fixed at {clock(at)}</span>
-      </div>
-      <div className="text-[17px] leading-[24px] text-ink">{fixedLine(w.kind, w.target, keys, run ?? w.latest, left)}</div>
-      {record && run?.dmarc && keys.includes("dmarc:none") && (
-        <div className="selectable truncate rounded-[6px] bg-fill px-[12px] py-[8px] font-mono text-[12.5px] leading-[19px] whitespace-nowrap text-ink-2">{`${record.name} TXT "${run.dmarc}"`}</div>
-      )}
-      {keys.includes("slow") && <SpeedChart ticks={w.strip} />}
-      {alerts.length > 0 && <AlertRows alerts={alerts} fixed />}
-      {github && <p className="m-0 text-[13px] leading-[20px] text-ink-3">GitHub closes its alerts when you push. Axe checks again tomorrow.</p>}
-    </div>
-  )
-}
-
 /* The fix turn */
-
-/** Fixes that finished while you watched stay open in full this session; older ones fold to one line. */
-const seenLive = new Set<string>()
 
 function AgentHeader({ turn }: { turn: FixTurn }) {
   const catalog = useStore((s) => s.catalog)
@@ -210,13 +183,12 @@ export function FixBlock({ w, turn, last }: { w: WatchView; turn: FixTurn; last:
   const files = useStore((s) => (threadId ? s.changes[threadId] : undefined))
   const checking = useStore((s) => s.watchChecking === w.id)
   const allAsks = useStore((s) => s.permissions)
-  // The agent's questions (a plan's Start shows on its plan card instead).
+  // The agent's questions. A plan waits in the chat, where it can be read in full before Start.
   const asks = useMemo(() => (threadId ? allAsks.filter((p) => p.threadId === threadId && !p.plan) : []), [allAsks, threadId])
+  const plan = !!threadId && allAsks.some((p) => p.threadId === threadId && p.plan)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const kept = useRef<{ rel: string }[]>([])
-  const key = `${w.id}:${turn.at}`
-  if (turn.state !== "kept" || !turn.result) seenLive.add(key)
 
   useEffect(() => {
     if (!threadId) return
@@ -229,21 +201,10 @@ export function FixBlock({ w, turn, last }: { w: WatchView; turn: FixTurn; last:
   }, [threadId, running])
 
   const sum = useMemo(() => totals(files ?? []), [files])
-  const rest = messages.slice(1)
-  const lastAssistant = rest.findLast((m) => m.role === "assistant")?.id
   const site = w.kind !== "repo"
-
-  // A fix that ended fixed, from before this session: one line that opens the agent's session.
-  if (turn.result === "fixed" && !seenLive.has(key) && turn.state === "kept") {
-    return (
-      <div className="flex flex-col gap-[10px]">
-        <Line
-          icon={<AgentMark turn={turn} />}
-          onClick={threadId ? () => void openThread(threadId) : undefined}
-        >{`${turn.agent} changed ${turn.files ?? 0} ${turn.files === 1 ? "file" : "files"} in ${tilde(turn.folder)}. Kept.`}</Line>
-      </div>
-    )
-  }
+  // The page never shows the agent's messages or raw steps: one plain line, and the chat is a click away.
+  const lastParts = messages.findLast((m) => m.role === "assistant")?.parts ?? EMPTY_PARTS
+  const doing = running ? liveLabel(lastParts.filter((p): p is StepPart => p.type === "tool" || p.type === "reasoning")) : null
 
   const keep = async () => {
     if (!threadId || !files) return
@@ -264,7 +225,7 @@ export function FixBlock({ w, turn, last }: { w: WatchView; turn: FixTurn; last:
 
   return (
     <div className="flex flex-col gap-[16px]" data-testid="fix-turn">
-      <div className="self-end rounded-[16px] bg-bubble px-[12px] py-[5px] text-[13px] leading-[18px] text-ink-2">Fix with {turn.agent}</div>
+      <div className="self-end rounded-3xl bg-bubble px-[12px] py-[5px] text-[13px] leading-[18px] text-ink-2">Fix with {turn.agent}</div>
       {turn.state === "asking" && <FolderAsk w={w} turn={turn} />}
       {turn.state !== "asking" && (
         <div className="flex flex-col gap-[10px]">
@@ -274,12 +235,14 @@ export function FixBlock({ w, turn, last }: { w: WatchView; turn: FixTurn; last:
               <Spin /> Starting
             </div>
           )}
-          {rest.map((m) =>
-            m.role === "user" ? (
-              <Bubble key={m.id}>{m.parts.map((p) => (p.type === "text" ? p.text : "")).join("")}</Bubble>
-            ) : (
-              <AssistantMessage key={m.id} threadId={threadId!} msg={m} isLast={m.id === lastAssistant} />
-            ),
+          {threadId && (
+            <div className="flex items-center gap-[8px] text-[13px] leading-[18px] text-ink-3" data-testid="fix-status">
+              {doing && !plan && <Spin />}
+              <span>{plan ? "A plan is waiting for you" : doing ? (doing === "Thinking" ? doing : `${doing}…`) : "Finished"}</span>
+              <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-[13px] leading-[18px] text-ink-3 hover:text-ink" onClick={() => void openThread(threadId)}>
+                Open the chat
+              </button>
+            </div>
           )}
           {asks.map((p) => (
             <PermissionCard key={p.id} request={p} cwd={turn.folder} />
@@ -292,7 +255,7 @@ export function FixBlock({ w, turn, last }: { w: WatchView; turn: FixTurn; last:
                     key={f.path}
                     type="button"
                     onClick={() => threadId && openReview(threadId)}
-                    className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-[10px] border-0 border-t border-[var(--watch-line)] bg-transparent px-0 py-[7px] text-left text-[13px] leading-[18px] text-ink first:border-t-0 hover:text-brand-text"
+                    className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-[10px] border-0 border-t border-[var(--watch-line)] bg-transparent px-0 py-[7px] text-left text-[13px] leading-[18px] text-ink first:border-t-0 hover:text-ink-2"
                   >
                     <FileIcon size={14} className="text-ink-3" />
                     <span className="truncate">{f.rel}</span>
@@ -369,12 +332,6 @@ function stillLine(w: WatchView, turn: FixTurn): string {
   return `Still there: ${(f?.headline ?? turn.headline).replace(/\.$/, "")}.`
 }
 
-function AgentMark({ turn }: { turn: FixTurn }) {
-  const catalog = useStore((s) => s.catalog)
-  const a = turn.answerer.kind === "agent" ? catalog?.agents.find((x) => x.id === (turn.answerer as { agentId: string }).agentId) : undefined
-  return <LogoTile logo={a ? agentLogo(a) : undefined} name={turn.agent} size={14} auto={!a} />
-}
-
 function Counts({ added, removed }: { added: number; removed: number }) {
   return (
     <span className="text-[12px] tabular-nums">
@@ -405,7 +362,7 @@ function FolderAsk({ w, turn }: { w: WatchView; turn: FixTurn }) {
               key={f.path}
               type="button"
               onClick={() => pick(f.path)}
-              className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-[10px] border-0 border-t border-[var(--watch-line)] bg-transparent px-0 py-[7px] text-left text-[13px] leading-[18px] text-ink first:border-t-0 hover:text-brand-text"
+              className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-[10px] border-0 border-t border-[var(--watch-line)] bg-transparent px-0 py-[7px] text-left text-[13px] leading-[18px] text-ink first:border-t-0 hover:text-ink-2"
             >
               <FolderIcon size={14} className="text-ink-3" />
               <span className="truncate">

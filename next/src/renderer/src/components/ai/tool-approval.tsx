@@ -42,12 +42,13 @@ function ToolApproval({
   const commandish = shell || (!!command && isShellCommand(command))
   // Axe AI: a file the title already names ("Write src/cart.js") isn't repeated under it.
   const code = command && command !== description && !description.includes(command) ? command : shell ? description : undefined
-  const pill = "inline-flex h-[28px] items-center justify-center rounded-full border-0 px-[12px] text-[13px] font-normal transition-colors duration-150"
+  // Axe AI: spec 0001: 32px pills, 150ms ease-out, a 0.96 press.
+  const pill = "inline-flex h-[32px] items-center justify-center rounded-full border-0 px-[16px] text-[13px] font-normal transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.96]"
   return (
     <section
       data-slot="tool-approval"
       className={cn(
-        "flex flex-col items-start rounded-[16px] border-0 bg-card px-[16px] py-[12px] font-sans text-[14px] font-normal text-ink-3 shadow-none transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0",
+        "flex flex-col items-start rounded-3xl border-0 bg-card p-[24px] font-sans text-[14px] font-normal text-ink-3 shadow-none transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] starting:translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0",
         className,
       )}
       {...props}
@@ -64,7 +65,7 @@ function ToolApproval({
             <span className="hidden group-open:inline">Hide command</span>
           </summary>
           {/* Axe AI: a long or multi-line command keeps its lines and scrolls past 8 of them; the icon sits on the first line. */}
-          <div className="flex items-start gap-[10px] rounded-[12px] bg-entity px-[14px] py-[6px] font-mono text-[12px] leading-[20px] text-ink">
+          <div className="flex items-start gap-[10px] rounded-media bg-entity px-[16px] py-[8px] font-mono text-[12px] leading-[20px] text-ink">
             <span className="flex h-[20px] shrink-0 items-center">
               {commandish ? <TerminalMark size={14} className="text-ink-3" /> : <FileMark size={14} className="text-ink-3" />}
             </span>
@@ -74,15 +75,15 @@ function ToolApproval({
       )}
       {scope && <p className="m-0 mb-[8px] text-[13px] leading-5">Scope: {scope}</p>}
       <div className="flex flex-wrap items-center gap-[8px]">
-        <button type="button" onClick={() => onAllow?.(false)} className={`${pill} bg-primary text-primary-foreground hover:opacity-85`}>
+        <button type="button" onClick={() => onAllow?.(false)} className={`${pill} bg-brand text-white hover:bg-brand-hover`}>
           {allowLabel}
         </button>
         {!hideRemember && (
-          <button type="button" onClick={() => onAllow?.(true)} className={`${pill} bg-fill-4 text-foreground hover:bg-fill-3`}>
+          <button type="button" onClick={() => onAllow?.(true)} className={`${pill} bg-fill-2 text-foreground hover:bg-fill-3`}>
             {rememberLabel}
           </button>
         )}
-        <button type="button" onClick={onDeny} className={`${pill} bg-transparent text-ink-2 hover:bg-fill hover:text-ink`}>
+        <button type="button" onClick={onDeny} className={`${pill} bg-transparent text-ink-3 hover:bg-fill-2 hover:text-ink`}>
           {denyLabel}
         </button>
       </div>

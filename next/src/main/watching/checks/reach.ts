@@ -98,7 +98,7 @@ export const reachable = async (url: string, base: string | null, d: Pick<CheckD
  * `strict`: the first host is checked too (the watched host isn't exempt).
  */
 export async function fetchListed(d: CheckDeps, url: string, base: string, o: { site?: boolean; strict?: boolean; init?: RequestInit } = {}): Promise<Response> {
-  if (o.site && !sameSite(url, base)) throw new Error("not on the watched site")
+  if (o.site && !sameSite(url, base)) throw new Error("not on the checked site")
   let at = url
   for (let hop = 0; hop <= 5; hop++) {
     const ok = await vet(at, o.strict ? null : base, d)

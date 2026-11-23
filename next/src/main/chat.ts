@@ -4,7 +4,7 @@ import { writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { pathToFileURL } from "node:url"
 
-import type { ContentBlock, RequestPermissionRequest, RequestPermissionResponse, SessionUpdate } from "@agentclientprotocol/sdk"
+import type { ContentBlock, RequestPermissionRequest, RequestPermissionResponse, SessionUpdate, ToolCallContent } from "@agentclientprotocol/sdk"
 
 import type {
   AgentMode,
@@ -32,11 +32,13 @@ import {
   nativeMode,
   parsePlan,
   PLAN_ONLY_NOTE,
+  WORK_NOTE,
   planOptions,
   planRequest,
   toolPaths,
   touchesFiles,
 } from "./agents/modes"
+import { blockPicture, deletePictures, IMAGES_PER_REPLY, pathsOf, type Picture, readCopy, readPicture, savePicture } from "./agents/images"
 import { makeCopy, removeCopyIfEmpty } from "./agents/workspace"
 
 import { type LaunchSpec, launchSpec } from "./agents/registry"
@@ -97,12 +99,27 @@ type Turn = { reply: ChatMessage; stop: () => void }
 type Live = {
   session: AgentSession
   seen: number
-  turn?: { builder: ReplyBuilder; changed: () => void; threadId: string; asks: AbortController }
+  turn?: AgentTurn
   /** Ends the chat's key on Axe's MCP server. */
   release?: () => void
   /** What the agent advertised for the / menu. */
   commands?: SlashCommand[]
 }
+
+/** The turn an agent is on: its reply, and pictures still being copied for it (spec 0035). */
+type AgentTurn = {
+  builder: ReplyBuilder
+  changed: () => void
+  threadId: string
+  asks: AbortController
+  startedAt: number
+  /** Tool calls so far, merged from their updates (a finished update often carries only its status). */
+  calls: Map<string, ToolCallSoFar>
+  pending: Set<Promise<void>>
+  /** The reply went out: late pictures are dropped. */
+  closed?: boolean
+}
+type ToolCallSoFar = { kind?: string | null; locations?: { path: string }[] | null; content?: ToolCallContent[] | null; rawInput?: unknown }
 
 const running = new Map<string, Turn>()
 
@@ -285,6 +302,7 @@ export async function deleteThread(threadId: string) {
   }
   if (local) deleteLocal(threadId)
   forgetTracker(threadId)
+  deletePictures(threadId)
   if (local?.copy && local.cwd) void removeCopyIfEmpty(local.cwd, local.copy)
   setChatMeta(threadId, { helperId: undefined, connectors: undefined, allowed: undefined })
   emitThreads()
@@ -542,6 +560,7 @@ async function agentTurn(
             return
           }
           const t = holder.turn
+          if (t) showPictures(t, cwd, n.update)
           if (t && t.builder.apply(n.update)) t.changed()
         },
         onPermission: (p, signal) => agentPermission(holder.turn?.threadId ?? threadId, holder, cwd, p, signal),
@@ -572,7 +591,7 @@ async function agentTurn(
       sessions.set(threadId, live)
     }
     if (stopped) throw new Stopped()
-    live.turn = { builder, changed: out.changed, threadId, asks: new AbortController() }
+    live.turn = { builder, changed: out.changed, threadId, asks: new AbortController(), startedAt, calls: new Map(), pending: new Set() }
     const context = contextText(transcript.slice(live.seen))
     const remember = rememberFor(live.seen === 0)
     const mode = modeOf(threadId)
@@ -586,6 +605,7 @@ async function agentTurn(
     const meta = chatMeta(threadId)
     const library = await contextFor({ helperId: meta.helperId, skillIds: skill ? [skill] : [], start: live.seen === 0 })
     const blocks: ContentBlock[] = []
+    if (live.seen === 0) blocks.push({ type: "text", text: WORK_NOTE })
     if (library) blocks.push({ type: "text", text: `${LIBRARY_OPEN}\n${library}\n${LIBRARY_CLOSE}` })
     if (remember) blocks.push({ type: "text", text: `${MEMORY_OPEN}\n${remember}\n${MEMORY_CLOSE}` })
     if (planInWords) blocks.push({ type: "text", text: PLAN_ONLY_NOTE })
@@ -606,6 +626,12 @@ async function agentTurn(
     if (live && (live.session.closed || !live.session.running)) closeSession(threadId)
   } finally {
     const live = sessions.get(threadId)
+    // Pictures still being copied land in the reply before it is saved (a stuck one is dropped).
+    if (live?.turn) {
+      const turn = live.turn
+      await Promise.race([Promise.allSettled([...turn.pending]), new Promise((r) => setTimeout(r, 5000))])
+      turn.closed = true
+    }
     // Cards for Axe's tools that are still open are withdrawn with the turn.
     live?.turn?.asks.abort()
     if (live) live.turn = undefined
@@ -1376,6 +1402,67 @@ function saveBeforeChange(threadId: string, cwd: string, u: Extract<SessionUpdat
     return
   }
   void tracker.capture(toolPaths(u)).catch(() => {})
+}
+
+// Pictures (spec 0035)
+
+/** Pictures in an update: image blocks the agent sent, and image files a finished tool wrote or read. */
+function showPictures(t: AgentTurn, cwd: string, u: SessionUpdate) {
+  const run = (job: () => Promise<void>) => {
+    const p: Promise<void> = job()
+      .catch(() => {})
+      .finally(() => t.pending.delete(p))
+    t.pending.add(p)
+  }
+  if (u.sessionUpdate === "agent_message_chunk" && u.content.type === "image") {
+    const block = u.content
+    run(async () => void (await showPicture(t, `block:${randomUUID()}`, async () => blockPicture(block))))
+    return
+  }
+  if (u.sessionUpdate !== "tool_call" && u.sessionUpdate !== "tool_call_update") return
+  const call = t.calls.get(u.toolCallId) ?? {}
+  if (u.kind != null) call.kind = u.kind
+  if (u.locations != null) call.locations = u.locations
+  if (u.content != null) call.content = u.content
+  if (u.rawInput !== undefined) call.rawInput = u.rawInput
+  t.calls.set(u.toolCallId, call)
+  if (u.status !== "completed") return
+  const after = u.toolCallId
+  run(async () => {
+    let shown = 0
+    for (const { path } of await pathsOf(call, cwd, t.startedAt)) if (await showPicture(t, `path:${path}`, () => readPicture(path, cwd), after)) shown++
+    // A tool that read a picture may also hand it back as a block: once is enough.
+    if (shown) return
+    for (const c of call.content ?? [])
+      if (c.type === "content" && c.content.type === "image") {
+        const block = c.content
+        await showPicture(t, `block:${randomUUID()}`, async () => blockPicture(block), after)
+      }
+  })
+}
+
+async function showPicture(t: AgentTurn, key: string, read: () => Promise<Picture | undefined>, after?: string): Promise<boolean> {
+  const picture = await read()
+  if (!picture || t.closed) return false
+  const id = t.builder.pictureSlot(key, IMAGES_PER_REPLY)
+  if (!id) return false
+  await savePicture(t.threadId, id, picture)
+  if (t.closed) return false
+  t.builder.image({ id, name: picture.name, mime: picture.mime, size: picture.bytes.length }, after)
+  t.changed()
+  return true
+}
+
+/**
+ * Axe's copy of a picture in a chat, for the window and a paired phone. Only a picture part of that
+ * chat's messages (saved, or in the reply being written) is served; nothing else, and never by path.
+ */
+export async function imageFor(threadId: string, partId: string): Promise<{ name: string; mime: Extract<Part, { type: "image" }>["mime"]; bytes: Buffer }> {
+  if (typeof threadId !== "string" || typeof partId !== "string") throw new Error("That isn't a picture in this chat.")
+  const messages = [...(getLocal(threadId)?.messages ?? []), ...(running.get(threadId) ? [running.get(threadId)!.reply] : [])]
+  const part = messages.flatMap((m) => m.parts).find((p): p is Extract<Part, { type: "image" }> => p.type === "image" && p.id === partId)
+  if (!part) throw new Error("That isn't a picture in this chat.")
+  return { name: part.name, mime: part.mime, bytes: await readCopy(threadId, partId, part.mime) }
 }
 
 // Review changes

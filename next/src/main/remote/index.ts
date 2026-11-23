@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { hostname } from "node:os"
 
-import { app, BrowserWindow, dialog, shell } from "electron"
+import { app, BrowserWindow, dialog, Notification, shell } from "electron"
 
 import { deviceId, isDeviceId } from "@shared/remote-pairing"
 
@@ -14,7 +14,7 @@ import * as attachments from "../attachments"
 import * as chat from "../chat"
 import { catalog } from "../commands"
 import { handle } from "../ipc"
-import { dataPath, isSelfTest, readJSON, writeJSON } from "../paths"
+import { dataPath, isSelfTest, readJSON, statusLog, writeJSON } from "../paths"
 import { onSettingsChange, settings, updateSettings } from "../settings"
 import { deviceKeys } from "./device-keys"
 import { startLink } from "./link"
@@ -60,11 +60,11 @@ const phoneEnabled = () => settings().phoneEnabled === true && isSignedIn()
 
 // "Connect David's iPhone?", answered in the window (phones:answer). One at a time; 80 seconds, then no.
 const asks = new Map<string, (allow: boolean) => void>()
-function askPhone(phone: { name: string; agent: string }, showMain: () => void): Promise<boolean> {
+function askPhone(phone: { name: string; agent: string; check?: string; computer?: string }, showMain: () => void): Promise<boolean> {
   if (isSelfTest() && process.env.AXE_PHONE_ALLOW !== undefined) return Promise.resolve(process.env.AXE_PHONE_ALLOW === "1")
   const id = randomUUID()
   showMain()
-  emit("phoneAsk", { id, name: phone.name, agent: phone.agent })
+  emit("phoneAsk", { id, name: phone.name, agent: phone.agent, ...(phone.check ? { check: phone.check, computer: phone.computer ?? "" } : {}) })
   return new Promise((resolve) => {
     const done = (allow: boolean) => {
       if (!asks.delete(id)) return
@@ -115,6 +115,20 @@ export function startRemote(opts: { showMain: () => void }) {
     macName: computerName,
     origin: () => settings().baseURL,
     ask: (phone) => askPhone(phone, opts.showMain),
+    askClick: (c) => askPhone({ name: c.browser, agent: "", check: c.check, computer: c.computer }, opts.showMain),
+    turnOn: () => {
+      if (isSignedIn() && settings().phoneEnabled !== true) updateSettings({ phoneEnabled: true })
+    },
+    notice: (text) => {
+      if (isSelfTest() || !Notification.isSupported()) return
+      new Notification({ title: "Axe AI", body: text, silent: true }).show()
+    },
+    postCode: async (offer, expiresAt) => {
+      await client()?.json("api/remote/mac/pair-code", { method: "POST", json: { offer, expiresAt } })
+    },
+    dropCode: async () => {
+      await client()?.json("api/remote/mac/pair-code", { method: "DELETE" })
+    },
     load: () => (isSelfTest() ? memoryPhones : readJSON<SavedPhones>(dataPath("phones.json"), { phones: [] })),
     save: (saved) => (isSelfTest() ? (memoryPhones = saved) : writeJSON(dataPath("phones.json"), saved)),
     emit: (view) => emit("phones", view),
@@ -138,13 +152,15 @@ export function startRemote(opts: { showMain: () => void }) {
       stop: (id) => chat.stop(id),
       setMode: (id, mode) => chat.setMode(id, mode),
       modeOf: (id) => chat.modeOf(id),
+      defaultMode: () => settings().mode ?? "ask",
       isRunning: (id) => chat.isRunning(id),
       title: (id) => chat.threadTitle(id),
       answer: (requestId, optionId) => chat.answerPermission(requestId, optionId),
+      image: (id, partId) => chat.imageFor(id, partId),
     },
     saveFile: (name, bytes) => attachments.fromBytes(name, attachments.mimeOf(name), bytes),
     catalog: () => catalog(),
-    phoneName: async (phone) => (await phones.phone(phone))?.name ?? "A phone",
+    phoneName: async (phone) => (await phones.phone(phone))?.name ?? "A device",
     sendTo: async (phone, m) => (await phoneLink?.sendTo(phone, m)) ?? false,
     broadcast: (kind, body, chatId) => void phoneLink?.broadcast(kind, body, chatId),
     log: (entry) => {
@@ -198,7 +214,7 @@ export function startRemote(opts: { showMain: () => void }) {
             const added = ids.filter((id) => !live.includes(id))
             live = ids
             void phones.view().then((v) => emit("phones", v))
-            for (const id of added) void phones.phone(id).then((p) => addLog(id, p?.name ?? "A phone", "Connected"))
+            for (const id of added) void phones.phone(id).then((p) => addLog(id, p?.name ?? "A device", "Connected"))
           },
           onMessage: (phone, m) => void phoneChat.handle(phone, m),
         })
@@ -225,11 +241,16 @@ export function startRemote(opts: { showMain: () => void }) {
     client: () => (isSignedIn() ? client() : undefined),
     // The link also carries phones' pairing, so it's up while either is on.
     enabled: () => remoteEnabled() || phoneEnabled(),
+    // Only while remote control or pairing is on (showing a code or QR turns pairing on): nothing touches
+    // the Keychain or reaches axeai.com at launch for people who never turned either on.
+    linkWanted: () => remoteEnabled() || phoneEnabled(),
     commandsEnabled: remoteEnabled,
     phones,
     macId: async () => {
       const k = await deviceKeys()
-      return k ? deviceId(k.pub.ed) : undefined
+      const id = k ? await deviceId(k.pub.ed) : undefined
+      statusLog(id ? `device ${id}` : "no device keys")
+      return id
     },
     approvals,
     doing: () => chat.runningCount(),
@@ -241,7 +262,10 @@ export function startRemote(opts: { showMain: () => void }) {
     askToAllow,
     load: () => (isSelfTest() ? { code: "", created: 0 } : readJSON(dataPath("remote.json"), { code: "", created: 0 })),
     save: (saved) => !isSelfTest() && writeJSON(dataPath("remote.json"), saved),
-    emit: (state) => emit("remote", state),
+    emit: (state) => {
+      if (state.connected) statusLog("remote online")
+      emit("remote", state)
+    },
   })
   remote = link
   link.refresh()
@@ -262,7 +286,13 @@ export function startRemote(opts: { showMain: () => void }) {
   handle("remote:newCode", () => link.newCode())
   handle("phones:get", () => phones.view())
   handle("phones:setEnabled", async (on) => (updateSettings({ phoneEnabled: on }), link.refresh(), phones.view()))
-  handle("phones:code", async () => (await phones.qr()) ?? null)
+  handle("phones:code", async () => {
+    const p = await phones.pairing()
+    if (!p) return null
+    const c = p.code
+    return { link: p.link, expiresAt: p.expiresAt, code: c.code, codeExpiresAt: "expiresAt" in c ? c.expiresAt : 0, blockedUntil: "blockedUntil" in c ? c.blockedUntil : 0 }
+  })
+  handle("phones:closeCode", () => phones.closeCode())
   handle("phones:remove", async (id) => {
     if (!isDeviceId(id)) return phones.view()
     getLink()?.kick(id)

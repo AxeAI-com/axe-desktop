@@ -39,8 +39,8 @@ describe("reading a sentence", () => {
   })
 
   it("the fallback finds an address and never picks a kind", () => {
-    expect(fallbackAsk("lane-ceramics.com")).toEqual({ ask: "kind", question: "What should I watch on lane-ceramics.com?", target: "lane-ceramics.com" })
-    expect(fallbackAsk("keep an eye on things")).toEqual({ ask: "kind", question: "What should I watch?" })
+    expect(fallbackAsk("lane-ceramics.com")).toEqual({ ask: "kind", question: "What should I keep an eye on at lane-ceramics.com?", target: "lane-ceramics.com" })
+    expect(fallbackAsk("keep an eye on things")).toEqual({ ask: "kind", question: "What should I keep an eye on?" })
     // Words like "price", "down" or "security" never decide the kind.
     for (const t of ["tell me if my site goes down", "watch the price of clay", "check security on lane-ceramics.com", "has my pricing page changed?"]) {
       const a = fallbackAsk(t)
@@ -50,7 +50,7 @@ describe("reading a sentence", () => {
   })
 
   it("asks for what's missing: the kind, or the target with the kind set", () => {
-    expect(nextAsk({ kind: "unclear" })).toEqual({ ask: "kind", question: "What should I watch?" })
+    expect(nextAsk({ kind: "unclear" })).toEqual({ ask: "kind", question: "What should I keep an eye on?" })
     expect(nextAsk({ kind: "uptime" })).toEqual({ ask: "target", question: "Which site?", kind: "uptime" })
     expect(nextAsk({ kind: "price", target: "my shop" })).toEqual({ ask: "target", question: "Which product page?", kind: "price" })
     expect(nextAsk({ kind: "page", target: "a.com/p" })).toBeNull()
@@ -160,7 +160,7 @@ describe("the engine with a model", () => {
 
   it("a sentence the model can't place asks with the starters", async () => {
     const { e } = setup(reading({ kind: "unclear" }))
-    expect(await e.read({ text: "keep an eye on things for me", answerer: agent })).toEqual({ ask: "kind", question: "What should I watch?" })
+    expect(await e.read({ text: "keep an eye on things for me", answerer: agent })).toEqual({ ask: "kind", question: "What should I keep an eye on?" })
   })
 
   it("a kind with no target asks which one", async () => {
@@ -170,10 +170,10 @@ describe("the engine with a model", () => {
 
   it("no model, or a reply that doesn't validate, falls back to the address", async () => {
     const { e } = setup(() => "uptime, I think")
-    expect(await e.read({ text: "Tell me if lane-ceramics.com goes down", answerer: agent })).toEqual({ ask: "kind", question: "What should I watch on lane-ceramics.com?", target: "lane-ceramics.com" })
+    expect(await e.read({ text: "Tell me if lane-ceramics.com goes down", answerer: agent })).toEqual({ ask: "kind", question: "What should I keep an eye on at lane-ceramics.com?", target: "lane-ceramics.com" })
     const thrown = setup(() => Promise.reject(new Error("offline")))
-    expect(await thrown.e.read({ text: "keep an eye on things", answerer: agent })).toEqual({ ask: "kind", question: "What should I watch?" })
-    expect(await thrown.e.read({ text: "lane-ceramics.com" })).toEqual({ ask: "kind", question: "What should I watch on lane-ceramics.com?", target: "lane-ceramics.com" })
+    expect(await thrown.e.read({ text: "keep an eye on things", answerer: agent })).toEqual({ ask: "kind", question: "What should I keep an eye on?" })
+    expect(await thrown.e.read({ text: "lane-ceramics.com" })).toEqual({ ask: "kind", question: "What should I keep an eye on at lane-ceramics.com?", target: "lane-ceramics.com" })
   })
 
   it("a domain that doesn't exist offers the close match from your watches", async () => {

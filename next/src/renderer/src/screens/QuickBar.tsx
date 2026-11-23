@@ -14,11 +14,13 @@ import { defaultAnswerer, getState, openThread, plainError, sendInThread, sendNe
 import { cancelDictation, DICTATED, getVoice, holdDown, holdUp, type DictatedDetail } from "@/lib/voice"
 
 import { attachFiles, AttachmentChip } from "@/components/Attachments"
-import { agentLogo, BrandLogo, modelLogo } from "@/components/BrandLogo"
+import { agentLogo, BrandLogo, LogoTile, modelLogo } from "@/components/BrandLogo"
 import { PermissionCard } from "@/components/Cards"
 import { AxeMark } from "@/components/Logo"
-import { CheckIcon, ChevronDown, ClipboardIcon, EyeIcon, FolderIcon, PencilIcon, PlusIcon, ScreenIcon, SendIcon } from "@/components/Icons"
-import { Keycaps } from "@/components/Kit"
+import { CheckIcon, ChevronDown, ClipboardIcon, EyeIcon, FolderIcon, NewChatIcon, PencilIcon, PlusIcon, ScreenIcon, SendIcon } from "@/components/SolarIcons"
+import { boxButton, button, iconButton, Keycaps, underControl } from "@/components/Kit"
+import { MagicIcon } from "@/components/Icons"
+import { menuLabelClass, menuPanel, menuRowClass } from "@/components/Popover"
 import { Markdown } from "@/components/Markdown"
 import { StepGroup } from "@/components/StepGroup"
 import { DictationStrip, MicButton } from "@/components/Voice"
@@ -41,7 +43,7 @@ type WatchStage =
   | { s: "starting"; draft: Draft; text: string }
   | { s: "started"; draft: Draft; id: string }
 
-const UNCLEAR = "What should I watch? A site, a page, a price or a repo."
+const UNCLEAR = "What should I keep an eye on? A site, a page, a price or a repo."
 type Choice = { id: string; label: string; note?: string; icon: ReactNode; run: () => void; section?: string }
 
 const EMPTY: ChatMessage[] = []
@@ -116,7 +118,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
     input.current?.focus()
   }, [threadId])
 
-  // The window follows the panel's height (its layout height: the entrance scales it). The panel is
+  // The window follows the panel's height (its layout height). The panel is
   // made anew on each show, so the observer follows it.
   useLayoutEffect(() => {
     const el = panel.current
@@ -341,15 +343,15 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
   const choices = useMemo<Choice[]>(() => {
     if (menu === "add")
       return [
-        { id: "screen", label: "Add my screen", note: "A screenshot, without this bar", icon: <ScreenIcon size={15} />, run: () => void capture("screen") },
-        { id: "clipboard", label: "Add what's copied", note: "Text or an image", icon: <ClipboardIcon size={15} />, run: () => void capture("clipboard") },
+        { id: "screen", label: "Add my screen", note: "A screenshot, without this bar", icon: <ScreenIcon size={14} />, run: () => void capture("screen") },
+        { id: "clipboard", label: "Add what's copied", note: "Text or an image", icon: <ClipboardIcon size={14} />, run: () => void capture("clipboard") },
         ...(isAgent && !threadId
           ? [
               {
                 id: "folder",
                 label: "Work in another folder",
                 note: folder ? folderName(folder) : undefined,
-                icon: <FolderIcon size={15} />,
+                icon: <FolderIcon size={14} />,
                 run: () =>
                   void invoke("app:pickFolder").then((f) => {
                     setMenu(null)
@@ -366,7 +368,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
           section: "Axe AI",
           label: x.label,
           note: x.description ?? undefined,
-          icon: <BrandLogo auto={x.id === "auto"} logo={modelLogo(x)} name={x.label} size={22} />,
+          icon: <LogoTile auto={x.id === "auto"} logo={modelLogo(x)} name={x.label} size={14} square />,
           run: () => void pick({ kind: "axe", modelId: x.id }),
         }),
       )
@@ -378,7 +380,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
             section: "On this computer",
             label: a.name,
             note: a.note,
-            icon: <BrandLogo logo={agentLogo(a)} name={a.name} size={22} />,
+            icon: <LogoTile logo={agentLogo(a)} name={a.name} size={14} square />,
             run: () => void pick({ kind: "agent", agentId: a.id }),
           }),
         )
@@ -442,37 +444,36 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
     else if (action === "hide") hideBar()
   }
 
-  const enter = m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.965, y: -10, filter: "blur(10px)" }
+  // The bar fades in and out (120 ms); nothing scales, slides or blurs.
+  const enter = { opacity: 0 }
   const content = (
     <motion.div
       key={shownAt}
       ref={panel}
       initial={enter}
-      animate={closing ? (m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: -4, filter: "blur(4px)" }) : { opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-      transition={closing ? m.t(D.fast) : m.t(D.slow)}
+      animate={{ opacity: closing ? 0 : 1 }}
+      transition={m.t(D.fast)}
       style={{ transformOrigin: "top center" }}
       className="flex w-[750px] max-w-full flex-col text-ink"
     >
         <>
-          <div role="dialog" aria-label="Quick bar" className="flex flex-col overflow-hidden rounded-[28px] bg-pop" style={{ boxShadow: "var(--quick-shadow)" }}>
+          <div role="dialog" aria-label="Quick bar" className="flex flex-col overflow-hidden rounded-3xl bg-pop" style={{ boxShadow: "var(--quick-shadow)" }}>
           <AnimatePresence initial={false}>
             {threadId && (
               <motion.div key="head" {...m.collapse} className="overflow-hidden">
                 <div className="flex h-[64px] items-center gap-3 px-3.5">
                   <RoundButton label="New question" big onClick={reset}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M12 20h8M16.5 3.6a2.1 2.1 0 0 1 3 3L7.5 18.6 3.5 19.5l.9-4z" />
-                    </svg>
+                    <NewChatIcon size={18} />
                   </RoundButton>
                   <div className="flex min-w-0 flex-1 flex-col leading-[18px]">
-                    <span className="truncate text-[14px] text-ink">{thread?.title || firstQuestion(messages)}</span>
+                    <span className="truncate text-[13px] text-ink">{thread?.title || firstQuestion(messages)}</span>
                     <span className="truncate text-[12px] text-ink-3">{where ? `${label}, in ${folderName(where)}` : label}</span>
                   </div>
                   <button
                     aria-label="Open in the window"
                     title={`Open in the window (${isMac() ? "⌘↩" : "Ctrl+Enter"})`}
                     onClick={openInMain}
-                    className="flex h-9 shrink-0 items-center gap-2 rounded-full border-0 bg-fill-2 pr-2 pl-4 text-[13px] text-ink transition-colors duration-150 hover:bg-fill-3"
+                    className={`${button.secondary} pr-[6px]`}
                   >
                     <span>Open in window</span>
                     <Keycaps keys={isMac() ? "⌘↵" : "Ctrl+Enter"} />
@@ -485,7 +486,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
           <AnimatePresence initial={false}>
             {threadId && messages.length > 0 && (
               <motion.div key="body" {...m.collapse} className="overflow-hidden">
-                <div ref={body} className="scroll max-h-[400px] px-[22px] pt-2 pb-[18px] [mask-image:linear-gradient(to_bottom,black_calc(100%-16px),transparent)]">
+                <div ref={body} className="scroll max-h-[400px] px-[22px] pt-2 pb-[18px]">
                   <Conversation threadId={threadId} messages={messages} liveAt={live?.startedAt} running={running} waiting={mine.length > 0} />
                   {mine.map((p) => (
                     <div key={p.id} className="pt-3">
@@ -510,18 +511,24 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                 <span className="flex size-[42px] shrink-0 items-center justify-center text-ink">
                   <CheckIcon size={18} />
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[20px] text-ink">Watching {started.draft.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[15px] text-ink">Checking {started.draft.name}</span>
               </div>
             ) : (
             <div className={`flex items-center ${threadId ? "h-[64px] gap-2.5" : "h-[68px] gap-[12px]"}`}>
-              <RoundButton label="Add your screen or what's copied" big strong onClick={() => setMenu((x) => (x === "add" ? null : "add"))} on={menu === "add"}>
-                <PlusIcon size={18} />
-              </RoundButton>
+              <button
+                aria-label="Add your screen or what's copied"
+                title="Add your screen or what's copied"
+                aria-expanded={menu === "add"}
+                onClick={() => setMenu((x) => (x === "add" ? null : "add"))}
+                className={boxButton(menu === "add")}
+              >
+                <MagicIcon size={16} />
+              </button>
               <div className={`flex min-w-0 flex-1 items-center rounded-full ${threadId ? "h-[42px] bg-fill px-[18px]" : "h-14"}`}>
                 {watching && (
-                  <span className="mr-[10px] inline-flex h-[26px] shrink-0 items-center gap-[6px] rounded-[6px] bg-brand-soft pr-[6px] pl-[8px] text-[13px] text-brand-text">
+                  <span className="mr-[10px] inline-flex h-[26px] shrink-0 items-center gap-[6px] rounded-full bg-fill-2 pr-[6px] pl-[8px] text-[13px] text-ink">
                     <EyeIcon size={14} />
-                    Watch
+                    Check
                   </span>
                 )}
                 <input
@@ -531,7 +538,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                   autoFocus
                   placeholder={
                     watching
-                      ? stage?.s === "ask" && stage.kind ? stage.question : "Say what to watch"
+                      ? stage?.s === "ask" && stage.kind ? stage.question : "Say what to check"
                       : threadId ? (answered ? "Ask a follow-up, or press Enter to open the chat" : "Ask a follow-up") : isAgent ? `What should ${label} do?` : "Ask Axe anything"
                   }
                   onChange={(e) => {
@@ -548,7 +555,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                       .then((got) => setFiles((now) => [...now, ...got].slice(0, 10)))
                       .catch((err) => setProblem(plainError(err)))
                   }}
-                  className={`min-w-0 flex-1 border-0 bg-transparent text-ink outline-none placeholder:text-ink-3 ${threadId ? "text-[14px]" : "text-[20px]"}`}
+                  className={`min-w-0 flex-1 border-0 bg-transparent text-ink outline-none placeholder:text-ink-3 ${threadId ? "text-[13px]" : "text-[20px]"}`}
                 />
               </div>
               {!threadId && (
@@ -556,7 +563,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                   aria-label={`Who answers: ${label}`}
                   aria-expanded={menu === "who"}
                   onClick={() => setMenu((x) => (x === "who" ? null : "who"))}
-                  className="flex h-[34px] max-w-[200px] shrink-0 items-center gap-1.5 rounded-full border-0 bg-fill-4 pr-3 pl-[7px] text-[13px] text-ink transition-colors duration-150 hover:bg-fill-3"
+                  className={`${underControl(menu === "who")} max-w-[220px]`}
                 >
                   <AnswererLogo answerer={answerer} />
                   <span className="max-w-[140px] truncate">{label}</span>
@@ -569,9 +576,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                 {(text.trim() || files.length > 0) && (
                   <motion.button
                     key="send"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                    initial={false}
                     transition={m.t(D.fast)}
                     aria-label={watching ? "Send" : "Ask"}
                     disabled={busy || stage?.s === "reading" || stage?.s === "starting"}
@@ -592,7 +597,7 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
             )}
           </div>
           {slash && slash.length > 0 && !menu && (
-            <div role="listbox" aria-label="Commands" className="flex flex-col border-t border-[var(--hairline)] px-[16px] dark:border-white/6 py-[12px] text-[13px]">
+            <div role="listbox" aria-label="Commands" className="flex flex-col border-t border-[var(--hairline)] p-[4px] text-[13px]">
               {slash.map((c, i) => (
                 <div
                   key={c.name}
@@ -603,17 +608,17 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                     e.preventDefault()
                     pickCommand(c)
                   }}
-                  className={`flex h-[32px] cursor-default items-center gap-[10px] rounded-[6px] px-[8px] text-ink ${i === slashPick ? "bg-fill-2" : ""}`}
+                  className={menuRowClass(i === slashPick)}
                 >
-                  <span className="text-ink-3">{c.name === "watch" ? <EyeIcon size={15} /> : <PencilIcon size={15} />}</span>
+                  <span className="flex w-[14px] justify-center text-ink-3">{c.name === "watch" ? <EyeIcon size={14} /> : <PencilIcon size={14} />}</span>
                   <span>{c.label}</span>
-                  <small className="ml-auto text-[12px] text-ink-3">{c.description}</small>
+                  <span className="ml-auto pl-[16px] text-ink-4">{c.description}</span>
                 </div>
               ))}
             </div>
           )}
           {(watching || started) && stage && (
-            <div className="flex flex-col gap-[10px] border-t border-[var(--hairline)] px-[16px] dark:border-white/6 py-[12px] text-[13px] leading-[18px]" aria-live="polite">
+            <div className="flex flex-col gap-[10px] border-t border-[var(--hairline)] px-[16px] py-[12px] text-[13px] leading-[18px]" aria-live="polite">
               {stage.s === "reading" && (
                 <span className="flex items-center gap-[8px] text-ink-3" role="status">
                   <Spin />
@@ -630,9 +635,9 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                   <span className="text-ink-2">{quickPlan(stage.draft)}</span>
                   <div className="flex flex-wrap items-center gap-[6px]">
                     <button type="button" className={btn("pri")} disabled={stage.s === "starting"} onClick={() => void startWatch(stage.draft, stage.text)}>
-                      Start watching
+                      Add check
                     </button>
-                    <span className="text-[12px] text-ink-3">Change it later in Watching.</span>
+                    <span className="text-[12px] text-ink-3">Change it later in Oversight.</span>
                   </div>
                 </>
               )}
@@ -649,14 +654,14 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
             </div>
           )}
           {((slash && slash.length > 0 && !menu) || watching || started) && (
-            <div className="flex h-[36px] items-center gap-[12px] border-t border-[var(--hairline)] px-[16px] dark:border-white/6 text-[12px] text-ink-3">
+            <div className="flex h-[36px] items-center gap-[12px] border-t border-[var(--hairline)] px-[16px] text-[12px] text-ink-3">
               <span className="truncate">{started ? "Closes in a moment" : label}</span>
               <span className="ml-auto flex shrink-0 gap-[12px]">
-                <span>
-                  <kbd className="rounded-[4px] bg-fill-2 px-[5px] py-px font-[inherit] text-[11.5px] text-ink-2">↵</kbd> {started ? "Open" : watching ? "Start" : "Pick"}
+                <span className="flex items-center gap-[6px]">
+                  <Keycaps keys="↵" /> {started ? "Open" : watching ? "Start" : "Pick"}
                 </span>
-                <span>
-                  <kbd className="rounded-[4px] bg-fill-2 px-[5px] py-px font-[inherit] text-[11.5px] text-ink-2">esc</kbd> Close
+                <span className="flex items-center gap-[6px]">
+                  <Keycaps keys="esc" /> Close
                 </span>
               </span>
             </div>
@@ -669,12 +674,11 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                 <div
                   role="listbox"
                   aria-label={menu === "who" ? "Who answers" : "Add to your question"}
-                  className={`scroll mt-[10px] max-h-[320px] rounded-[18px] bg-pop p-[8px] ${menu === "who" ? "w-[340px]" : "w-[310px]"}`}
-                  style={{ boxShadow: "var(--quick-shadow)" }}
+                  className={`scroll mt-[10px] max-h-[320px] ${menuPanel} ${menu === "who" ? "w-[300px]" : "w-[280px]"}`}
                 >
                   {choices.map((c, i) => (
                     <div key={c.id}>
-                      {c.section && c.section !== choices[i - 1]?.section && <div className="px-2.5 pt-2 pb-1 text-[12px] text-ink-3">{c.section}</div>}
+                      {c.section && c.section !== choices[i - 1]?.section && <div className={menuLabelClass}>{c.section}</div>}
                       <button
                         role="option"
                         aria-selected={i === cursor}
@@ -683,17 +687,13 @@ export function QuickBar({ seedThread }: { seedThread?: string }) {
                           setNav(true)
                         }}
                         onClick={c.run}
-                        className={`flex min-h-[52px] w-full items-center gap-[12px] rounded-[12px] border-0 px-[10px] py-1.5 text-left leading-[18px] transition-colors duration-100 ${
-                          nav && i === cursor ? "bg-fill-2" : "bg-transparent"
-                        }`}
+                        title={c.note}
+                        className={`${menuRowClass(nav && i === cursor)} w-full border-0 bg-transparent text-left text-[var(--cx-ink)]`}
                       >
-                        <span className="flex size-[30px] shrink-0 items-center justify-center rounded-[9px] bg-fill-3 text-white">{c.icon}</span>
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-[14px] text-ink">{c.label}</span>
-                          {c.note && <span className="truncate text-[12px] text-ink-3">{c.note}</span>}
-                        </span>
+                        <span className="flex w-[14px] shrink-0 items-center justify-center text-[var(--cx-ink3)] [&_svg]:size-[14px] [&_img]:size-[14px]">{c.icon}</span>
+                        <span className="min-w-0 flex-1 truncate">{c.label}</span>
                         {menu === "who" && sameAnswerer(answerer, c.id.startsWith("m-") ? { kind: "axe", modelId: c.id.slice(2) } : { kind: "agent", agentId: c.id.slice(2) }) && (
-                          <span className="text-[12px] text-accent-ink">Now</span>
+                          <span className="shrink-0 pl-[16px] text-[var(--cx-ink4)]">✓</span>
                         )}
                       </button>
                     </div>
@@ -723,7 +723,7 @@ function AnswererLogo({ answerer }: { answerer: Answerer }) {
   const model = catalog?.axe.models.find((x) => x.id === answerer.modelId)
   if (answerer.modelId === "auto")
     return (
-      <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-brand text-white">
+      <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand text-white">
         <AxeMark size={11} />
       </span>
     )
@@ -750,7 +750,7 @@ function Conversation({ threadId, messages, liveAt, running, waiting }: { thread
                   ))}
                 </div>
               )}
-              {t && <div className="selectable max-w-[85%] rounded-[18px] bg-fill-3 px-[18px] py-2.5 text-[16px] leading-6 text-ink">{t}</div>}
+              {t && <div className="selectable max-w-[85%] rounded-3xl bg-fill-3 px-[18px] py-2.5 text-[15px] leading-6 text-ink">{t}</div>}
             </motion.div>
           )
         }
@@ -784,9 +784,7 @@ function RoundButton({ label, hint, onClick, on, big, strong, children }: { labe
       aria-label={label}
       title={hint ? `${label} (${hint})` : label}
       onClick={onClick}
-      className={`flex shrink-0 items-center justify-center rounded-full border-0 transition-colors duration-150 ${big ? "h-[38px] w-[38px]" : "h-7 w-7"} ${
-        on ? "bg-fill-3 text-ink-2" : `${strong ? "bg-fill-3" : "bg-fill-2"} text-ink-2 hover:bg-fill-4 hover:text-ink`
-      }`}
+      className={`${iconButton(big)} ${on || strong ? "!bg-fill-2 !text-ink" : ""}`}
     >
       {children}
     </button>

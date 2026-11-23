@@ -15,7 +15,7 @@ import { checkNow } from "@/lib/watching"
 import { previewOf, recentChats, shortAgo, statusTone, watchLine, type Tone } from "@/lib/tray"
 
 import { attachFiles, AttachmentTray } from "@/components/Attachments"
-import { BackGlyph, ChatGlyph, ChevronGlyph, ComposeGlyph, MicGlyph, OpenGlyph, PlusGlyph, StopGlyph } from "@/components/Icons"
+import { BackGlyph, ChatGlyph, ChevronGlyph, ComposeGlyph, MicGlyph, OpenGlyph, PlusGlyph, StopGlyph } from "@/components/SolarIcons"
 import { AxeMark } from "@/components/Logo"
 import { ModelPicker } from "@/components/ModelPicker"
 import { DictationStrip, MicButton } from "@/components/Voice"
@@ -33,18 +33,18 @@ import { KindIcon } from "@/components/WatchIcons"
 
 const ICON = 16
 const second = "text-[var(--tray-text-2)]"
-const iconButton = `grid size-[26px] shrink-0 cursor-pointer place-items-center rounded-[6px] border-0 bg-transparent ${second} transition-colors duration-150 hover:bg-[var(--tray-hover)] hover:text-ink focus-visible:ring-2 focus-visible:ring-brand`
+const iconButton = `grid size-[26px] shrink-0 cursor-pointer place-items-center rounded-full border-0 bg-transparent ${second} transition-colors duration-150 hover:bg-[var(--tray-hover)] hover:text-ink focus-visible:ring-2 focus-visible:ring-brand`
 const row =
-  "flex h-[30px] w-full shrink-0 cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-[10px] text-left text-[13px] text-ink transition-colors duration-150 hover:bg-[var(--tray-hover)] focus-visible:ring-2 focus-visible:ring-brand"
+  "flex h-[28px] w-full shrink-0 cursor-pointer items-center gap-[10px] rounded-[6px] border-0 bg-transparent px-[10px] text-left text-[13px] text-ink transition-colors duration-150 hover:bg-[var(--tray-hover)] focus-visible:ring-2 focus-visible:ring-brand"
 const when = `w-[76px] shrink-0 text-right text-[13px] whitespace-nowrap tabular-nums ${second}`
-const textLink = "cursor-pointer border-0 bg-transparent p-0 text-[13px] text-brand-text hover:underline"
+const textLink = "cursor-pointer border-0 bg-transparent p-0 text-[13px] text-ink-2 hover:text-ink hover:underline"
 
 function SectionHead({ children }: { children: string }) {
-  return <div className={`shrink-0 px-[10px] pt-[12px] pb-[3px] text-[11px] leading-[14px] ${second}`}>{children}</div>
+  return <div className={`shrink-0 px-[10px] pt-[12px] pb-[3px] text-[12px] leading-[14px] ${second}`}>{children}</div>
 }
 
-const DOT: Record<Tone, string> = { ok: "bg-ok", warn: "bg-warn", news: "bg-brand", mute: "bg-ink-4" }
-const TICK: Record<RunStatus, string> = { quiet: "bg-ok", news: "bg-brand", problem: "bg-warn", failed: "bg-ink-4" }
+const DOT: Record<Tone, string> = { ok: "bg-ok", warn: "bg-warn", news: "bg-news", mute: "bg-ink-4" }
+const TICK: Record<RunStatus, string> = { quiet: "bg-ok", news: "bg-news", problem: "bg-warn", failed: "bg-ink-4" }
 
 function StatusDot({ tone, size = 7 }: { tone: Tone; size?: number }) {
   return <i aria-hidden="true" className={`inline-block shrink-0 rounded-full ${DOT[tone]}`} style={{ width: size, height: size }} />
@@ -122,10 +122,10 @@ function WatchBoard({ w }: { w: WatchView }) {
         <div className="flex flex-col gap-[4px]">
           <div className="flex h-[12px] gap-[2px]" role="img" aria-label="Recent checks">
             {ticks.map((t) => (
-              <span key={t.at} className={`max-w-[10px] min-w-[2px] flex-1 rounded-[2px] ${TICK[t.status]} ${t.status === "quiet" ? "opacity-60" : ""}`} />
+              <span key={t.at} className={`max-w-[10px] min-w-[2px] flex-1 rounded-full ${TICK[t.status]} ${t.status === "quiet" ? "opacity-60" : ""}`} />
             ))}
           </div>
-          <div className={`flex justify-between text-[11px] ${second}`}>
+          <div className={`flex justify-between text-[12px] ${second}`}>
             <span>{shortAgo(ticks[0]!.at)}</span>
             <span>Now</span>
           </div>
@@ -159,7 +159,7 @@ function WatchRow({ w, open, onToggle }: { w: WatchView; open: boolean; onToggle
   const line = watchLine(w)
   const ago = w.paused ? "Paused" : w.latest ? shortAgo(w.latest.at) : ""
   return (
-    <div className={`flex shrink-0 flex-col rounded-[6px] ${open ? "bg-[var(--tray-open)]" : ""}`}>
+    <div className={`flex shrink-0 flex-col rounded-full ${open ? "bg-[var(--tray-open)]" : ""}`}>
       <button type="button" aria-expanded={open} onClick={onToggle} className={row}>
         <KindIcon kind={w.kind} size={ICON} strokeWidth={1.5} className={`shrink-0 ${open ? "text-ink" : second}`} />
         <span className={`w-[180px] shrink-0 truncate ${w.paused ? second : ""}`}>{w.name}</span>
@@ -185,8 +185,8 @@ export function TrayWatching() {
   const loaded = useStore((s) => !!s.watching)
   const [open, setOpen] = useState<string | null>(null)
   return (
-    <section aria-label="Watching" className="flex min-h-0 shrink flex-col">
-      <SectionHead>Watching</SectionHead>
+    <section aria-label="Oversight" className="flex min-h-0 shrink flex-col">
+      <SectionHead>Oversight</SectionHead>
       {watches.length ? (
         <div className="scroll flex min-h-0 flex-col overflow-y-auto">
           {watches.map((w) => (
@@ -196,9 +196,9 @@ export function TrayWatching() {
       ) : (
         loaded && (
           <div className="flex h-[30px] shrink-0 items-center gap-[12px] px-[10px] text-[13px]">
-            <span className={second}>No watches yet</span>
+            <span className={second}>No checks yet</span>
             <button type="button" onClick={() => void invoke("tray:open", "watching")} className={textLink}>
-              Start a watch
+              Add a check
             </button>
           </div>
         )
@@ -251,7 +251,7 @@ export function TrayRecents() {
 
 /* The field */
 
-const fieldButton = `-my-[3px] flex h-[24px] shrink-0 cursor-pointer items-center justify-center rounded-[5px] border-0 bg-transparent ${second} transition-colors duration-150 hover:bg-[var(--tray-hover)] hover:text-ink`
+const fieldButton = `-my-[3px] flex h-[24px] shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent ${second} transition-colors duration-150 hover:bg-[var(--tray-hover)] hover:text-ink`
 
 /**
  * A native one-line field, the same on home and in a chat: + for files, the words, who answers as a small
@@ -326,7 +326,7 @@ export function TrayComposer({ threadId = null }: { threadId?: string | null }) 
         maxHeight={560}
       />
       <div
-        className="flex min-h-[32px] items-end gap-[8px] rounded-[8px] bg-[var(--tray-field)] px-[5px] py-[7px] transition-colors duration-150 focus-within:bg-[var(--tray-field-focus)]"
+        className="flex min-h-[32px] items-end gap-[8px] rounded-3xl bg-[var(--tray-field)] px-[5px] py-[7px] transition-colors duration-150 focus-within:bg-[var(--tray-field-focus)]"
         onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()}
         onDrop={(e) => {
           if (!e.dataTransfer.files.length) return
@@ -377,7 +377,7 @@ export function TrayComposer({ threadId = null }: { threadId?: string | null }) 
             <StopGlyph size={ICON} />
           </button>
         ) : (
-          <MicButton target="composer" size={24} icon={<MicGlyph size={ICON} />} className="-my-[3px] rounded-[5px]" />
+          <MicButton target="composer" size={24} icon={<MicGlyph size={ICON} />} className="-my-[3px] rounded-full" />
         )}
       </div>
     </div>
@@ -386,7 +386,7 @@ export function TrayComposer({ threadId = null }: { threadId?: string | null }) 
 
 /** Open Axe AI and Settings…, like the items at the foot of a menu. */
 export function TrayFooter() {
-  const link = "flex h-[28px] w-full shrink-0 cursor-pointer items-center justify-between rounded-[6px] border-0 bg-transparent px-[10px] text-left text-[13px] text-ink transition-colors duration-150 hover:bg-[var(--tray-hover)]"
+  const link = "flex h-[28px] w-full shrink-0 cursor-pointer items-center justify-between rounded-full border-0 bg-transparent px-[10px] text-left text-[13px] text-ink transition-colors duration-150 hover:bg-[var(--tray-hover)]"
   const keys = `text-[13px] tabular-nums ${second}`
   return (
     <nav aria-label="Axe AI" className="flex shrink-0 flex-col pt-[6px]">

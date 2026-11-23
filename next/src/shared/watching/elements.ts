@@ -53,7 +53,7 @@ export const NO_INPUT: ElementKind[] = ["processes", "memory", "battery", "docke
 /** What the composer asks for after Add, for the kinds that need something. */
 export const ELEMENT_ASK: Record<ElementKind, string> = {
   ...(Object.fromEntries(NO_INPUT.map((k) => [k, ""])) as Record<(typeof NO_INPUT)[number], string>),
-  ports: "Ports to watch, like 3000, 5173",
+  ports: "Ports to check, like 3000, 5173",
   gitrepos: "Folder with your repos, like ~/Work",
   hogs: "Folders to measure, like ~ or ~/Work",
   pagespeed: "Page link, like lane-ceramics.com",

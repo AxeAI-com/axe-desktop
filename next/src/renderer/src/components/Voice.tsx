@@ -17,7 +17,9 @@ import {
 } from "@/lib/voice"
 import { clock } from "@/lib/voice-logic"
 
-import { CheckIcon, MicIcon, MicOffIcon, XIcon } from "./Icons"
+import { MicIcon as LineMicIcon } from "./Icons"
+import { boxButton, iconButton } from "./Kit"
+import { CheckIcon, MicIcon, MicOffIcon, XIcon } from "./SolarIcons"
 
 const dictateKeys = () => {
   const s = shortcutById("dictate")
@@ -26,7 +28,7 @@ const dictateKeys = () => {
 
 /** The microphone button: tap to dictate, tap again to write it down. */
 /** `icon` and `className`: the menu bar panel draws its own plain glyph and shape. */
-export function MicButton({ target, size = 32, icon, className }: { target: DictationTarget; size?: number; icon?: ReactNode; className?: string }) {
+export function MicButton({ target, size = 32, icon, className, box }: { target: DictationTarget; size?: number; icon?: ReactNode; className?: string; /** The composer's own 32 px button style. */ box?: boolean }) {
   const listening = useVoice((s) => s.dictation.phase === "listening" && s.dictation.target === target)
   const busy = useVoice((s) => s.dictation.phase !== "idle" && s.dictation.phase !== "error" && s.dictation.target !== target)
   const label = listening ? "Stop and write it down" : `Dictate (hold ${dictateKeys()})`
@@ -37,11 +39,17 @@ export function MicButton({ target, size = 32, icon, className }: { target: Dict
       disabled={busy}
       onClick={() => toggleDictation(target)}
       style={{ width: size, height: size }}
-      className={`flex shrink-0 items-center justify-center ${className ?? "rounded-full"} border-0 transition-colors duration-150 ${
-        listening ? "bg-accent-bg text-accent-ink" : `bg-transparent ${size >= 36 ? "text-ink-2" : "text-ink-3"} enabled:hover:bg-fill enabled:hover:text-ink`
-      }`}
+      className={
+        box
+          ? listening
+            ? "grid size-[32px] shrink-0 place-items-center rounded-[8px] border-0 bg-fill-2 text-ink"
+            : boxButton()
+          : `flex shrink-0 items-center justify-center ${className ?? "rounded-full"} border-0 transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.96] ${
+              listening ? "bg-fill-2 text-ink" : "bg-transparent text-ink-3 enabled:hover:bg-fill-2 enabled:hover:text-ink"
+            }`
+      }
     >
-      {icon ?? <MicIcon size={size >= 36 ? 19 : size >= 32 ? 16 : 15} />}
+      {icon ?? (box ? <LineMicIcon size={16} /> : <MicIcon size={size >= 36 ? 20 : 16} />)}
     </button>
   )
 }
@@ -104,9 +112,7 @@ function StripButton({ label, onClick, primary, children }: { label: string; onC
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-0 transition-colors duration-150 ${
-        primary ? "bg-button text-button-ink" : "bg-fill-2 text-ink-2 hover:bg-fill-3 hover:text-ink"
-      }`}
+      className={`${iconButton()} ${primary ? "!bg-fill-2 !text-ink" : ""}`}
     >
       {children}
     </button>
@@ -169,13 +175,11 @@ export function TalkOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={m.t(D.base)}
-          className="fixed inset-0 z-[60] flex flex-col items-center justify-center backdrop-blur-[18px]"
+          className="fixed inset-0 z-[60] flex flex-col items-center justify-center"
           style={{ background: "var(--talk-scrim)" }}
         >
           <motion.div
-            initial={m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.9, filter: "blur(10px)" }}
-            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-            exit={m.reduced ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: "blur(6px)" }}
+            initial={false}
             transition={m.t(D.slow)}
             className="flex w-[560px] max-w-[calc(100vw-48px)] flex-col items-center"
           >
@@ -189,9 +193,7 @@ export function TalkOverlay() {
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.p
                 key={talk.phase === "hearing" ? "listening" : talk.phase}
-                initial={{ opacity: 0, y: m.reduced ? 0 : 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: m.reduced ? 0 : -6 }}
+                initial={false}
                 transition={m.t()}
                 className="m-0 mt-9 text-[15px] text-ink-2"
               >
@@ -304,8 +306,7 @@ export function Orb({ phase, level, beat, size = 168 }: { phase: TalkPhase; leve
         transition={m.t(listening ? D.fast : D.base)}
         className="absolute inset-0 rounded-full"
         style={{
-          background: "radial-gradient(circle at 34% 28%, var(--orb-1) 0%, var(--orb-2) 42%, var(--orb-3) 100%)",
-          boxShadow: "inset 0 -10px 30px rgba(0,0,0,0.25), inset 0 6px 18px rgba(255,255,255,0.25)",
+          background: "var(--orb-2)",
         }}
       />
     </div>

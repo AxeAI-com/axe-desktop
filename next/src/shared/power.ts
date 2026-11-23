@@ -68,7 +68,7 @@ export const localStamp = (d: Date) =>
 export function wakeTaskXml(at: Date, exe: string): string {
   return `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo><Description>Wakes this computer for your next Axe AI watch check.</Description></RegistrationInfo>
+  <RegistrationInfo><Description>Wakes this computer for your next Axe AI check.</Description></RegistrationInfo>
   <Triggers><TimeTrigger><StartBoundary>${localStamp(at)}</StartBoundary><Enabled>true</Enabled></TimeTrigger></Triggers>
   <Principals><Principal id="Author"><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings>

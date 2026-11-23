@@ -93,7 +93,7 @@ export function Strip({ ticks, kind, label, right }: { ticks: StripTick[]; kind:
       <svg width="100%" height="20" viewBox={`0 0 ${STRIP_W} 20`} preserveAspectRatio="none" onMouseLeave={() => setHover(null)} role="img" aria-label={label}>
         {hover !== null && <rect x={(offset + hover) * gap - 3} y={0} width={8.5} height={20} rx={3} fill="var(--fill-2)" />}
         {shown.map((t, i) => {
-          const c = t.status === "problem" ? "var(--warn)" : t.status === "news" ? "var(--brand)" : t.status === "failed" ? "var(--ink-4)" : "var(--watch-tick)"
+          const c = t.status === "problem" ? "var(--warn)" : t.status === "news" ? "var(--news)" : t.status === "failed" ? "var(--ink-4)" : "var(--watch-tick)"
           const loud = t.status === "problem" || t.status === "news"
           const x = (offset + i) * gap
           return (
@@ -110,7 +110,7 @@ export function Strip({ ticks, kind, label, right }: { ticks: StripTick[]; kind:
         })}
       </svg>
       {tip && (
-        <div className="pointer-events-none absolute -top-[6px] z-10 rounded-[6px] bg-pop px-[8px] py-[4px] text-[12px] leading-[16px] whitespace-nowrap text-ink shadow-[var(--elevation-overlay)]" style={{ left: `${(tipLeft / STRIP_W) * 100}%` }}>
+        <div className="pointer-events-none absolute -top-[6px] z-10 rounded-full border border-hairline bg-pop px-[12px] py-[4px] text-[12px] leading-[16px] whitespace-nowrap text-ink" style={{ left: `${(tipLeft / STRIP_W) * 100}%` }}>
           {tickText(tip, kind)}
         </div>
       )}
@@ -163,7 +163,7 @@ export function SpeedChart({ ticks, limitMs, eventAt, eventLabel, tone = "warn" 
       {grid.map((g) => (
         <g key={g}>
           <line x1={L} x2={CW - R} y1={y(g)} y2={y(g)} stroke="var(--chart-grid)" />
-          <text x={L - 8} y={y(g) + 4} textAnchor="end" fontSize="11" fill="var(--ink-3)">
+          <text x={L - 8} y={y(g) + 4} textAnchor="end" fontSize={12} fill="var(--ink-3)">
             {g} s
           </text>
         </g>
@@ -172,7 +172,7 @@ export function SpeedChart({ ticks, limitMs, eventAt, eventLabel, tone = "warn" 
       {limitMs !== undefined && limitMs / 1000 <= top && (
         <>
           <line x1={L} x2={CW - R} y1={y(limitMs / 1000)} y2={y(limitMs / 1000)} stroke="var(--warn)" strokeDasharray="4 4" opacity=".75" />
-          <text x={L + 6} y={y(limitMs / 1000) - 6} fontSize="11" fill="var(--warn)">
+          <text x={L + 6} y={y(limitMs / 1000) - 6} fontSize={12} fill="var(--warn)">
             Tells you above {seconds(limitMs)}
           </text>
         </>
@@ -182,7 +182,7 @@ export function SpeedChart({ ticks, limitMs, eventAt, eventLabel, tone = "warn" 
         <>
           <line x1={ex} x2={ex} y1={T} y2={y(0)} stroke="var(--ink-3)" strokeDasharray="2 3" />
           {eventLabel && (
-            <text x={ex - L > 130 ? ex - 6 : ex + 6} y={T + 10} textAnchor={ex - L > 130 ? "end" : "start"} fontSize="11" fill="var(--ink-2)">
+            <text x={ex - L > 130 ? ex - 6 : ex + 6} y={T + 10} textAnchor={ex - L > 130 ? "end" : "start"} fontSize={12} fill="var(--ink-2)">
               {eventLabel}
             </text>
           )}
@@ -193,7 +193,7 @@ export function SpeedChart({ ticks, limitMs, eventAt, eventLabel, tone = "warn" 
         {seconds(end.metric!)}
       </text>
       {labels.map(([lx, t, a]) => (
-        <text key={`${lx}-${t}`} x={lx} y={CH - 6} textAnchor={a} fontSize="11" fill="var(--ink-3)">
+        <text key={`${lx}-${t}`} x={lx} y={CH - 6} textAnchor={a} fontSize={12} fill="var(--ink-3)">
           {t}
         </text>
       ))}
@@ -226,7 +226,7 @@ export function UpStrip({ ticks, every, now }: { ticks: StripTick[]; every: Ever
         return <rect key={i} x={i * g} y={down ? 0 : 4} width={Math.max(1, g - 2)} height={down ? 18 : 14} rx={1.5} fill={down ? "var(--warn)" : t.status === "failed" ? "var(--ink-4)" : "var(--watch-tick)"} />
       })}
       {labelAt.map((t, i) => (
-        <text key={t} x={[0, CW / 2, CW][i]} y={34} textAnchor={(["start", "middle", "end"] as const)[i]} fontSize="11" fill="var(--ink-3)">
+        <text key={t} x={[0, CW / 2, CW][i]} y={34} textAnchor={(["start", "middle", "end"] as const)[i]} fontSize={12} fill="var(--ink-3)">
           {hourLabel(t)}
         </text>
       ))}
@@ -252,7 +252,7 @@ export function Diff({ lines }: { lines: DiffLine[] }) {
   const shown = all ? lines : lines.slice(0, DIFF_SHOWN)
   const more = lines.length - shown.length
   return (
-    <div className="selectable overflow-hidden rounded-[6px] bg-fill font-mono text-[12.5px] leading-[19px]" data-testid="page-diff">
+    <div className="selectable overflow-hidden rounded-media bg-fill font-mono text-[12px] leading-[19px]" data-testid="page-diff">
       {shown.map((l, i) => (
         <div
           // biome-ignore lint/suspicious/noArrayIndexKey: lines repeat; their order is the identity
@@ -264,7 +264,7 @@ export function Diff({ lines }: { lines: DiffLine[] }) {
         </div>
       ))}
       {more > 0 && (
-        <button type="button" onClick={() => setAll(true)} className="block w-full cursor-pointer border-0 bg-transparent px-[12px] py-[3px] text-left font-mono text-[12.5px] leading-[19px] text-brand-text hover:underline">
+        <button type="button" onClick={() => setAll(true)} className="block w-full cursor-pointer border-0 bg-transparent px-[12px] py-[3px] text-left font-mono text-[12px] leading-[19px] text-brand-text hover:underline">
           {more} more {more === 1 ? "line" : "lines"}
         </button>
       )}
@@ -328,14 +328,14 @@ export function PriceChart({ points, currency, now }: { points: [number, number]
       {grid.map((g) => (
         <g key={g}>
           <line x1={PL} x2={PW - PR} y1={y(g)} y2={y(g)} stroke="var(--chart-grid)" />
-          <text x={PL - 8} y={y(g) + 4} textAnchor="end" fontSize="11" fill="var(--ink-3)">
+          <text x={PL - 8} y={y(g) + 4} textAnchor="end" fontSize={12} fill="var(--ink-3)">
             {label(g)}
           </text>
         </g>
       ))}
       <path d={d} fill="none" stroke="var(--ink)" strokeWidth="1.5" />
       {changes.map(([t, p]) => (
-        <text key={t} x={x(t) + 6} y={y(p) - 6} fontSize="11" fill="var(--ink-3)">
+        <text key={t} x={x(t) + 6} y={y(p) - 6} fontSize={12} fill="var(--ink-3)">
           {fmt(p)}
         </text>
       ))}
@@ -348,7 +348,7 @@ export function PriceChart({ points, currency, now }: { points: [number, number]
         // Within a few minutes the middle times repeat the first; show each once.
         if (i > 0 && i < 3 && text === (short ? clock(dates[i - 1]!) : day(dates[i - 1]!))) return null
         return (
-          <text key={t} x={PL + (i / 3) * (PW - PL - PR)} y={PH - 6} textAnchor={i === 0 ? "start" : i === 3 ? "end" : "middle"} fontSize="11" fill="var(--ink-3)">
+          <text key={t} x={PL + (i / 3) * (PW - PL - PR)} y={PH - 6} textAnchor={i === 0 ? "start" : i === 3 ? "end" : "middle"} fontSize={12} fill="var(--ink-3)">
             {text}
           </text>
         )

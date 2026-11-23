@@ -5,7 +5,7 @@ import type { RichChoices } from "@shared/rich"
 
 import { D, useMotion } from "@/lib/motion"
 
-import { CheckIcon } from "../Icons"
+import { CheckIcon } from "../SolarIcons"
 import { CardFrame, EmptyNote, useRich } from "./shared"
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
@@ -63,22 +63,20 @@ export function ChoicesCard({ choices }: { choices: RichChoices }) {
               disabled={!live}
               aria-pressed={isPicked}
               onClick={() => pick(i)}
-              initial={m.reduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              animate={{ opacity: faded ? 0.5 : 1, y: 0 }}
-              whileHover={live && !m.reduced ? { y: -1 } : undefined}
-              whileTap={live && !m.reduced ? { scale: 0.99 } : undefined}
+              initial={false}
+              animate={{ opacity: faded ? 0.5 : 1 }}
               transition={{ ...m.t(D.base), delay: answered ? 0 : 0.08 + m.stagger(i, 0.06) }}
-              className={`group flex items-start gap-3 rounded-[10px] border px-3.5 py-3 text-left transition-[background-color,border-color,box-shadow] duration-200 ${
+              className={`group flex items-start gap-3 rounded-3xl border px-3.5 py-3 text-left transition-[background-color,border-color,box-shadow] duration-200 ${
                 isPicked
-                  ? "border-[var(--accent-line)] bg-accent-bg"
+                  ? "border-[var(--hairline-strong)] bg-raised"
                   : live
-                    ? "border-line hover:border-line-3 hover:bg-fill hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                    ? "border-line hover:border-line-3 hover:bg-fill"
                     : "border-line"
               }`}
             >
               <span
-                className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-[6px] text-[12px] tabular-nums ${
-                  isPicked ? "bg-accent text-white" : "bg-fill-2 text-ink-2"
+                className={`flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[12px] tabular-nums ${
+                  isPicked ? "bg-ink text-background" : "bg-fill-2 text-ink-2"
                 }`}
               >
                 {isPicked ? <CheckIcon size={12} strokeWidth={2.2} /> : i + 1}
@@ -87,7 +85,7 @@ export function ChoicesCard({ choices }: { choices: RichChoices }) {
                 <span className="flex items-center gap-2 text-[15px] leading-[20px] text-ink">
                   {o.label}
                   {"recommended" in o && o.recommended && (
-                    <span className="rounded-[6px] bg-accent-bg px-1.5 py-px text-[12px] text-accent-ink">Recommended</span>
+                    <span className="rounded-full bg-fill-2 px-1.5 py-px text-[12px] text-ink-3">Recommended</span>
                   )}
                 </span>
                 {"detail" in o && o.detail && <span className="text-[13px] leading-[19px] text-ink-2">{o.detail}</span>}
@@ -98,12 +96,11 @@ export function ChoicesCard({ choices }: { choices: RichChoices }) {
         {live && (
           <motion.button
             onClick={focusComposer}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={false}
             transition={{ ...m.t(D.base), delay: 0.08 + m.stagger(choices.options.length, 0.06) }}
-            className="flex items-center gap-3 rounded-[10px] border border-transparent bg-transparent px-3.5 py-3 text-left text-[13px] text-ink-3 hover:text-ink-2"
+            className="flex items-center gap-3 rounded-3xl border border-transparent bg-transparent px-3.5 py-3 text-left text-[13px] text-ink-3 hover:text-ink-2"
           >
-            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-[6px] bg-fill-2 text-[12px] tabular-nums">{choices.options.length + 1}</span>
+            <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-fill-2 text-[12px] tabular-nums">{choices.options.length + 1}</span>
             Something else, type it below
           </motion.button>
         )}

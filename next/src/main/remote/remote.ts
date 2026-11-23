@@ -41,6 +41,8 @@ export type RemoteHost = {
   macId?(): Promise<string | undefined>
   /** Whether axeai.com's own commands (what waits, keep awake) may run. The link can be up for phones alone. */
   commandsEnabled?(): boolean
+  /** Whether the link to axeai.com is up. Defaults to enabled(); the app keeps it up while remote control or pairing is on. */
+  linkWanted?(): boolean
 }
 
 /** Named server-sent events ("event: command" / "data: {...}"). */
@@ -120,7 +122,7 @@ export class RemoteLink {
 
   /** Connects or disconnects to match the setting and the sign-in. */
   refresh() {
-    const want = this.host.enabled() && !!this.host.client()
+    const want = (this.host.linkWanted ? this.host.linkWanted() : this.host.enabled()) && !!this.host.client()
     if (want && !this.loop) {
       this.checkCode()
       this.loop = new AbortController()
@@ -192,8 +194,11 @@ export class RemoteLink {
           }
           this.publish()
           void this.syncPhones()
+          void this.host.phones?.linkUp()
         } else if (event === "pair") {
           void this.pair(data)
+        } else if (event === "pair-code" || event === "pair-click" || event === "pair-click-reveal") {
+          void this.pairStep(event, data)
         } else if (event === "phone-removed") {
           try {
             const { phone } = JSON.parse(data) as { phone?: string }
@@ -217,12 +222,48 @@ export class RemoteLink {
     } catch {
       return
     }
-    if (typeof id !== "string" || typeof sealed !== "string" || !this.host.phones) return
+    if (typeof id !== "string" || !this.host.phones) return
+    if (typeof sealed !== "string") return void (await this.host.client()?.json("api/remote/mac/pair-answer", { method: "POST", json: { id, sealed: null, allowed: null } }).catch(() => {}))
     const answer = await this.host.phones.request(sealed).catch(() => undefined)
     await this.host
       .client()
       ?.json("api/remote/mac/pair-answer", { method: "POST", json: { id, sealed: answer?.sealed ?? null, allowed: answer?.allowed ?? null } })
       .catch(() => {})
+  }
+
+  /**
+   * One step of pairing a browser by code or by click (phones.ts). Each is answered at once, except the
+   * reveal, which waits for your Allow. Anything malformed gets no answer: axeai.com times it out.
+   */
+  async pairStep(event: string, data: string) {
+    const phones = this.host.phones
+    if (!phones) return
+    let m: { id?: unknown; hello?: { n?: unknown; y?: unknown }; browser?: unknown; commit?: { c?: unknown }; pairId?: unknown; reveal?: { y?: unknown; n?: unknown } }
+    try {
+      m = JSON.parse(data)
+    } catch {
+      return
+    }
+    const id = m.id
+    if (typeof id !== "string") return
+    let step: Record<string, unknown> | undefined
+    try {
+      if (event === "pair-code") {
+        const { n, y } = m.hello ?? {}
+        step = { reply: typeof n === "string" && typeof y === "string" ? await phones.onPairCode({ n, y }) : null }
+      } else if (event === "pair-click") {
+        const c = m.commit?.c
+        const click = typeof c === "string" ? await phones.onPairClick(id, typeof m.browser === "string" ? m.browser : "", { c }) : null
+        step = { click }
+      } else {
+        const { y, n } = m.reveal ?? {}
+        const ok = typeof m.pairId === "string" && typeof y === "string" && typeof n === "string" ? await phones.onPairClickReveal(m.pairId, { y, n }) : false
+        step = { allowed: ok }
+      }
+    } catch {
+      step = event === "pair-code" ? { reply: null } : event === "pair-click" ? { click: null } : { allowed: false }
+    }
+    await this.host.client()?.json("api/remote/mac/pair-step", { method: "POST", json: { id, ...step } }).catch(() => {})
   }
 
   /** Phones removed on axeai.com while this computer was away drop off here too. */

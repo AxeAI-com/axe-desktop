@@ -1,6 +1,8 @@
 # The Axe desktop app (next/): typecheck, lint and unit tests on every PR and push to master.
-# On GitHub's hosted runners (Linux, with a virtual display for Electron). The end-to-end tests drive
-# the real Electron app with macOS screenshots, so they stay a local check (pnpm test:e2e) before a release.
+# On a self-hosted runner, not GitHub's
+# machines: no paid minutes. Only PRs from branches in this repo run here, never from forks. The end-to-end
+# tests drive the real Electron app with macOS screenshots, so they stay a local check
+# (pnpm test:e2e) before a release.
 name: PR checks
 on:
   pull_request:
@@ -19,7 +21,9 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # Fork PRs never run on the self-hosted runner: a maintainer pushes the branch to this repo to run checks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, axeai-mac-ci]
     timeout-minutes: 15
     defaults:
       run:
@@ -37,4 +41,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
       - run: pnpm run lint
-      - run: xvfb-run -a pnpm test
+      - run: pnpm test

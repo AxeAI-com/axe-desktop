@@ -96,9 +96,7 @@ export function TableCard({ table }: { table: RichTable }) {
               return (
                 <motion.tr
                   key={key}
-                  layout={m.reduced ? false : "position"}
-                  initial={m.reduced ? { opacity: 0 } : { opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={false}
                   transition={{ ...m.t(D.base), delay: sort ? 0 : m.stagger(key, 0.03, 0.4) }}
                   className="hover:bg-fill"
                 >

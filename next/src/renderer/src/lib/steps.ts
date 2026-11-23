@@ -1,5 +1,7 @@
 import type { Part } from "@shared/types"
 
+import { commandStep, toolStep } from "./step-label"
+
 export type StepPart = Extract<Part, { type: "reasoning" } | { type: "tool" } | { type: "source" }>
 export type ToolPart = Extract<Part, { type: "tool" }>
 
@@ -10,6 +12,7 @@ export type Segment =
   | { kind: "plan"; id: string; part: Extract<Part, { type: "plan" }> }
   | { kind: "error"; id: string; text: string }
   | { kind: "rich"; id: string; part: Extract<Part, { type: "rich" }> }
+  | { kind: "image"; id: string; part: Extract<Part, { type: "image" }> }
 
 export const isStep = (p: Part): p is StepPart => p.type === "reasoning" || p.type === "tool" || p.type === "source"
 
@@ -35,6 +38,7 @@ export function segment(parts: Part[]): Segment[] {
     } else if (p.type === "plan") out.push({ kind: "plan", id: p.id, part: p })
     else if (p.type === "error") out.push({ kind: "error", id: p.id, text: p.text })
     else if (p.type === "rich") out.push({ kind: "rich", id: p.id, part: p })
+    else if (p.type === "image") out.push({ kind: "image", id: p.id, part: p })
   }
   return out
 }
@@ -93,6 +97,8 @@ export function summarize(parts: StepPart[], withThought = false): string {
         break
       case "search":
         if (isWebSearch(p)) add("web", () => "Searched the web")
+        // "Look for apps like …" is an app tool, not a file search.
+        else if (/\bapps?\b/i.test(p.title)) add("other", (n) => `Used ${plural(n, "tool")}`)
         else add("find", () => "Searched your files")
         break
       case "fetch":
@@ -143,7 +149,7 @@ export function isLiveGroup(parts: StepPart[], replyLive: boolean, isLastSegment
 export function liveLabel(parts: StepPart[]): string {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i]!
-    if (p.type === "tool" && p.state === "running") return isShellCommand(p.title) ? commandLabel(p.title, false) : p.title
+    if (p.type === "tool" && p.state === "running") return toolStep(p).now
     if (p.type === "reasoning" && !p.done) return "Thinking"
   }
   return "Thinking"
@@ -195,18 +201,8 @@ export function isShellCommand(title: string): boolean {
   return SHELL_START.test(t) || t.includes("\n") || /(&&|\|\||\s\|\s|2>|>\/dev\/null|;\s)/.test(t) || (t.length > 80 && /[|&;<>$`]/.test(t))
 }
 
-/** A shell command in a few plain words ("Searching files"), by what it mostly does. */
+/** A shell command in a few plain words ("Searching the code for ‘x’"), by what it mostly does (`lib/step-label.ts`). */
 export function commandLabel(command: string, done: boolean): string {
-  const words = command.replace(/^cd\s+\S+\s*(&&|;)\s*/, "").trim()
-  const [now, past] =
-    /\b(grep|rg|find|fd|mdfind|ag)\b/.test(words) ? ["Searching files", "Searched files"]
-    : /^(ls|tree|du)\b/.test(words) ? ["Looking at files", "Looked at files"]
-    : /^(cat|head|tail|less|sed -n|wc)\b/.test(words) ? ["Reading a file", "Read a file"]
-    : /^(git|gh)\b/.test(words) ? ["Using git", "Used git"]
-    : /^(npm|pnpm|npx|yarn|bun|make|cargo|go|swift|xcodebuild)\b/.test(words) && /\btest|vitest|jest|playwright\b/.test(words) ? ["Running tests", "Ran tests"]
-    : /^(npm|pnpm|npx|yarn|bun|make|cargo|go|swift|xcodebuild)\b/.test(words) ? ["Running a script", "Ran a script"]
-    : /^(curl|wget)\b/.test(words) ? ["Fetching a page", "Fetched a page"]
-    : /^(ps|lsof|osascript)\b/.test(words) ? ["Checking this computer", "Checked this computer"]
-    : ["Running a command", "Ran a command"]
-  return done ? past : now
+  const l = commandStep(command)
+  return done ? l.done : l.now
 }

@@ -29,7 +29,7 @@ if (process.platform !== "linux") await win.setViewportSize({ width: 1440, heigh
 const shot = (n) => win.screenshot({ path: join(out, n + ".png") })
 await win.waitForTimeout(2500)
 await shot("1-start")
-const signIn = win.getByRole("button", { name: /sign in with axe/i })
+const signIn = win.getByRole("button", { name: /sign in (with|to) axe/i })
 if (await signIn.isVisible().catch(() => false)) { await signIn.click(); await win.waitForTimeout(4000) }
 await shot("2-new-chat")
 if (process.argv[3] === "rich") {
@@ -38,7 +38,7 @@ if (process.argv[3] === "rich") {
   console.log("done")
   process.exit(0)
 }
-const box = win.getByPlaceholder(/how can i help/i)
+const box = win.getByRole("textbox", { name: "Message" })
 await box.click()
 await box.fill("In one sentence, what is Lisbon known for? Then a 3-row markdown table of its best viewpoints with a column for the best time to go.")
 await win.keyboard.press("Enter")
@@ -53,11 +53,21 @@ await win.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K")
 await win.waitForTimeout(500)
 await shot("6-palette")
 await win.keyboard.press("Escape")
+// Watching, Settings and Customize open (spec 0001).
+await win.getByRole("button", { name: /^Oversight/ }).first().click()
+await win.waitForTimeout(1200)
+await shot("7-watching")
+await win.keyboard.press(process.platform === "darwin" ? "Meta+," : "Control+,")
+await win.waitForTimeout(1200)
+await shot("8-settings")
+await win.getByRole("button", { name: "Customize" }).first().click()
+await win.waitForTimeout(1200)
+await shot("9-customize")
 await app.close()
 console.log("done")
 
 async function richRun() {
-  const box = win.getByPlaceholder(/how can i help/i)
+  const box = win.getByRole("textbox", { name: "Message" })
   await box.click()
   await box.fill(
     "My shop's sales this week: Mon 12, Tue 18, Wed 15, Thu 22, Fri 30, Sat 41, Sun 37. Chart them, then ask me to choose whether next week's plan should aim for growth or for steady sales.",

@@ -2,7 +2,7 @@ import "@xterm/xterm/css/xterm.css"
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
-import { TerminalIcon, XIcon } from "@/components/Icons"
+import { TerminalIcon, XIcon } from "@/components/SolarIcons"
 import { plainError, setState, useStore } from "@/lib/store"
 import { attachTerminal, endTerminal, ensureTerminal } from "@/lib/terminal"
 
@@ -39,13 +39,13 @@ export function TerminalPanel() {
 
   return (
     <section aria-label="Terminal" className="flex h-[280px] shrink-0 flex-col border-t border-border bg-background">
-      <header className="flex h-9 shrink-0 items-center gap-2 pr-2 pl-4 text-[13px] text-muted-foreground">
+      <header className="flex h-9 shrink-0 items-center gap-2 pr-2 pl-4 text-[13px] text-ink-3">
         <TerminalIcon size={14} />
         <span className="flex-1">Terminal</span>
-        <button type="button" aria-label="Hide the terminal" title="Hide (the shell keeps running)" onClick={() => setState({ terminal: null })} className="inline-flex h-6 items-center rounded-[6px] px-2 hover:bg-muted hover:text-foreground">
+        <button type="button" aria-label="Hide the terminal" title="Hide (the shell keeps running)" onClick={() => setState({ terminal: null })} className="inline-flex h-6 items-center rounded-full px-2 hover:bg-muted hover:text-ink">
           Hide
         </button>
-        <button type="button" aria-label="Close the terminal" onClick={close} className="inline-flex size-6 items-center justify-center rounded-[6px] hover:bg-muted hover:text-foreground">
+        <button type="button" aria-label="Close the terminal" onClick={close} className="inline-flex size-6 items-center justify-center rounded-full hover:bg-muted hover:text-ink">
           <XIcon size={12} />
         </button>
       </header>

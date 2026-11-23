@@ -14,9 +14,9 @@ async function open(page: Page, theme: "dark" | "light", mock: string) {
   await page.clock.setFixedTime(NOW)
   await page.goto(`/?theme=${theme}&mock=${mock}`)
   await page.evaluate(() => document.fonts.ready)
-  await page.getByRole("button", { name: /^Watching/ }).first().click()
+  await page.getByRole("button", { name: /^Oversight/ }).first().click()
   // The page fades in; the new chat's box stays in the page until it's gone.
-  await page.getByPlaceholder(/^(Say what to watch|Watch something else)$/).waitFor()
+  await page.getByPlaceholder(/^(Say what to check|Add a check)$/).waitFor()
   await page.waitForTimeout(400)
 }
 
@@ -38,10 +38,10 @@ for (const theme of ["light", "dark"] as const) {
     test("c-free-confirm: a free sentence becomes a custom plan with Runs on", async ({ page }) => {
       await open(page, theme, "nowatches")
       await say(page, "Tell me when a seat opens in the Saturday glaze workshop at claycollective.org/workshops.")
-      await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Add check" })).toBeVisible()
       await expect(page.getByText("I’ll read claycollective.org/workshops every hour and tell you when the Saturday glaze workshop has a seat. It’s full now.")).toBeVisible()
       await expect(page.getByRole("button", { name: "Runs on" })).toBeVisible()
-      await expect(page.getByText("New watch").first()).toBeVisible()
+      await expect(page.getByText("New check").first()).toBeVisible()
       await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-c-free-confirm.png`)
@@ -50,7 +50,7 @@ for (const theme of ["light", "dark"] as const) {
     test("c-free-unclear: the starters, never a guessed kind", async ({ page }) => {
       await open(page, theme, "nowatches")
       await say(page, "keep an eye on things for me")
-      await expect(page.getByText("What should I watch?")).toBeVisible()
+      await expect(page.getByText("What should I keep an eye on?")).toBeVisible()
       await expect(page.getByTestId("watch-read").getByRole("group", { name: "Starters" })).toBeVisible()
       await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
       await settle(page)
@@ -68,7 +68,7 @@ for (const theme of ["light", "dark"] as const) {
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-c-free-notarget.png`)
       await say(page, "lane-ceramics.com")
-      await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Add check" })).toBeVisible()
       await expect(page.getByRole("main").getByText("Tell me if my site goes down.")).toBeVisible()
     })
 
@@ -81,7 +81,7 @@ for (const theme of ["light", "dark"] as const) {
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-c-free-unreachable.png`)
       await page.getByRole("button", { name: "Use lane-ceramics.com/pricing" }).click()
-      await expect(page.getByRole("button", { name: "Start watching" })).toBeVisible()
+      await expect(page.getByRole("button", { name: "Add check" })).toBeVisible()
     })
 
     test("w-custom: news with the quote", async ({ page }) => {
@@ -110,7 +110,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByRole("dialog", { name: "Edit" })).toHaveCount(0)
       await page.locator('header button[aria-haspopup="menu"]').first().click()
       await page.getByRole("menuitem", { name: "Pause" }).click()
-      await expect(page.getByText("This watch is paused.")).toBeVisible()
+      await expect(page.getByText("This check is paused.")).toBeVisible()
       await expect(page.getByText("Paused at 2:45 pm.")).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-w-site-paused.png`)
@@ -129,7 +129,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page).toHaveScreenshot(`${theme}-e-delete.png`)
       await page.keyboard.press("Enter")
       await expect(row(page, "w-site")).toHaveCount(0)
-      await expect(page.getByText("Watching", { exact: true }).first()).toBeVisible()
+      await expect(page.getByText("Oversight", { exact: true }).first()).toBeVisible()
     })
 
     test("e-row-menu: the row's ⋯ and right-click", async ({ page }) => {

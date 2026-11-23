@@ -1,6 +1,6 @@
 import { Children, isValidElement, useCallback, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from "react"
 
-import { ChevronDown } from "./Icons"
+import { ChevronDown } from "./SolarIcons"
 import { MenuLabel, MenuLine, MenuRow, Popover } from "./Popover"
 
 type Item = { value: string; label: ReactNode } | { group: string }
@@ -76,7 +76,7 @@ export function Select({ value, onChange, children, label, className = "" }: { v
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => (open ? close() : show())}
-        className="box-border inline-flex h-[28px] max-w-full items-center gap-[6px] rounded-[6px] border-0 bg-fill-4 pr-[8px] pl-[10px] text-[13px] text-ink outline-none focus-visible:ring-1 focus-visible:ring-brand-text"
+        className="box-border inline-flex h-[28px] max-w-full items-center gap-[6px] rounded-[7px] border-0 bg-fill-2 pr-[8px] pl-[10px] text-[13px] text-ink outline-none transition-colors duration-150 ease-out hover:bg-fill-3 focus-visible:ring-1 focus-visible:ring-line-3"
       >
         <span className="truncate">{current?.label ?? ""}</span>
         <ChevronDown size={12} className="shrink-0 text-ink-3" />

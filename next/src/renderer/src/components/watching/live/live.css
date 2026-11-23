@@ -1,0 +1,134 @@
+/* The live dashboard's motion (spec 0002; keyframes from the M-WatchBLive and M-WatchOrbit boards). Only transform
+   and opacity animate. An element names its loop in `data-loop`; loops.ts runs these keyframes as web animations
+   (no animationiteration events, so no main-thread work per loop), never under Reduce Motion, and pauses them
+   while `.live-paused` is on the root (window hidden, or unfocused for a minute). */
+
+:root,
+.light {
+  --lv-empty: rgb(0 0 0 / 8%);
+  --lv-sheen: rgb(255 255 255 / 35%);
+  --lv-tick: rgb(0 0 0 / 18%);
+  --lv-tick-2: rgb(0 0 0 / 7%);
+}
+.dark {
+  --lv-empty: rgb(255 255 255 / 10%);
+  --lv-sheen: rgb(255 255 255 / 16%);
+  --lv-tick: rgb(255 255 255 / 18%);
+  --lv-tick-2: rgb(255 255 255 / 7%);
+}
+
+@keyframes lv-ping {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes lv-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+@keyframes lv-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+/* The indeterminate bar: 30% wide, from just off the left edge to just off the right. */
+@keyframes lv-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(334%); }
+}
+@keyframes lv-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes lv-blink {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes lv-bob {
+  0%, 100% { transform: translateY(-2px); }
+  50% { transform: translateY(2px); }
+}
+@keyframes lv-wave {
+  0%, 70%, 100% { opacity: 0.3; }
+  10% { opacity: 1; }
+}
+@keyframes lv-scan {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(100%); }
+}
+/* Odometer columns: 6 or 10 digits and the first again, stepped. */
+@keyframes lv-odo6 {
+  to { transform: translateY(-85.7143%); }
+}
+@keyframes lv-odo10 {
+  to { transform: translateY(-90.9091%); }
+}
+@keyframes or-ping {
+  0%, 8% { transform: scale(1); opacity: 0.9; }
+  30% { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+.odo {
+  display: inline-block;
+  width: 0.62em;
+  height: 1.2em;
+  line-height: 1.2em;
+  overflow: hidden;
+  vertical-align: -0.24em;
+  text-align: center;
+}
+.odo > span {
+  display: flex;
+  flex-direction: column;
+}
+.odo > span > i {
+  display: block;
+  height: 1.2em;
+  font-style: normal;
+}
+
+/* Calm hover (2026-11-08): the fill lifts a few percent and a hairline shows; icons and colours stay put. */
+.lv-tile {
+  transition: background-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.lv-tile:hover {
+  background-color: color-mix(in srgb, var(--card) 94%, var(--foreground) 6%);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+}
+.lv-tile[data-hi] {
+  box-shadow: inset 0 0 0 2px var(--brand-text) !important;
+}
+.lv-more {
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.lv-tile:hover .lv-more,
+.lv-more:focus-visible,
+.lv-more[aria-expanded="true"] {
+  opacity: 1;
+}
+.lv-dot-ring {
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.lv-dot:is(:hover, :focus-visible) .lv-dot-ring,
+.lv-dot[data-lit] .lv-dot-ring {
+  opacity: 1;
+}
+.lv-dot:focus-visible {
+  outline: none;
+}
+
+.live-paused .lv,
+.live-paused .lv * {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv,
+  .lv * {
+    animation: none !important;
+  }
+  .lv-tile,
+  .lv-more,
+  .lv-dot-ring {
+    transition: none;
+  }
+}

@@ -6,7 +6,7 @@ name: Supply chain
 # lockfile, on master, and every night, so an advisory published after a merge still turns
 # master red. A failing nightly run opens (or updates) a "security" issue.
 #
-# It only reads
+# On a self-hosted runner; it only reads
 # lockfiles, nothing is installed, built or run. Same check locally from next/:
 #   pnpm audit --audit-level high
 on:
@@ -24,7 +24,9 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
+    # Fork PRs never run on the self-hosted runner: a maintainer pushes the branch to this repo to run checks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, axeai-mac-ci]
     timeout-minutes: 10
     defaults:
       run:
@@ -46,7 +48,7 @@ jobs:
     # Nightly failures become an issue, so they don't sit unseen in the Actions tab.
     needs: audit
     if: failure() && github.event_name == 'schedule'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, axeai-mac-ci]
     permissions:
       issues: write
     steps:

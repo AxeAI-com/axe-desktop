@@ -37,27 +37,39 @@ describe("StepGroup", () => {
 
     fireEvent.click(line)
     expect(line.getAttribute("aria-expanded")).toBe("true")
-    expect(screen.getByText("Read upload.test.ts")).toBeTruthy()
-    expect(screen.getByText("pnpm test upload")).toBeTruthy()
     expect(screen.getByText("Thought for 3s")).toBeTruthy()
-    // Each step opens on its own to show what it printed.
+    // Two reads in a row are one row; it opens to the paths they read.
+    fireEvent.click(screen.getByRole("button", { name: /^Read 2 files$/ }))
+    expect(screen.getByText("test/upload.test.ts")).toBeTruthy()
+    // The raw command and what it printed wait inside the step.
+    expect(screen.queryByText("pnpm test upload")).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: /^Ran the test 10 times/ }))
+    expect(screen.getByText("pnpm test upload")).toBeTruthy()
     expect(screen.getByText("8 passed")).toBeTruthy()
   })
 
-  it("shows the current step and the seconds while working", () => {
-    const live: StepPart[] = [...parts.slice(0, 2), { type: "tool", id: "d", title: "Running the tests", kind: "execute", state: "running" }]
-    const { container } = render(<StepGroup parts={live} live startedAt={Date.now() - 4200} />)
-    expect(screen.getByRole("button", { name: "Running the tests" })).toBeTruthy()
-    expect(screen.getByText("4s")).toBeTruthy()
-    // The title shimmers while it works.
-    expect(container.querySelector(".steps-live h3")?.textContent).toBe("Running the tests")
+  it("names a raw shell step in plain English and keeps the command inside", () => {
+    const cmd = `cd . && grep -rniE "unarchive|restore" src | head; echo done`
+    render(<StepGroup parts={[{ type: "tool", id: "s", title: cmd, kind: "execute", state: "done" }]} live={false} cwd="/p" />)
+    fireEvent.click(screen.getByRole("button", { name: "Ran 1 command" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Searched the code for ‘unarchive\|restore’/ }))
+    expect(screen.getByText(cmd)).toBeTruthy()
+  })
+
+  it("shows one live line for the current step, and the seconds only after 10", () => {
+    const live: StepPart[] = [...parts.slice(0, 2), { type: "tool", id: "d", title: "pnpm test", kind: "execute", state: "running" }]
+    const { unmount } = render(<StepGroup parts={live} live startedAt={Date.now() - 4200} />)
+    expect(screen.getByRole("status").textContent).toBe("Running the tests…")
+    expect(screen.getByRole("button", { name: "Read 1 file" })).toBeTruthy()
+    unmount()
+    render(<StepGroup parts={live} live startedAt={Date.now() - 12200} />)
+    expect(screen.getByText("12s")).toBeTruthy()
   })
 
   it("says it is waiting when a permission is pending", () => {
     const { container } = render(<StepGroup parts={parts} live waiting startedAt={Date.now()} />)
     expect(screen.getByText("Waiting for you")).toBeTruthy()
-    expect(container.querySelector(".steps-live")).toBeNull()
+    expect(screen.queryByRole("status")).toBeNull()
     expect(container.querySelector(".steps-waiting")).toBeTruthy()
   })
 
@@ -69,7 +81,7 @@ describe("StepGroup", () => {
     render(<StepGroup parts={work} live waiting compact cwd="/p" asked={["w1"]} />)
     expect(screen.queryByRole("status")).toBeNull()
     expect(screen.queryByText("Write src/cart.js")).toBeNull()
-    expect(screen.getByText("Edit src/stock.js")).toBeTruthy()
+    expect(screen.getByText("Editing stock.js")).toBeTruthy()
   })
 
   it("has nothing to open for thinking without words", () => {

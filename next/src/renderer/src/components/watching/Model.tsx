@@ -6,7 +6,7 @@ import { answererLabel } from "@/lib/answerer"
 import { useStore } from "@/lib/store"
 
 import { AxeTile, agentLogo, LogoTile, localModelLogo, modelLogo } from "../BrandLogo"
-import { ChevronDown } from "../Icons"
+import { ChevronDown } from "../SolarIcons"
 import { ModelPicker } from "../ModelPicker"
 
 // A watch's model as a filled chip that opens the chat's own picker: the plan's "Runs on", Edit's
@@ -41,7 +41,7 @@ export function ModelChip({ value, onPick, label = "Model", up }: { value: Answe
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-[28px] cursor-pointer items-center gap-[6px] rounded-[6px] border-0 bg-button px-[8px] text-[13px] whitespace-nowrap text-ink transition-colors duration-150 hover:bg-fill-3"
+        className="inline-flex h-[28px] cursor-pointer items-center gap-[6px] rounded-full border-0 bg-button px-[8px] text-[13px] whitespace-nowrap text-ink transition-colors duration-150 hover:bg-fill-3"
       >
         <AnswererLogo a={value} />
         {answererLabel(value, catalog)}

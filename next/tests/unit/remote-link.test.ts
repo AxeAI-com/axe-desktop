@@ -191,6 +191,10 @@ class Relay {
             : (m.m as Record<string, unknown>),
         )
   }
+  /** The relay ends one phone's socket with a code of its own (4002 replaced, 4001 refused). */
+  endPhone(id: string, code: number) {
+    this.phones.get(id)?.close(code)
+  }
   /** A deploy: every socket drops, the new process knows nobody. */
   restart() {
     const all = [this.mac, ...this.phones.values()]
@@ -220,7 +224,7 @@ class Sock implements SocketLike {
   deliver(m: unknown) {
     if (this.open) setTimeout(() => this.open && this.onmessage?.({ data: JSON.stringify(m) }), 0)
   }
-  close() {
+  close(code = 1012) {
     if (!this.open) return
     this.open = false
     if (this.role === "phone" && this.relay.phones.get(this.id) === this) this.relay.phones.delete(this.id)
@@ -229,7 +233,7 @@ class Sock implements SocketLike {
       for (const p of this.relay.phones.values()) p.deliver({ t: "mac", on: false })
     } else if (this.relay.mac && this.role === "phone")
       this.relay.mac.deliver({ t: "peer", phone: this.id, on: false })
-    setTimeout(() => this.onclose?.({ code: 1012 }), 0)
+    setTimeout(() => this.onclose?.({ code }), 0)
   }
 }
 
@@ -375,5 +379,21 @@ describe("the link clients", () => {
     await until(() => reset === again.epoch)
     first.phone.stop()
     again.stop()
+  })
+
+  it("does not reconnect after 4002 (another tab took over) or 4001, and reconnects on request", async () => {
+    for (const code of [4002, 4001]) {
+      const relay = new Relay()
+      const { d, mac, phone } = await linked(relay)
+      relay.endPhone(d.phoneId, code)
+      const halted = code === 4002 ? "replaced" : "refused"
+      await until(() => phone.state === halted)
+      await new Promise((r) => setTimeout(r, 700))
+      expect([phone.state, relay.phones.size]).toEqual([halted, 0])
+      phone.reconnect()
+      await until(() => phone.state === "online" && mac.phones().length === 1)
+      phone.stop()
+      mac.stop()
+    }
   })
 })

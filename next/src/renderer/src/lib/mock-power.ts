@@ -5,7 +5,7 @@ import type { PhonesView, PowerState, RemoteState } from "@shared/types"
 
 const at = (iso: string) => new Date(iso).toISOString()
 
-type Names = "power:get" | "power:set" | "remote:get" | "remote:setEnabled" | "remote:newCode" | "phones:get" | "phones:setEnabled" | "phones:code" | "phones:remove" | "phones:answer" | "phones:log" | "phones:stop"
+type Names = "power:get" | "power:set" | "remote:get" | "remote:setEnabled" | "remote:newCode" | "phones:get" | "phones:setEnabled" | "phones:code" | "phones:closeCode" | "phones:remove" | "phones:answer" | "phones:log" | "phones:stop"
 
 export function mockPower(scenario: string | null, emit: <K extends keyof Events>(e: K, p: Events[K]) => void) {
   const empty = scenario === "noruns"
@@ -36,7 +36,8 @@ export function mockPower(scenario: string | null, emit: <K extends keyof Events
       phones = { ...phones, enabled: on }
       return phonesChanged()
     },
-    "phones:code": () => (phones.enabled ? { link: "https://axeai.com/connect#mock-pairing-code", expiresAt: Date.now() + 102_000 } : null),
+    "phones:code": () => (phones.enabled ? { link: "https://axeai.com/connect#mock-pairing-code", expiresAt: Date.now() + 102_000, code: "123456", codeExpiresAt: Date.now() + 102_000, blockedUntil: 0 } : null),
+    "phones:closeCode": () => {},
     "phones:remove": (id) => {
       phones = { ...phones, phones: phones.phones.filter((p) => p.id !== id) }
       return phonesChanged()

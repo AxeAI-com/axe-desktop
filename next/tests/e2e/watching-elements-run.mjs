@@ -223,7 +223,7 @@ try {
     await win.reload()
     await win.waitForTimeout(2000)
     await win.keyboard.press("Escape").catch(() => {})
-    await win.getByRole("button", { name: /^Watching/ }).first().click()
+    await win.getByRole("button", { name: /^Oversight/ }).first().click()
     await win.getByTestId("dashboard").waitFor()
     await win.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
     await win.waitForTimeout(800)
@@ -237,9 +237,9 @@ try {
   }
   // Add from the catalogue in the real window: Memory pressure goes straight to its plan.
   await win.getByTestId("catalogue").getByRole("button", { name: "Add Memory pressure" }).click()
-  await win.getByRole("button", { name: "Start watching" }).waitFor({ timeout: 30_000 })
+  await win.getByRole("button", { name: "Add check" }).waitFor({ timeout: 30_000 })
   await win.screenshot({ path: join(out, "add-memory-dark.png") })
-  log(true, "Add Memory pressure opens its plan in the real window", Date.now(), "Start watching shows")
+  log(true, "Add Memory pressure opens its plan in the real window", Date.now(), "Add check shows")
 } catch (e) {
   await win.screenshot({ path: join(out, "fail.png") }).catch(() => {})
   throw e

@@ -6,7 +6,7 @@ import type { ThreadSummary } from "@shared/types"
 import { useMotion } from "@/lib/motion"
 import { archiveThread, deleteThread, pinThread } from "@/lib/store"
 
-import { ArchiveIcon, PencilIcon, PinIcon, TrashIcon } from "./Icons"
+import { ArchiveIcon, PencilIcon, PinIcon, TrashIcon } from "./SolarIcons"
 import { MenuItem, MenuLine } from "./Popover"
 
 /** Rename, Pin, Archive, Delete (Delete asks first, in place). */
@@ -17,21 +17,21 @@ export function ChatMenuItems({ thread, onRename, close, noDelete = false }: { t
   return (
     <AnimatePresence mode="wait" initial={false}>
       {confirm ? (
-        <motion.div key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={m.t(0.12)} className="p-2">
+        <motion.div key="confirm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={m.t(0.12)} className="p-[8px]">
           <div className="text-[13px] text-ink">Delete this chat?</div>
-          <div className="mt-1 text-[13px] leading-[18px] text-ink-3">It's gone for good. Archive keeps it out of the way instead.</div>
-          <div className="mt-3 flex gap-1.5">
+          <div className="mt-[4px] text-[13px] leading-[18px] text-ink-3">It's gone for good. Archive keeps it out of the way instead.</div>
+          <div className="mt-[12px] flex gap-[8px]">
             <button
               autoFocus
               onClick={() => {
                 close()
                 void deleteThread(thread.id)
               }}
-              className="h-[30px] rounded-[6px] border-0 bg-bad px-3 text-[13px] text-white hover:opacity-90"
+              className="h-[32px] rounded-full border-0 bg-bad px-[16px] text-[13px] text-background transition-[opacity,transform] duration-150 ease-out hover:opacity-90 active:scale-[0.96]"
             >
               Delete
             </button>
-            <button onClick={() => setConfirm(false)} className="h-[30px] rounded-[6px] border-0 bg-transparent px-2.5 text-[13px] text-ink-2 hover:bg-fill-2">
+            <button onClick={() => setConfirm(false)} className="h-[32px] rounded-full border-0 bg-transparent px-[16px] text-[13px] text-ink-2 transition-[background-color,color,transform] duration-150 ease-out hover:bg-menu-hover hover:text-ink active:scale-[0.96]">
               Cancel
             </button>
           </div>

@@ -101,8 +101,8 @@ const checkNow = async () => {
 }
 
 // 1. The empty page and a starter.
-await win.getByRole("button", { name: /^Watching/ }).first().click()
-await win.getByText("What should Axe watch?").waitFor()
+await win.getByRole("button", { name: /^Oversight/ }).first().click()
+await win.getByText("What should Axe keep an eye on?").waitFor()
 await box().click()
 await win.getByTestId("catalogue").getByRole("button", { name: "Add Uptime and speed" }).hover()
 await shot("01-empty")
@@ -128,13 +128,13 @@ await box().fill(`https://${host}/`)
 await box().press("Enter")
 await win.getByText(`Checking ${host}…`).waitFor()
 await shot("05-checking")
-await win.getByRole("button", { name: "Start watching" }).waitFor({ timeout: 20_000 })
+await win.getByRole("button", { name: "Add check" }).waitFor({ timeout: 20_000 })
 mode = "up"
 
 // 3. The plan, Start, the first run and its result.
 await win.waitForTimeout(300)
 await shot("06-plan")
-await win.getByRole("button", { name: "Start watching" }).click()
+await win.getByRole("button", { name: "Add check" }).click()
 await win.getByText("Checking now").waitFor()
 await shot("07-first-run")
 await win.getByText(/is up and loads in/).waitFor()
@@ -203,12 +203,12 @@ await main.getByText("Okay. I’ll tell you when it takes more than 3 s to load.
 await shot("16-reply")
 
 // 11. The list: the problem row on top, the sidebar row and the badge.
-await win.getByRole("button", { name: /^Watching/ }).first().click()
+await win.getByRole("button", { name: /^Oversight/ }).first().click()
 await main.getByText("Slow: the home page takes", { exact: false }).first().waitFor()
 await win.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur())
 await win.waitForTimeout(600)
 await shot("17-list-problem")
-log("sidebar:", await win.getByRole("button", { name: /^Watching, / }).first().getAttribute("aria-label"))
+log("sidebar:", await win.getByRole("button", { name: /^Oversight, / }).first().getAttribute("aria-label"))
 
 const all = notes()
 log("notices:", all.length, all.map((n) => `${n.title}: ${n.body} [${(n.actions ?? []).map((a) => a.text).join(", ")}]`).join(" / "))

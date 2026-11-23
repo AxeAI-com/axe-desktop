@@ -39,7 +39,7 @@ export function quickKeyAction(k: QuickKey, s: QuickState): QuickAction {
 /** The quick bar's / menu: /watch starts a watch; /write puts words in the box. */
 export type QuickCommand = { name: "watch" | "write"; label: string; description: string; insert?: string }
 export const QUICK_COMMANDS: QuickCommand[] = [
-  { name: "watch", label: "Watch", description: "Check something on a schedule" },
+  { name: "watch", label: "Check", description: "Keep an eye on something" },
   { name: "write", label: "Write", description: "Draft in your voice", insert: "Help me write " },
 ]
 
@@ -58,5 +58,5 @@ export function typedWatch(text: string): string | null {
   return m ? (m[1] ?? "").trim() : null
 }
 
-/** How long the bar shows "Watching …" before it closes by itself. */
+/** How long the bar shows "Checking …" before it closes by itself. */
 export const QUICK_STARTED_MS = 4_000

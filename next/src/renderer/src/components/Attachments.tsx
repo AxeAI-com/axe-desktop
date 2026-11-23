@@ -6,7 +6,7 @@ import { invoke, pathOf } from "@/lib/bridge"
 import { useMotion } from "@/lib/motion"
 
 import { PageIcon } from "./BoardIcons"
-import { XIcon } from "./Icons"
+import { XIcon } from "./SolarIcons"
 
 const KIND: Record<string, string> = {
   "application/pdf": "PDF",
@@ -40,17 +40,17 @@ export function AttachmentChip({ a, onRemove }: { a: Attachment; onRemove?: () =
   if (a.preview)
     return (
       <div className="group/chip relative shrink-0" title={a.name}>
-        <img src={a.preview} alt={a.name} draggable={false} className="size-[52px] rounded-[16px] border-0 object-cover" />
+        <img src={a.preview} alt={a.name} draggable={false} className="size-[52px] rounded-media border-0 object-cover" />
         {remove}
       </div>
     )
   return (
-    <div className="group/chip relative flex h-[52px] max-w-[240px] shrink-0 items-center gap-[10px] rounded-[16px] border-0 bg-card pr-[16px] pl-[8px]" title={a.name}>
-      <span className="flex size-[36px] shrink-0 items-center justify-center rounded-[10px] bg-fill-4 text-ink-2">
-        <PageIcon size={17} />
+    <div className="group/chip relative flex h-[48px] max-w-[240px] shrink-0 items-center gap-[10px] rounded-[16px] border-0 bg-card pr-[16px] pl-[8px]" title={a.name}>
+      <span className="flex size-[32px] shrink-0 items-center justify-center rounded-[8px] bg-fill-2 text-ink-2">
+        <PageIcon size={16} />
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[14px] leading-[18px] text-ink">{a.name}</span>
+        <span className="truncate text-[13px] leading-[18px] text-ink">{a.name}</span>
         <span className="truncate text-[12px] leading-[18px] text-ink-3">{fileNote(a)}</span>
       </span>
       {remove}
@@ -66,9 +66,7 @@ export function AttachmentTray({ files, onRemove }: { files: Attachment[]; onRem
       {files.length > 0 && (
         <motion.div
           key="tray"
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
+          initial={false}
           transition={m.t()}
           className="overflow-visible"
         >
@@ -77,10 +75,7 @@ export function AttachmentTray({ files, onRemove }: { files: Attachment[]; onRem
               {files.map((a, i) => (
                 <motion.div
                   key={a.path || a.name + i}
-                  layout={!m.reduced}
-                  initial={{ opacity: 0, scale: m.reduced ? 1 : 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: m.reduced ? 1 : 0.9 }}
+                  initial={false}
                   transition={m.t()}
                 >
                   <AttachmentChip a={a} onRemove={() => onRemove(i)} />

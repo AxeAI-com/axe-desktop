@@ -6,7 +6,7 @@ import { invoke } from "@/lib/bridge"
 import { addCustomConnector, cancelConnect, connect, loadConnectors, removeConnector, setConnectorEnabled } from "@/lib/libraries"
 import { useStore } from "@/lib/store"
 
-import { CheckIcon, ExternalIcon, TrashIcon } from "@/components/Icons"
+import { CheckIcon, ExternalIcon, TrashIcon } from "@/components/SolarIcons"
 import { Card, ConnectorLogo, ErrorLine, Field, FilterChips, ghost, Grid, inputClass, LibraryPage, primary, Sheet, small, Switch } from "@/components/Library"
 
 // Connectors: the apps your models and CLIs can reach, as MCP servers. Sign in once; it stays on this
@@ -64,14 +64,14 @@ export function Connectors() {
       {connected.length > 0 && (
         <section aria-label="Connected" className="flex flex-col gap-[12px]">
           <h2 className="m-0 flex h-[28px] items-center text-[15px] leading-6 font-normal text-ink">Connected</h2>
-          <div className="flex flex-col overflow-hidden rounded-[16px] bg-card py-[4px]">
+          <div className="flex flex-col overflow-hidden rounded-3xl bg-card py-[4px]">
             {connected.map((c) => {
               const line = stateLine(c)
               return (
                 <div key={c.id} className="flex h-[56px] items-center gap-[12px] px-[16px]">
                   <ConnectorLogo catalogId={c.catalogId} name={c.name} size={32} />
                   <div className="flex min-w-0 flex-1 flex-col gap-[1px]">
-                    <span className="text-[14px] leading-5 text-ink">{c.name}</span>
+                    <span className="text-[13px] leading-5 text-ink">{c.name}</span>
                     <span className={`truncate text-[12px] leading-4 ${line.tone}`}>{line.text}</span>
                   </div>
                   {c.state === "signin" && c.catalogId && (
@@ -87,7 +87,7 @@ export function Connectors() {
                   >
                     <TrashIcon size={14} />
                   </button>
-                  <Switch flat on={c.enabled} onChange={(on) => void setConnectorEnabled(c.id, on)} label={`Use ${c.name}`} />
+                  <Switch on={c.enabled} onChange={(on) => void setConnectorEnabled(c.id, on)} label={`Use ${c.name}`} />
                 </div>
               )
             })}
@@ -114,7 +114,7 @@ export function Connectors() {
                   {c.auth === "soon" ? (
                     <span className="text-[13px] text-ink-3">Coming soon</span>
                   ) : isOn ? (
-                    <span className="flex h-[28px] items-center gap-[6px] rounded-full bg-brand-soft px-[12px] text-[13px] text-brand-text">
+                    <span className="flex h-[28px] items-center gap-[6px] rounded-full bg-fill-2 px-[12px] text-[13px] text-ink">
                       <CheckIcon size={12} />
                       Connected
                     </span>
@@ -165,7 +165,7 @@ function TokenSheet({ entry, onClose }: { entry: CatalogConnector | null; onClos
         <>
           <div className="flex items-center gap-[12px] pr-[32px]">
             <ConnectorLogo catalogId={entry.id} name={entry.name} size={40} />
-            <h2 className="m-0 text-[20px] leading-7 font-normal">Connect {entry.name}</h2>
+            <h2 className="m-0 text-[20px] leading-[26px] font-normal">Connect {entry.name}</h2>
           </div>
           <p className="m-0 text-[13px] leading-[22px] text-ink-2">
             {entry.name} connects with a token you make. It stays on this computer, encrypted.
@@ -222,7 +222,7 @@ function CustomSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   }
   return (
     <Sheet open={open} onClose={close} label="Add your own connector">
-      <h2 className="m-0 text-[20px] leading-7 font-normal">Add your own</h2>
+      <h2 className="m-0 text-[20px] leading-[26px] font-normal">Add your own</h2>
       <p className="m-0 -mt-[8px] text-[13px] text-ink-3">Any MCP server: an address on the web, or a command on this computer.</p>
       <FilterChips
         label="Kind"

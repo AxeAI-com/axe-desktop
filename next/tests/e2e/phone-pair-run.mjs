@@ -1,6 +1,6 @@
 // Pairing a phone, for real (remote control step 2, docs/remote-control-SECURITY.md): the built app
 // signed in to a local axe-web, and a WebKit iPhone on the same account.
-// 1. Settings, Use from your phone: turn it on, a QR appears.
+// 1. Settings, Browsers and phones: turn it on, a QR appears.
 // 2. An Android phone scans it with the page's own camera (a fake camera showing the Mac's QR); the Mac
 //    asks "Connect David's Android phone?" and gets Not me. The phone hears no.
 // 3. An iPhone opens the next QR's link (what its Camera app does); the Mac asks; Allow. The phone says
@@ -47,11 +47,11 @@ const phoneContext = async () => {
 try {
   await win.waitForTimeout(2500)
   await win.keyboard.press("Meta+Comma")
-  const toggle = win.getByRole("switch", { name: "Let my phone use this Mac" })
+  const toggle = win.getByRole("switch", { name: "Let my browsers and phones use this computer" })
   await toggle.waitFor({ timeout: 20_000 })
   await toggle.scrollIntoViewIfNeeded()
   await toggle.click()
-  await win.getByText("Scan with your phone").waitFor()
+  await win.getByText("Type this at axeai.com/connect").waitFor()
   await win.locator("#settings-phone").scrollIntoViewIfNeeded()
   await mac("1-mac-settings-qr")
   log("QR shown")

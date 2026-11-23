@@ -14,7 +14,7 @@ async function open(page: Page, theme: "dark" | "light", query = "") {
 
 /** The main window, signed in and ready for keys. */
 async function ready(page: Page) {
-  await expect(page.getByRole("heading", { name: "Let's untangle it" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible()
 }
 
 async function settle(page: Page) {
@@ -112,7 +112,7 @@ for (const theme of ["dark"] as const) {
 
     test("dictation in the composer", async ({ page }) => {
       await open(page, theme)
-      await expect(page.getByRole("heading", { name: "Let's untangle it" })).toBeVisible()
+      await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible()
       await voice(page, { dictation: { phase: "listening", target: "composer", startedAt: NOW.getTime() - 12_000, levels: LEVELS } })
       await expect(page.getByRole("button", { name: "Stop dictating" })).toBeVisible()
       await settle(page)
@@ -218,7 +218,9 @@ for (const theme of ["dark"] as const) {
       await key.click()
       await expect(page.getByRole("button", { name: "Press the new shortcut" })).toBeVisible()
       await settle(page)
-      await expect(page).toHaveScreenshot(`${theme}-settings-recording.png`)
+      // The row itself: the page around it loads its sections in no fixed order, so its scroll varies.
+      const row = page.getByRole("button", { name: "Press the new shortcut" }).locator("xpath=../..")
+      await expect(row).toHaveScreenshot(`${theme}-settings-recording.png`)
       await page.keyboard.press("Control+Shift+K")
       await expect(page.getByRole("button", { name: /Quick bar shortcut: ⌃⇧K/ })).toBeVisible()
       await page.keyboard.press("Meta+k")

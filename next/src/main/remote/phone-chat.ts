@@ -5,7 +5,11 @@ import {
   type PhoneChat,
   type PhoneCommand,
   type PhoneEventBody,
+  type PhoneFolder,
   type PhoneMode,
+  IMAGE_MAX,
+  IMAGE_PIECE,
+  type PhoneImagePiece,
   phoneRequestSchema,
   UPLOAD_MAX,
 } from "@shared/remote-commands"
@@ -24,10 +28,14 @@ export type PhoneChatHost = {
     stop(threadId: string): void
     setMode(threadId: string, mode: AgentMode): Promise<void>
     modeOf(threadId: string): AgentMode
+    /** The mode new agent chats start in on this computer. */
+    defaultMode(): AgentMode
     isRunning(threadId: string): boolean
     title(threadId: string): string | undefined
     /** Answers a request the agent waits on (an approval, a question, a plan). */
     answer(requestId: string, optionId: string): void
+    /** Axe's copy of a picture part in that chat; throws for anything that isn't one (spec 0035). */
+    image(threadId: string, partId: string): Promise<{ mime: string; bytes: Uint8Array }>
   }
   /** Saves a file a phone sent into this computer's attachments; the type comes from the name. */
   saveFile(name: string, bytes: Uint8Array): Attachment
@@ -44,6 +52,12 @@ export type PhoneChatHost = {
 const RATE = 40
 const REPLY_EVERY_MS = 120
 const MESSAGES_MAX = 80
+
+/** Picture pieces per phone in 10 seconds (their own budget: a 10 MB picture is 107 pieces). */
+const IMAGE_RATE = 200
+/** Pictures held in memory while a phone fetches their pieces. */
+const IMAGES_HELD = 3
+const IMAGE_HOLD_MS = 60_000
 
 /** Files a phone may be sending at once, and how long one may take. */
 const UPLOADS_AT_ONCE = 3
@@ -65,6 +79,9 @@ export class PhoneControl {
   /** Files arriving, and files ready to send, by "<phone>:<upload id>". */
   private uploads = new Map<string, Upload>()
   private files = new Map<string, Attachment>()
+  private imageCounts = new Map<string, { n: number; since: number }>()
+  /** Pictures being fetched, by "<phone>:<chat>:<part>". Piece 0 always reads the copy again. */
+  private images = new Map<string, { mime: string; bytes: Uint8Array; at: number }>()
 
   constructor(private host: PhoneChatHost) {}
 
@@ -75,8 +92,12 @@ export class PhoneControl {
     const { id, cmd } = parsed.data
     const now = this.host.now()
     const c = this.counts.get(phone)
-    // File pieces are limited by size instead, so a photo isn't slowed down.
-    if (cmd.type !== "upload") {
+    // File pieces are limited by size instead, so a photo isn't slowed down; picture pieces by their own count.
+    if (cmd.type === "image") {
+      const ic = this.imageCounts.get(phone)
+      if (!ic || now - ic.since > 10_000) this.imageCounts.set(phone, { n: 1, since: now })
+      else if (++ic.n > IMAGE_RATE) return void this.host.sendTo(phone, { type: "res", id, ok: false, error: "Too fast. Wait a moment." })
+    } else if (cmd.type !== "upload") {
       if (!c || now - c.since > 10_000) this.counts.set(phone, { n: 1, since: now })
       else if (++c.n > RATE) return void this.host.sendTo(phone, { type: "res", id, ok: false, error: "Too fast. Wait a moment." })
     }
@@ -94,23 +115,31 @@ export class PhoneControl {
     switch (cmd.type) {
       case "chats": {
         const [threads, catalog] = await Promise.all([this.host.chat.listThreads(), this.host.catalog()])
-        return { chats: threads.map((t) => this.chatView(t)), catalog: phoneCatalog(catalog) }
+        return { chats: threads.map((t) => this.chatView(t)), catalog: phoneCatalog(catalog, this.host.chat.defaultMode()) }
       }
       case "read": {
         const messages = await this.host.chat.messages(cmd.chat)
         const waiting = [...this.waiting.values()].filter((w) => w.chat === cmd.chat).map((w) => w.ask)
         return { messages: messages.slice(-MESSAGES_MAX), mode: this.host.chat.modeOf(cmd.chat), running: this.host.chat.isRunning(cmd.chat), waiting }
       }
+      case "folders":
+        return { folders: recentFolders(await this.host.chat.listThreads()) }
       case "send": {
         const threads = await this.host.chat.listThreads()
         const thread = cmd.chat ? threads.find((t) => t.id === cmd.chat) : undefined
         if (cmd.chat && !thread) throw new Error("That chat isn't on this computer anymore.")
         const answerer = await this.answerer(cmd.answerer, thread)
-        // A new agent chat works where you last worked with it on this computer, never a folder the
-        // phone names (threat model, section 6).
-        const cwd = cmd.chat === null && answerer.kind === "agent" ? lastFolder(threads, answerer.agentId) : undefined
-        if (cmd.chat === null && answerer.kind === "agent" && !cwd)
-          throw new Error("Start a chat with this agent on your Mac first, so it knows which folder to work in.")
+        // A new agent chat works in a folder from this computer's own recent list ("folders"), exactly as
+        // listed, never one the phone makes up (threat model, section 6). No pick: where you last worked
+        // with that agent.
+        let cwd: string | undefined
+        if (cmd.chat === null && answerer.kind === "agent") {
+          if (cmd.folder !== undefined) {
+            if (!recentFolders(threads).some((f) => f.path === cmd.folder)) throw new Error("Pick a folder from the list.")
+            cwd = cmd.folder
+          } else cwd = lastFolder(threads, answerer.agentId)
+          if (!cwd) throw new Error("Pick a folder for this agent.")
+        }
         const attachments = (cmd.attachments ?? []).map((u) => {
           const file = this.files.get(`${phone}:${u}`)
           if (!file) throw new Error("A file didn't finish sending. Attach it again.")
@@ -125,7 +154,9 @@ export class PhoneControl {
           keepDefaults: true,
           ...(attachments.length ? { attachments } : {}),
           ...(cwd ? { cwd } : {}),
-          ...(cmd.chat === null && cmd.mode ? { mode: cmd.mode } : {}),
+          // A chat started on a phone asks first unless the phone picked a mode; the Mac's own default
+          // (which may be Bypass) never carries over.
+          ...(cmd.chat === null ? { mode: cmd.mode ?? "ask" } : {}),
         })
         const who = answerer.kind === "agent" ? (await this.host.catalog()).agents.find((a) => a.id === answerer.agentId)?.name : undefined
         if (cmd.chat === null) {
@@ -159,6 +190,8 @@ export class PhoneControl {
       }
       case "upload":
         return this.piece(phone, cmd)
+      case "image":
+        return this.imagePiece(phone, cmd)
       case "mode":
         await this.host.chat.setMode(cmd.chat, cmd.mode)
         this.host.log({ phone, name: await name(), text: `Switched ${titleOf(cmd.chat)} to ${MODE_WORDS[cmd.mode]}`, bypass: cmd.mode === "full" })
@@ -192,6 +225,32 @@ export class PhoneControl {
     const file = this.host.saveFile(u.name, Buffer.concat(u.parts))
     this.files.set(key, file)
     return { upload: cmd.upload, name: file.name, size: file.size }
+  }
+
+  /**
+   * One piece of a picture an agent made in a chat. Only an image part of that chat's messages is served,
+   * from Axe's own copy (the engine checks); the phone names a chat and a part, never a path.
+   */
+  private async imagePiece(phone: string, cmd: Extract<PhoneCommand, { type: "image" }>): Promise<PhoneImagePiece> {
+    const key = `${phone}:${cmd.chat}:${cmd.part}`
+    const now = this.host.now()
+    for (const [k, v] of this.images) if (now - v.at > IMAGE_HOLD_MS) this.images.delete(k)
+    let held = cmd.index === 0 ? undefined : this.images.get(key)
+    if (!held) {
+      const image = await this.host.chat.image(cmd.chat, cmd.part)
+      if (image.bytes.byteLength > IMAGE_MAX) throw new Error("That picture is too big to send.")
+      held = { mime: image.mime, bytes: image.bytes, at: now }
+      this.images.delete(key)
+      this.images.set(key, held)
+      while (this.images.size > IMAGES_HELD) this.images.delete(this.images.keys().next().value!)
+    }
+    held.at = now
+    const size = held.bytes.byteLength
+    const total = Math.max(1, Math.ceil(size / IMAGE_PIECE))
+    if (cmd.index >= total) throw new Error("That piece isn't part of the picture.")
+    const data = Buffer.from(held.bytes.subarray(cmd.index * IMAGE_PIECE, (cmd.index + 1) * IMAGE_PIECE)).toString("base64")
+    if (cmd.index === total - 1) this.images.delete(key)
+    return { mime: held.mime, size, total, index: cmd.index, data }
   }
 
   /** Only models and agents this computer offers; a chat keeps its own kind of answerer. */
@@ -284,8 +343,29 @@ export function lastFolder(threads: ThreadSummary[], agentId: string): string | 
   return (agentChats.find((t) => t.agentId === agentId) ?? agentChats[0])?.cwd
 }
 
-export function phoneCatalog(c: ModelCatalog): PhoneCatalog {
+const FOLDERS_MAX = 20
+
+/** The folders agents worked in on this computer, newest first: what a phone may pick from. */
+export function recentFolders(threads: ThreadSummary[]): PhoneFolder[] {
+  const out = new Map<string, PhoneFolder>()
+  const newestFirst = threads.filter((t) => t.source === "agent" && t.cwd).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  for (const t of newestFirst) {
+    const path = t.cwd ?? ""
+    let f = out.get(path)
+    if (!f) {
+      if (out.size >= FOLDERS_MAX) continue
+      const label = path.split(/[\\/]/).filter(Boolean).pop() ?? path
+      f = { path, label: label.slice(0, 120), lastUsedAt: t.updatedAt, agentIds: [] }
+      out.set(path, f)
+    }
+    if (t.agentId && !f.agentIds.includes(t.agentId)) f.agentIds.push(t.agentId)
+  }
+  return [...out.values()]
+}
+
+export function phoneCatalog(c: ModelCatalog, defaultMode: AgentMode = "ask"): PhoneCatalog {
   return {
+    defaultMode,
     axe: c.axe.models.map((m) => ({ id: m.id, label: m.label })),
     defaultModelId: c.axe.defaultModelId,
     agents: c.agents.filter((a) => a.state === "ready").map((a) => ({ id: a.id, name: a.name })),

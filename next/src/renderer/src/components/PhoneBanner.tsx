@@ -7,7 +7,7 @@ import type { PhonesView } from "@shared/types"
 import { invoke, on } from "@/lib/bridge"
 import { useMotion } from "@/lib/motion"
 
-import { PhoneIcon } from "./Icons"
+import { PhoneIcon } from "./SolarIcons"
 
 /**
  * "David's iPhone is connected" with Stop (board: Remote control, RCConnected), top right while a paired
@@ -26,17 +26,15 @@ export function PhoneBanner() {
   }, [])
   const connected = view?.enabled ? view.phones.filter((p) => p.connected) : []
   const show = connected.length > 0
-  const label = connected.length === 1 ? `${connected[0]?.name} is connected` : `${connected.length} phones are connected`
+  const label = connected.length === 1 ? `${connected[0]?.name} is connected` : `${connected.length} devices are connected`
   return (
     <AnimatePresence>
       {show && (
         <motion.div
           role="status"
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
+          initial={false}
           transition={m.t()}
-          className={`no-drag fixed top-3.5 right-5 z-50 flex h-[34px] items-center gap-2.5 rounded-full pr-1.5 pl-3 text-[13px] ${notice ? "bg-pop text-warn-ink" : "bg-pop text-ok"}`}
+          className={`no-drag fixed top-3.5 right-5 z-50 flex h-[32px] items-center gap-2.5 rounded-[8px] pr-1.5 pl-3 text-[13px] ${notice ? "bg-pop text-warn-ink" : "bg-pop text-ok"}`}
         >
           <PhoneIcon size={14} />
           <span className="max-w-[420px] truncate">{notice?.text ?? label}</span>

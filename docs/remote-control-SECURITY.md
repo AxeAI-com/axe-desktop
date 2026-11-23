@@ -115,21 +115,23 @@ the Mac after opening):
 | Command | Limits on the Mac |
 |---|---|
 | `list-chats`, `read-chat` | Desktop chats only |
-| `send` | Text (and later attachments) into a chat. New chats only in folders the desktop already uses; the phone can't name a folder |
+| `send` | Text (and later attachments) into a chat. New agent chats only in a folder from the Mac's own recent list (`folder`, exactly as `folders` listed it; any other path is refused), and they start in Ask unless the phone picks a mode |
+| `folders` | The folders agents worked in on this Mac, newest first, at most 20. Read only: a path, a label, a time, the agents used there |
 | `stop` | The running reply |
 | `set-mode` | Ask, Auto-accept edits, Plan, Bypass (section 8) |
 | `set-model` | Only models the Mac lists |
 | `answer-approval`, `answer-question` | Only the request id currently shown, once |
+| `image` | One piece of a picture an agent made in a chat: only an `image` part of that chat's messages, from Axe's own copy, by part id. Never a path (section 18) |
 | today's `decide`, `run-agent`, `keep-awake` | Moved inside the sealed link (section 9) |
 
-**Never from the phone:** a shell or terminal, files outside a chat, settings, adding folders, skills or
+**Never from the phone:** a shell or terminal, files outside a chat, settings, adding folders (it can only pick one from the Mac's own recent list), skills or
 plugins, connectors, "Do it" computer use, Full access, port forwarding, billing. Unknown commands, extra
 fields and oversized frames are dropped. The Mac keeps its own rate limits.
 
 **The Mac stays the judge:**
 - Off by default: "Let my phone use this Mac".
 - While a phone is connected, top right: "David's iPhone is connected" with **Stop**.
-- Settings → Phones lists each phone with **Remove**. axeai.com has Remove too.
+- Settings → Browsers and phones lists each one with **Remove**. axeai.com has Remove too.
 - "What the phone did": every command, with time and chat, kept on the Mac.
 
 ## 7. Attackers, what stops them, and what they can still do
@@ -281,9 +283,9 @@ channel with QR); RFC 5869 (HKDF); NIST SP 800-38D (GCM nonces); the SIGMA key e
   model or agent rides on send, as in the desktop window. Every command is checked against the schema
   after opening; extra fields, unknown commands and empty text are dropped. 40 commands per 10 seconds
   per phone.
-- **Folders:** a new agent chat from the phone works in the folder of the newest agent chat on the Mac
-  (that agent's first). With none, the phone is told to start one on the Mac first. The engine's own
-  default is the home folder, which the phone never gets.
+- **Folders:** (changed in section 17) a new agent chat from the phone works in a folder the phone picked
+  from the Mac's own recent list; with no pick, in the folder of the newest agent chat on the Mac (that
+  agent's first). The engine's own default is the home folder, which the phone never gets.
 - **Mac side:** `next/src/main/remote/phone-chat.ts` runs commands through the chat engine the window uses
   and forwards chat events (replies at most every 120 ms per chat, always the last). "What the phone did"
   keeps the last 200 lines on the Mac. Turning on Bypass from the phone (new chat or switch) shows on the
@@ -325,3 +327,51 @@ After the maintainer signed Claude Code back in, `chat-run.mjs <out> claude-acp`
 phone it created a file in Bypass without asking, asked in Ask mode with its own options (Yes, Yes and
 allow, No), went on after Yes from the phone, took a 300 KB file, and Stop cut the phone off. Codex is still
 untested here (its configured model is refused for a ChatGPT account).
+
+## 17. Pairing a browser by code or one click (2026-11-15)
+
+A desktop browser on axeai.com pairs with Axe Desktop with a 6-digit code or one click, besides the QR.
+The threat model and the crypto are in axe-web `docs/decisions/0003-pair-by-code-or-click.md`; the code is
+`next/src/shared/remote-pake.ts` (a byte-identical copy of axe-web's, checked against the same vectors).
+Both ways end in what a QR gives the browser (this computer's public keys and a 32-byte secret axeai.com
+never sees), so the QR pairing in section 4 runs unchanged afterwards.
+
+What this computer does (`next/src/main/remote/phones.ts`):
+- **Code:** shown in Settings, Browsers and phones. Only this computer knows it; axeai.com is told the
+  offer and the expiry, never the code. It works once, for 2 minutes. The first try burns it, right or
+  wrong, before anything is answered. After 5 tries in 15 minutes without a success it stops making codes
+  ("Too many tries. Try again in 15 minutes."). A success starts the count again.
+- **Click:** the browser sends only a commitment first; this computer answers with its half and shows
+  nothing. Only when the browser's reveal opens the commitment does it ask, with the check number both
+  screens show: "Allow Chrome on Mac to use David's Mac?". Allow only if the numbers match. A server in the
+  middle matches with probability one in a million. At most 3 clicks wait (3 minutes) and 5 are answered
+  per 15 minutes.
+- **No second question:** typing the code, or pressing Allow with the number, was the approval, so the
+  pairing request that follows is not asked again. It still burns the secret, is signed into the list and
+  shows a notice ("Chrome on Mac can now use this Mac"). A request that opens no live secret is answered
+  at once with nothing.
+- **Pairing on:** showing a code or a QR, or pressing Allow, turns on "Let my browsers and phones use this
+  computer". The link to axeai.com is up only while
+  remote control or pairing is on, so nothing touches the Keychain or reaches axeai.com at launch for
+  someone who never turned either on. With pairing off a click from axeai.com finds the computer offline
+  (and the computer would refuse it anyway unless its pairing screen is open), so nothing pops up.
+- **Folders and modes:** a phone or browser picks a folder only from this computer's own recent list
+  (section 6). Chats it starts default to Ask, never to this computer's own default mode.
+
+## 18. Pictures an agent made (2026-11-15, spec 0035)
+
+- **What the phone gets.** When an agent writes or reads a png, jpg, gif, webp or svg (or sends an image
+  block), the Mac checks the bytes really are that kind of picture, keeps a copy in its own data folder
+  (`agent-images/<hash of the chat>/<part id>`, at most 10 MB, 12 per reply) and adds an `image` part with a
+  name, type and size. No path is in the part.
+- **The command.** `image {chat, part, index}` returns piece `index` (96 KB before base64) of that copy.
+  The Mac serves it only when `part` is an image part of `chat`'s messages, saved or still being written;
+  part ids must be plain letters, digits, `-` and `_`. A phone cannot name a file, so this can't be used to
+  read anything an agent didn't show in that chat. Pieces past the end are refused.
+- **Limits.** Picture pieces have their own budget (200 per 10 s per phone) instead of the 40-command
+  limit. The Mac holds at most three pictures in memory per phone while sending, for a minute.
+- **Permission prompts.** The Mac never opens a picture in Desktop, Documents, Downloads or `~/Library`
+  (links followed first) unless the chat works in that folder, so no macOS prompt comes from this.
+- **On axeai.com.** The pieces become a Blob of one of the five image types and are shown only with
+  `<img>` from a blob URL, so an SVG's scripts never run. The Mac window does the same with a data URL.
+

@@ -11,7 +11,6 @@ import { CommandPalette } from "@/components/CommandPalette"
 import { PhoneAsk } from "@/components/PhoneAsk"
 import { PhoneBanner } from "@/components/PhoneBanner"
 import { TrayComposer, TrayFooter, TrayHeader, TrayHome } from "@/components/tray/TrayPanel"
-import { Forest } from "@/components/Forest"
 import { Sidebar } from "@/components/Sidebar"
 import { TitleBar } from "@/components/TitleBar"
 import { Agents } from "@/screens/Agents"
@@ -117,20 +116,11 @@ function Main() {
   const m = useMotion()
   return (
     <main className="relative flex min-w-0 flex-1 flex-col bg-background">
-      <Forest />
       <TitleBar />
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={viewKey(view)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={m.t(D.fast)}
-          className="relative flex min-h-0 flex-1 flex-col"
-        >
-          <Screen view={view} />
-        </motion.div>
-      </AnimatePresence>
+      {/* Pages switch instantly: no fade out and in between them (2026-11-08, calm motion). */}
+      <div key={viewKey(view)} className="relative flex min-h-0 flex-1 flex-col">
+        <Screen view={view} />
+      </div>
       <TerminalPanel />
     </main>
   )

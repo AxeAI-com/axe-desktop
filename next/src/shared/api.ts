@@ -43,6 +43,10 @@ export type Commands = {
   /** Opens axeai.com in the browser to approve; resolves once signed in, or null if cancelled. */
   "account:signIn": () => Profile | null
   "account:cancelSignIn": () => void
+  /** True when a saved sign-in is here but the OS wouldn't open it this run (the Keychain said no after an update). */
+  "account:keychainBlocked": () => boolean
+  /** Restarts the app so macOS asks for Keychain access again (Electron keeps the first answer until then). */
+  "account:askKeychainAgain": () => void
   "account:signOut": () => void
   "account:openBilling": () => void
 
@@ -107,6 +111,8 @@ export type Commands = {
   "chat:rewindPreview": (threadId: string, messageId: string) => { replies: number; files: number }
   /** Goes back to before one of your messages: later turns are dropped, and (files: true) files restored. */
   "chat:rewind": (threadId: string, messageId: string, files: boolean) => { messages: ChatMessage[]; text: string }
+  /** A picture an agent made in this chat (an image part), as a data URL. Only that chat's image parts. */
+  "chat:image": (threadId: string, partId: string) => string
 
   /** What Axe remembers about you (kept on this computer, per account). */
   "memory:list": () => MemoryItem[]
@@ -257,6 +263,8 @@ export type Commands = {
   "phones:setEnabled": (on: boolean) => PhonesView
   /** The QR to show now; null while it can't pair (off, signed out, no secret store). */
   "phones:code": () => PairingCode | null
+  /** The code screen closed: axeai.com stops offering its code. */
+  "phones:closeCode": () => void
   "phones:remove": (id: string) => PhonesView
   /** Your answer to "Connect David's iPhone?" */
   "phones:answer": (askId: string, allow: boolean) => void
@@ -319,7 +327,7 @@ export type Events = {
   remote: RemoteState
   phones: PhonesView
   /** A phone proved it scanned this computer's QR: ask "Connect David's iPhone?" (null: the question ended). */
-  phoneAsk: { id: string; name: string; agent: string } | null
+  phoneAsk: { id: string; name: string; agent: string; /** A click: the number both screens show, and this computer's name. */ check?: string; computer?: string } | null
   phoneLog: PhoneLogEntry[]
   /** Something a phone did that the banner says at once (Bypass turned on); null clears it. */
   phoneNotice: { text: string } | null

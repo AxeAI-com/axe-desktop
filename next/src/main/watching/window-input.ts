@@ -11,9 +11,9 @@ import { type Draft, KINDS, type WatchPatch } from "@shared/watching/types"
  * its own command (only a draft made here sets one).
  */
 export function fromWindow(dr: Draft): Draft {
-  if (!dr || typeof dr !== "object" || !KINDS.includes(dr.kind) || typeof dr.target !== "string") throw new Error("That isn't a watch.")
+  if (!dr || typeof dr !== "object" || !KINDS.includes(dr.kind) || typeof dr.target !== "string") throw new Error("That isn't a check.")
   const target = cleanTarget(dr.kind, dr.target, homedir())
-  if (!target) throw new Error("That isn't a watch.")
+  if (!target) throw new Error("That isn't a check.")
   if (dr.limit !== undefined && (typeof dr.limit !== "number" || !Number.isFinite(dr.limit) || dr.limit <= 0)) throw new Error("That limit isn't a number.")
   if (dr.field !== undefined && (typeof dr.field !== "string" || dr.field.length > 200)) throw new Error("That field isn't valid.")
   const { command: _command, ...rest } = dr
@@ -40,11 +40,11 @@ const PATCH: { [K in keyof Required<WatchPatch>]: (v: unknown) => boolean } = {
 
 /** A change the window sends to a watch: only the keys in PATCH, each checked (undefined clears it). */
 export function patchFromWindow(patch: unknown): WatchPatch {
-  if (!patch || typeof patch !== "object") throw new Error("That isn't a change to a watch.")
+  if (!patch || typeof patch !== "object") throw new Error("That isn't a change to a check.")
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(patch)) {
     if (!Object.hasOwn(PATCH, k)) continue
-    if (v !== undefined && !PATCH[k as keyof WatchPatch](v)) throw new Error("That isn't a change to a watch.")
+    if (v !== undefined && !PATCH[k as keyof WatchPatch](v)) throw new Error("That isn't a change to a check.")
     out[k] = v
   }
   return out as WatchPatch

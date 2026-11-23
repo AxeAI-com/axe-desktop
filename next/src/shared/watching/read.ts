@@ -103,12 +103,12 @@ export const WHICH: Record<Kind, string> = {
  */
 export function fallbackAsk(text: string): Ask {
   const target = findTarget(text)
-  return target ? { ask: "kind", question: `What should I watch on ${target}?`, target } : { ask: "kind", question: "What should I watch?" }
+  return target ? { ask: "kind", question: `What should I keep an eye on at ${target}?`, target } : { ask: "kind", question: "What should I keep an eye on?" }
 }
 
 /** What the model's reading asks next: the kind, the target, or nothing (it's ready to validate). */
 export function nextAsk(r: ReadSentence): Ask | null {
-  if (r.kind === "unclear") return r.target ? { ask: "kind", question: `What should I watch on ${r.target}?`, target: r.target } : { ask: "kind", question: "What should I watch?" }
+  if (r.kind === "unclear") return r.target ? { ask: "kind", question: `What should I keep an eye on at ${r.target}?`, target: r.target } : { ask: "kind", question: "What should I keep an eye on?" }
   if (!r.target && r.kind !== "disk" && !(NO_INPUT as Kind[]).includes(r.kind) && r.kind !== "gitrepos" && r.kind !== "hogs") return { ask: "target", question: WHICH[r.kind], kind: r.kind }
   // A target the kind can't use ("my shop" for a site) is no target.
   if (!cleanTarget(r.kind, r.target ?? "")) return { ask: "target", question: WHICH[r.kind], kind: r.kind }

@@ -4,12 +4,12 @@ import { safeStorage } from "electron"
 
 import { b64u, type DeviceKeys, fromB64u, generateDeviceKeys, type PublicKeys, publicKeys } from "@shared/remote-pairing"
 
-import { dataPath, isSelfTest } from "../paths"
+import { dataPath, usesKeychain } from "../paths"
 
 // This computer's device keys for remote control (Ed25519 to sign, X25519 to agree keys), made on first
 // use. The private halves are sealed by the OS (the Keychain on macOS) in remote-keys.bin and never
 // leave this computer. Without a secret store there are no keys, and phones can't pair (fail closed).
-// Self-tests keep a fresh pair in memory.
+// Self-tests keep a fresh pair in memory (a Keychain test, AXE_KEYCHAIN_NAME, saves them like a real run).
 
 type Stored = { sign: string; dh: string; ed: string; x: string }
 
@@ -21,7 +21,7 @@ const secretStore = () =>
   safeStorage.isEncryptionAvailable() && !(process.platform === "linux" && safeStorage.getSelectedStorageBackend?.() === "basic_text")
 
 async function load(): Promise<{ keys: DeviceKeys; pub: PublicKeys } | undefined> {
-  if (isSelfTest()) {
+  if (!usesKeychain()) {
     const keys = await generateDeviceKeys(true)
     return { keys, pub: await publicKeys(keys) }
   }

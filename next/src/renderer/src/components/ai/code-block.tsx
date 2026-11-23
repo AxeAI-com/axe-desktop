@@ -79,7 +79,8 @@ function CodeBlock({
     <figure
       data-slot="agent-code-block"
       className={cn(
-        "overflow-hidden rounded-[1rem] bg-card font-sans text-sm font-[450] tracking-[-0.05px] text-muted-foreground shadow-card",
+        // Axe AI: spec 0001: a nested code block is a 16px (media) radius on the card fill, no shadow.
+        "overflow-hidden rounded-media bg-card font-sans text-sm font-[450] tracking-[-0.05px] text-muted-foreground",
         className,
       )}
       {...props}

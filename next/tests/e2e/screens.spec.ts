@@ -39,30 +39,16 @@ for (const theme of ["dark"] as const) {
     test("signed out", async ({ page }) => {
       // No wall: the whole app works with CLI agents, and signing in is one row in the sidebar.
       await open(page, theme, "signedout")
-      await expect(page.getByRole("button", { name: "Sign in to Axe AI", exact: true })).toBeVisible()
+      // The home's Getting started also offers it; the sidebar row is the one that's always there.
+      const signIn = page.getByRole("navigation", { name: "Chats" }).getByRole("button", { name: "Sign in to Axe AI", exact: true })
+      await expect(signIn).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-signed-out.png`)
 
-      await page.getByRole("button", { name: "Sign in to Axe AI", exact: true }).click()
+      await signIn.click()
       await expect(page.getByText("Finish signing in in your browser")).toBeVisible()
     })
 
-    test("the fox and its forest", async ({ page }) => {
-      await open(page, theme, "signedout")
-      const fox = page.getByRole("button", { name: "Fox: show the forest" })
-      await fox.hover()
-      await settle(page)
-      await expect(fox).toHaveScreenshot(`${theme}-fox-hover.png`)
-      await fox.click()
-      await expect(page.getByRole("button", { name: "Fox: leave the forest" })).toBeVisible()
-      await page.waitForTimeout(700)
-      await page.mouse.move(5, 5)
-      await settle(page)
-      await expect(page).toHaveScreenshot(`${theme}-forest.png`)
-      // Click again: back to the chat.
-      await page.getByRole("button", { name: "Fox: leave the forest" }).click()
-      await expect(page.getByRole("button", { name: "Fox: show the forest" })).toBeVisible()
-    })
 
     test("@ folders, apps and chats", async ({ page }) => {
       await open(page, theme)
@@ -99,7 +85,7 @@ for (const theme of ["dark"] as const) {
 
     test("new chat", async ({ page }) => {
       await open(page, theme)
-      await expect(page.getByRole("heading", { name: "Let's untangle it" })).toBeVisible()
+      await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-new-chat.png`)
 
@@ -113,7 +99,7 @@ for (const theme of ["dark"] as const) {
       await open(page, theme)
       await page.getByRole("button", { name: "Auto", exact: true }).click()
       const list = page.getByRole("listbox", { name: "Choose who answers" })
-      await expect(list.getByText("On this computer", { exact: true })).toBeVisible()
+      await expect(list.getByText("On this Mac", { exact: true })).toBeVisible()
       await expect(list.getByText("More agents")).toBeVisible()
       await page.waitForTimeout(500)
       await expect(page).toHaveScreenshot(`${theme}-model-picker.png`)
@@ -132,7 +118,8 @@ for (const theme of ["dark"] as const) {
       await open(page, theme, "live")
       await chat(page, "Compare three note apps").click()
       await expect(page.getByText("Searching the web")).toBeVisible()
-      await expect(page.getByText("4s", { exact: true })).toBeVisible()
+      // The seconds show only after 10 s, so a 4 s step is just its live line.
+      await expect(page.getByText("4s", { exact: true })).toHaveCount(0)
       await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-live-reply.png`)
@@ -168,7 +155,7 @@ for (const theme of ["dark"] as const) {
 
     test("command palette", async ({ page }) => {
       await open(page, theme)
-      await expect(page.getByRole("heading", { name: "Let's untangle it" })).toBeVisible()
+      await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible()
       await page.keyboard.press("ControlOrMeta+k")
       await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible()
       await settle(page)
@@ -226,11 +213,10 @@ for (const theme of ["dark"] as const) {
 
     test("usage ring", async ({ page }) => {
       await open(page, theme)
+      // Draft 3: the context ring shows only while a chat runs; an idle chat's row is folder, mode and model.
       await chat(page, "Two days in Lisbon").click()
-      await page.getByRole("button", { name: "3% of context used" }).click()
-      await expect(page.getByText("1,240 credits left")).toBeVisible()
-      await settle(page)
-      await expect(page).toHaveScreenshot(`${theme}-usage-axe.png`)
+      await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible()
+      await expect(page.getByRole("button", { name: /of context used/ })).toHaveCount(0)
 
       await chat(page, "Fix the flaky upload test").click()
       await page.getByRole("button", { name: "42% of context used" }).click()
@@ -374,13 +360,13 @@ test("a pasted screenshot joins the files and can be removed", async ({ page }) 
   await page.getByRole("img", { name: "Screenshot.png" }).hover()
   await page.getByRole("button", { name: "Remove Screenshot.png" }).click()
   await expect(page.getByRole("img", { name: "Screenshot.png" })).toHaveCount(0)
-  // Nothing left to send: the send button steps aside for the mic.
+  // Nothing left to send: the send button steps aside until there is (Claude Code's composer, 2026-11-08).
   await expect(page.getByRole("button", { name: "Send" })).toHaveCount(0)
 })
 
 test("keyboard shortcuts: attach, move between chats, copy, and the palette lists them", async ({ page }) => {
   await open(page, "dark")
-  await expect(page.getByRole("heading", { name: "Let's untangle it" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible()
   await page.keyboard.press("ControlOrMeta+u")
   await expect(page.getByRole("img", { name: "Lisbon tram.jpg" })).toBeVisible()
   await page.keyboard.press("ControlOrMeta+u")
@@ -456,7 +442,7 @@ test("the / menu walks with the arrows and inserts the command", async ({ page }
   await page.keyboard.press("Escape")
   await expect(page.getByRole("listbox", { name: "Commands" })).toHaveCount(0)
   await page.getByRole("button", { name: "New chat" }).first().click()
-  await expect(page.getByRole("heading", { name: "Let's untangle it" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible()
   await page.getByRole("textbox", { name: "Message" }).fill("/res")
   await page.keyboard.press("Enter")
   await expect(page.getByRole("button", { name: "Research is on. Turn it off" })).toBeVisible()
@@ -492,8 +478,8 @@ test("reduced motion stops the loops", async ({ page }) => {
   await chat(page, "Compare three note apps").click()
   await expect(page.getByText("Searching the web")).toBeVisible()
   const loops = await page.evaluate(() =>
-    // Pasta UI's live text and icon, and the step line while it works.
-    [...document.querySelectorAll(".agent-text-shimmer, .steps-live h3, [data-slot=thinking-shimmer] svg, .dots > i")].map(
+    // Pasta UI's live text and icon, and the live step line's spinner (the one thing that moves while it works).
+    [...document.querySelectorAll(".agent-text-shimmer, .steps-live h3, [data-slot=thinking-shimmer] svg, .dots > i, [role=status] svg.animate-spin")].map(
       (el) => getComputedStyle(el).animationName,
     ),
   )

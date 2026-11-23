@@ -56,4 +56,4 @@ cd next && pnpm run release:mac && pnpm run sign:release   # release only
   `node .github/review-gate.mjs review <pr>` (AI code and security review) before it merges; the "Review gate"
   check reads its comment. What counts as a failure: `REVIEW.md`. PRs fill in Testing, Risk and How to revert.
 - No paid GitHub features. PR checks (typecheck, lint, unit tests) and the supply-chain audit run for
-  `next/` on GitHub-hosted runners; end-to-end tests stay a local check.
+  `next/` on a self-hosted runner; end-to-end tests stay a local check.

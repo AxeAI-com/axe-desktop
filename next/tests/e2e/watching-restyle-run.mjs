@@ -33,12 +33,12 @@ try {
     await win.screenshot({ path: join(out, `new-chat-${theme}.png`) })
     console.log(`ok: New chat (${theme}) says "${hello}"`)
 
-    await win.getByRole("button", { name: /^Watching/ }).first().click()
-    await win.getByRole("heading", { name: "What should Axe watch?" }).waitFor()
+    await win.getByRole("button", { name: /^Oversight/ }).first().click()
+    await win.getByRole("heading", { name: "What should Axe keep an eye on?" }).waitFor()
     const cards = await win.getByTestId("catalogue").getByRole("button", { name: /^Add / }).count()
     if (cards !== 35) fail(`${cards} catalogue cards`)
     // The composer sits at the bottom, like a chat.
-    const box = await win.getByPlaceholder("Say what to watch").boundingBox()
+    const box = await win.getByPlaceholder("Say what to check").boundingBox()
     if (!box || box.y < 700) fail(`the composer is at y=${box?.y}`)
     await win.waitForTimeout(500)
     await win.screenshot({ path: join(out, `watching-${theme}.png`) })

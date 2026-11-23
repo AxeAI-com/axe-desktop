@@ -157,6 +157,27 @@ function sample(scenario: string | null, T: number): Item[] {
     repo.open = fs.map((f) => ({ ...f, openedAt: at, lastSeenAt: at, notified: true }))
   }
 
+  if (scenario === "watchactivity") {
+    // The Activity timeline: down this morning, slow yesterday and fixed by Claude Code, down two days before, a
+    // certificate renewed. T is 2:45 pm.
+    const f = (key: "down" | "slow", openedAt: number, lastSeenAt: number, how: PastFinding["how"]): PastFinding => ({
+      key,
+      level: "problem",
+      headline: `lane-ceramics.com is ${key}`,
+      fix: key === "slow" ? "agent" : "none",
+      openedAt,
+      lastSeenAt,
+      closedAt: lastSeenAt + 10 * MIN,
+      notified: true,
+      how,
+    })
+    const today = T - 5 * HOUR - 5 * MIN
+    site.runs = site.runs.map((r) => (r.at >= today && r.at <= today + 5 * MIN ? { ...r, status: "problem" as const, http: "502 Bad Gateway" } : r))
+    const slowAt = T - DAY - 30 * MIN
+    site.past = [f("down", T - 3 * DAY - 2 * HOUR, T - 3 * DAY - 2 * HOUR + 11 * MIN, "cleared"), f("slow", slowAt, slowAt + 50 * MIN, "fixed"), f("down", today, today + 5 * MIN, "cleared")]
+    site.fixes = [{ at: slowAt + 10 * MIN, keys: ["slow"], headline: "lane-ceramics.com is slow", agent: "Claude Code", answerer: { kind: "agent", agentId: "claude" }, threadId: "t-fix", folder: "~/Code/lane-ceramics", state: "kept", files: 3, endedAt: slowAt + 40 * MIN, result: "fixed", checkedAt: slowAt + 60 * MIN }]
+    site.news = [{ key: "cert", level: "news", headline: "Certificate renewed", fix: "none", at: T - 2 * DAY - 4 * HOUR }]
+  }
   if (scenario === "watchpage") {
     // The pricing page changed at 10:05 am (4 h 40 min ago); you haven't opened it yet.
     const at = T - 4 * HOUR - 40 * MIN
@@ -329,7 +350,7 @@ export function mockWatching(scenario: string | null, emit: <K extends keyof Eve
       if (!t) return { error: kind === "page" || kind === "price" ? "That doesn’t look like a link." : "That doesn’t look like a site address." }
       if (t.startsWith("lane-ceramcs")) return { error: `${t.split("/")[0]} doesn’t exist. Check the spelling.` }
       if (kind === "page" && t.endsWith("/prices")) return { error: "That page returns Not found (404)." }
-      if (kind === "price" && t.endsWith("/about")) return { error: NO_PRICE, button: { label: "Watch the page instead", kind: "page", target: t } }
+      if (kind === "price" && t.endsWith("/about")) return { error: NO_PRICE, button: { label: "Check the page instead", kind: "page", target: t } }
       if (kind === "repo" && t === "mia/shop-api") return { error: "Axe can’t see mia/shop-api. Check the name, or sign in with gh auth login." }
       const every = DEFAULT_EVERY[kind]
       if ((MORE_KINDS as string[]).includes(kind)) {

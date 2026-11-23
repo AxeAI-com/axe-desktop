@@ -12,6 +12,7 @@ import mistral from "@/assets/logos/mistral-color.svg?url"
 import ollama from "@/assets/logos/ollama.svg?url"
 import openai from "@/assets/logos/openai.svg?url"
 import qwen from "@/assets/logos/qwen-color.svg?url"
+import { TerminalIcon } from "./SolarIcons"
 
 
 /** A logo file, and whether it is one colour (drawn in the text colour so it works light and dark). */
@@ -52,7 +53,8 @@ export function serverLogo(s: Pick<ModelServer, "id">): Logo | undefined {
 }
 
 /** Auto (Axe's router): the white Axe mark on Axe Blue, the app icon from axeai.com/brand. 27% corners. */
-export function AxeTile({ size = 18 }: { size?: number }) {
+/** `square` keeps the sidebar's 27% corners; everywhere else logo tiles are circles (spec 0001). */
+export function AxeTile({ size = 18, square }: { size?: number; square?: boolean }) {
   return (
     <img
       src={axeIcon}
@@ -62,7 +64,7 @@ export function AxeTile({ size = 18 }: { size?: number }) {
       height={size}
       draggable={false}
       className="block shrink-0"
-      style={{ borderRadius: Math.round(size * 0.27) }}
+      style={{ borderRadius: square ? Math.round(size * 0.27) : 999 }}
     />
   )
 }
@@ -73,7 +75,7 @@ export function BrandLogo({ logo, name, auto, size = 20 }: { logo?: Logo; name: 
   return (
     <span
       aria-hidden="true"
-      className="flex shrink-0 items-center justify-center text-foreground"
+      className="flex shrink-0 items-center justify-center text-ink"
       style={{ width: size, height: size }}
     >
       {auto ? (
@@ -86,31 +88,35 @@ export function BrandLogo({ logo, name, auto, size = 20 }: { logo?: Logo; name: 
       ) : logo ? (
         <img src={logo.src} alt="" width={inner} height={inner} draggable={false} />
       ) : (
-        <span className="flex size-full items-center justify-center rounded-full bg-muted text-[0.7rem] text-muted-foreground">{name.charAt(0).toUpperCase()}</span>
+        <span className="flex size-full items-center justify-center rounded-full bg-muted text-ink-3">
+          <TerminalIcon size={inner} />
+        </span>
       )}
     </span>
   )
 }
 
 /** A logo on its brand tile (Raycast style): Claude orange, OpenAI white, anything else grey. 27% corners. */
-export function LogoTile({ logo, name, size = 18, auto, bg: tile }: { logo?: Logo; name: string; size?: number; auto?: boolean; bg?: string }) {
-  if (auto) return <AxeTile size={size} />
+export function LogoTile({ logo, name, size = 18, auto, bg: tile, square }: { logo?: Logo; name: string; size?: number; auto?: boolean; bg?: string; square?: boolean }) {
+  if (auto) return <AxeTile size={size} square={square} />
   const claude = /claude|anthropic/i.test(name)
   const light = /gpt|openai|codex/i.test(name)
-  const bg = tile ?? (claude ? "#d97757" : light ? "#ffffff" : "#2c2c30")
+  const bg = tile ?? (claude ? "#d97757" : light ? "#ffffff" : square ? "#2c2c30" : "var(--raised)")
+  const ink = square ? "#ededf0" : "var(--ink)"
   const inner = Math.round(size * 0.62)
   return (
     <span
       aria-hidden="true"
       className="flex shrink-0 items-center justify-center"
-      style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: bg, color: light ? "#151517" : "#ededf0" }}
+      style={{ width: size, height: size, borderRadius: square ? Math.round(size * 0.27) : 999, background: bg, color: light ? "#151517" : ink }}
     >
       {!logo ? (
-        <span className="text-[11px] leading-none">{name.charAt(0).toUpperCase()}</span>
+        // No mark of its own (llama.cpp, a server you added): the generic command-line icon, never a letter.
+        <TerminalIcon size={inner} />
       ) : claude || logo.mono ? (
         <span
           className="block bg-current"
-          style={{ width: inner, height: inner, mask: `url("${logo.src}") center / contain no-repeat`, WebkitMask: `url("${logo.src}") center / contain no-repeat`, color: claude ? "#ffffff" : light ? "#151517" : "#ededf0" }}
+          style={{ width: inner, height: inner, mask: `url("${logo.src}") center / contain no-repeat`, WebkitMask: `url("${logo.src}") center / contain no-repeat`, color: claude ? "#ffffff" : light ? "#151517" : ink }}
         />
       ) : (
         <img src={logo.src} alt="" width={inner} height={inner} draggable={false} />

@@ -14,7 +14,7 @@ import { community, configureLibraries, hub, skills } from "./libraries"
 import { addModelServer, cancelPull, configureLocalModels, modelServers, onServersChanged, pullModel, removeModelServer, startOllama, warm, weight } from "./local-models"
 import { appNames, folderHits } from "./mentions"
 import { deleteHelper, listHelpers, saveHelper } from "./libraries/helpers"
-import { connectorSecretBox } from "./secrets"
+import { connectorSecretBox, savedSessionUnreadable } from "./secrets"
 import * as quickbar from "./quickbar"
 import { onSettingsChange, settings, updateSettings } from "./settings"
 import * as terminal from "./terminal"
@@ -93,6 +93,11 @@ export function registerCommands() {
     return p
   })
   handle("account:cancelSignIn", () => account.cancelSignIn())
+  handle("account:keychainBlocked", () => !account.isSignedIn() && savedSessionUnreadable())
+  handle("account:askKeychainAgain", () => {
+    app.relaunch()
+    app.quit()
+  })
   handle("account:signOut", () => account.signOut())
   handle("account:openBilling", () => void shell.openExternal(account.billingURL()))
 
@@ -187,6 +192,10 @@ export function registerCommands() {
   handle("changes:undo", (threadId, paths) => chat.undoChanges(threadId, paths))
   handle("chat:rewindPreview", (threadId, messageId) => chat.rewindPreview(threadId, messageId))
   handle("chat:rewind", (threadId, messageId, files) => chat.rewind(threadId, messageId, files))
+  handle("chat:image", async (threadId, partId) => {
+    const image = await chat.imageFor(threadId, partId)
+    return `data:${image.mime};base64,${image.bytes.toString("base64")}`
+  })
 
   handle("memory:list", () => chat.memory.list())
   handle("memory:add", (text) => chat.memory.add(text))

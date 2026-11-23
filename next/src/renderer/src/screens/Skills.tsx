@@ -8,10 +8,11 @@ import { createSkill, importSkill, installSkill, loadHelpers, loadSkills, readSk
 import { useStore } from "@/lib/store"
 
 import { agentLogo, BrandLogo } from "@/components/BrandLogo"
-import { ChartIcon, CheckIcon, ChecklistIcon, PencilIcon, SkillIcon, TerminalIcon } from "@/components/Icons"
+import { ChartIcon, CheckIcon, ChecklistIcon, PencilIcon, SearchIcon, SkillIcon, TerminalIcon } from "@/components/SolarIcons"
 import { ErrorLine, Field, Grid, LibraryPage, pickIcons, Sheet, SkillTile, Switch, ghost, inputClass, primary, small } from "@/components/Library"
 import { Markdown } from "@/components/Markdown"
 import { CommunitySkillSheet } from "@/components/Community"
+import { Empty } from "@/components/Kit"
 
 // Skills: packaged know-how in the open SKILL.md format. Find one by what you need to do (yours,
 // Axe's and the open-source libraries), add it, and use it with / in any chat or give it to an agent.
@@ -116,7 +117,7 @@ export function Skills() {
       tab="skills"
       subtitle="Add a skill, then type / in any chat to use it."
       search={
-        <label className="flex h-[38px] w-[300px] shrink-0 items-center gap-[10px] rounded-full bg-card px-[16px] text-ink-3 transition-colors duration-150 focus-within:bg-raised">
+        <label className="flex h-[32px] w-[300px] shrink-0 items-center gap-[8px] rounded-[8px] bg-card px-[10px] text-ink-3 transition-colors duration-150 focus-within:bg-raised">
           <SearchGlyph />
           <input
             aria-label="Find a skill"
@@ -142,7 +143,7 @@ export function Skills() {
 
       {q.trim() ? (
         <section aria-label="Found" className="flex flex-col gap-[12px]">
-          <h2 className="m-0 flex h-[28px] items-center text-[15px] leading-6 font-normal text-ink">{hits.length ? "Found" : "Nothing fits yet"}</h2>
+          {hits.length ? <h2 className="m-0 flex h-[28px] items-center text-[12px] text-ink-3">Found</h2> : <Empty>Nothing fits yet</Empty>}
           {hits.length > 0 && (
             <List>
               {hits.map((h) => (
@@ -191,7 +192,7 @@ export function Skills() {
                       end={
                         <span className="flex items-center gap-[12px]">
                           <Places skill={s} />
-                          <Switch flat on={on} onChange={(v) => void setSkillOn(s.id, v)} label={`${skillTitle(s)} ${on ? "on" : "off"}`} />
+                          <Switch on={on} onChange={(v) => void setSkillOn(s.id, v)} label={`${skillTitle(s)} ${on ? "on" : "off"}`} />
                         </span>
                       }
                     />
@@ -199,7 +200,7 @@ export function Skills() {
                 })}
               </List>
             ) : (
-              lib && <p className="m-0 text-[13px] text-ink-3">Nothing added yet. Search above, or add one of these.</p>
+              lib && <Empty>Nothing added yet. Search above, or add one of these.</Empty>
             )}
           </section>
           {suggested.length > 0 && (
@@ -238,12 +239,7 @@ export function Skills() {
 }
 
 function SearchGlyph() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
-      <circle cx="7" cy="7" r="4.5" />
-      <path d="M10.5 10.5 14 14" />
-    </svg>
-  )
+  return <SearchIcon size={16} />
 }
 
 /** Skills as cards in a grid, the same as Connectors and Agents: up to three across. */
@@ -260,11 +256,11 @@ function SkillRow({ name, line, icon, source, end, onOpen, dim }: { name: string
       aria-label={name}
       onClick={onOpen}
       onKeyDown={(e) => e.key === "Enter" && onOpen()}
-      className="flex h-[136px] cursor-default flex-col gap-[8px] rounded-[16px] bg-card p-[16px] outline-none transition-colors duration-150 hover:bg-raised focus-visible:bg-raised"
+      className="flex h-[160px] cursor-default flex-col gap-[8px] rounded-3xl bg-card p-[24px] outline-none transition-colors duration-150 hover:bg-raised focus-visible:bg-raised"
     >
       <span className="flex h-[36px] items-center gap-[12px]">
         <span className={dim ? "opacity-40" : ""}>
-          <SkillTile icon={icon} name={name} />
+          <SkillTile icon={icon} />
         </span>
         <span className={`min-w-0 flex-1 truncate text-[15px] text-ink ${dim ? "opacity-60" : ""}`}>{name}</span>
       </span>
@@ -313,10 +309,10 @@ function SkillSheet({ skill, targets, onClose }: { skill?: Skill; targets: Skill
       {skill && (
         <>
           <div className="flex flex-col gap-[6px] pr-[32px]">
-            <h2 className="m-0 text-[20px] leading-7 font-normal">{skillTitle(skill)}</h2>
+            <h2 className="m-0 text-[20px] leading-[26px] font-normal">{skillTitle(skill)}</h2>
             <p className="m-0 text-[13px] leading-5 text-ink-3">{skill.description}</p>
           </div>
-          <div className="scroll max-h-[300px] rounded-[10px] bg-muted px-[20px] py-[4px] text-[13px]">
+          <div className="scroll max-h-[300px] rounded-3xl bg-muted px-[20px] py-[4px] text-[13px]">
             {body ? <Markdown text={body} /> : <p className="text-ink-3">Loading</p>}
           </div>
           <CliPicker targets={targets} picked={picked} onChange={setPicked} />
@@ -356,13 +352,13 @@ export function CliPicker({ targets, picked, onChange }: { targets: SkillTarget[
               aria-checked={on}
               onClick={() => onChange(on ? picked.filter((x) => x !== t.id) : [...picked, t.id])}
               title={t.path}
-              className={`flex h-9 items-center gap-2 rounded-full border-0 px-3 text-[13px] transition-colors duration-150 ${
-                on ? "bg-accent-bg text-ink" : "bg-fill-2 text-ink-2 hover:bg-fill-3"
+              className={`flex h-[28px] items-center gap-[6px] rounded-[7px] border-0 px-[10px] text-[13px] transition-colors duration-150 ${
+                on ? "bg-raised text-ink" : "bg-transparent text-ink-3 hover:bg-fill-2 hover:text-ink"
               }`}
             >
-              {a && <BrandLogo logo={agentLogo(a)} name={a.name} size={20} />}
+              {a && <BrandLogo logo={agentLogo(a)} name={a.name} size={14} />}
               {t.name}
-              {on && <CheckIcon size={12} className="text-accent-ink" />}
+              {on && <span className="text-ink-4">✓</span>}
             </button>
           )
         })}
@@ -392,7 +388,7 @@ function NewSkillSheet({ open, onClose }: { open: boolean; onClose: () => void }
   }
   return (
     <Sheet open={open} onClose={close} label="New skill">
-      <h2 className="m-0 text-[20px] leading-7 font-normal">New skill</h2>
+      <h2 className="m-0 text-[20px] leading-[26px] font-normal">New skill</h2>
       <Field label="Name">
         <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="Pricing page" />
       </Field>

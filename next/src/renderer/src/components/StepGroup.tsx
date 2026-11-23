@@ -3,23 +3,18 @@ import { useEffect, useState, type ReactNode } from "react"
 
 import { diffLines } from "@/lib/diff"
 import { useMotion } from "@/lib/motion"
-import { commandLabel, formatSeconds, isShellCommand, liveLabel, siteOf, summarize, type StepPart, type ToolPart } from "@/lib/steps"
+import { groupPhrase, groupRuns, stepLabel, toolStep } from "@/lib/step-label"
+import { formatSeconds, isShellCommand, liveLabel, siteOf, summarize, type StepPart, type ToolPart } from "@/lib/steps"
 
-import { ChevronRightMark, EditMark, FileMark, TerminalMark, ThoughtMark } from "./ai/board-icons"
+import { ChevronRightMark } from "./ai/board-icons"
 import { Citations } from "./ai/citations"
-import { ThinkingShimmer } from "./ai/thinking-shimmer"
 import { Favicon } from "./Favicon"
 import { PageIcon, WebMark } from "./BoardIcons"
-import { CheckIcon, ChevronDown, XIcon } from "./Icons"
+import { XIcon } from "./SolarIcons"
 
+/** Waiting: the same 12 px spinner as a working step (the three bouncing dots were removed on 2026-11-08). */
 export function Dots() {
-  return (
-    <span className="dots" aria-hidden="true">
-      <i />
-      <i />
-      <i />
-    </span>
-  )
+  return <Spinner />
 }
 
 /** Seconds since the reply started, ticking once a second. */
@@ -34,10 +29,35 @@ function useSeconds(startedAt: number | undefined, running: boolean) {
   return startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : null
 }
 
+/** The one thing that moves while a reply works: a 12 px ring, still under Reduce Motion. */
+export function Spinner() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="shrink-0 animate-spin motion-reduce:animate-none">
+      <circle cx="12" cy="12" r="9" stroke="var(--fill-3)" strokeWidth="3" />
+      <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** The live line: "Searching the code…" by a small spinner; the seconds only once it has taken a while. */
+function LiveLine({ label, seconds, site }: { label: string; seconds: number | null; site?: string | null }) {
+  return (
+    // min-w-0: a long label truncates inside the column instead of pushing the seconds out of it.
+    <div role="status" className="flex h-6 min-w-0 items-center gap-[8px] px-1 text-[13px] leading-[18px] text-ink-3">
+      <span className="flex w-3.5 shrink-0 justify-center">{site ? <Favicon key={site} domain={site} size={12} /> : <Spinner />}</span>
+      <span className="min-w-0 truncate">{label === "Thinking" ? label : `${label}…`}</span>
+      {seconds !== null && seconds >= 10 && <span className="shrink-0 text-[12px] tabular-nums text-ink-4">{formatSeconds(seconds)}</span>}
+    </div>
+  )
+}
+
+type Step = Exclude<StepPart, { type: "source" }>
+
 /**
- * Everything a reply did before its words, folded into one quiet line ("Used 1 tool"). Before any
- * step arrives it is the Thinking Shimmer with the seconds. Open, the steps hang off a thin line,
- * one short row each; a row opens to show what it read, ran or changed. No cards, no boxes.
+ * Everything a reply did before its words, folded into one quiet 13 px line ("Read 2 files, ran the
+ * tests"). While it works, the one step in progress shows as a live line under it ("Reading store.ts…").
+ * Open, each step is one plain-English row; a row opens to the raw command, path or output in small
+ * monospace. No cards, no boxes; the reply stays the hero.
  */
 export function StepGroup({
   parts,
@@ -65,181 +85,112 @@ export function StepGroup({
   const [open, setOpen] = useState(defaultOpen)
   const m = useMotion()
   const seconds = useSeconds(startedAt, live)
-  // One finished file read: the board shows it as one plain line naming the file.
-  const only = !live && parts.length === 1 && parts[0]!.type === "tool" && parts[0]!.kind === "read" && parts[0]!.state === "done" ? parts[0]!.title : undefined
+  // One finished file read: one plain line naming the file.
+  const only = !live && parts.length === 1 && parts[0]!.type === "tool" && parts[0]!.kind === "read" && parts[0]!.state === "done" ? toolStep(parts[0]!).done : undefined
   const label = live ? (waiting ? "Waiting for you" : liveLabel(parts)) : (only ?? summarize(parts))
   const hasSources = !live && parts.some((p) => p.type === "source")
-  // Finished and about one thing: the board shows a plain line, an icon, the label and the sites it read.
+  // Finished and about one thing: a plain line, an icon, the label and the sites it read.
   const flat = !!only || hasSources
   // ToolSearch is a CLI looking up its own tools: plumbing, not a step anyone needs to read.
-  const steps = parts.filter(
-    (p): p is Exclude<StepPart, { type: "source" }> => p.type !== "source" && (p.type === "tool" ? p.title !== "ToolSearch" : !!p.text || !p.done),
-  )
+  const steps = parts.filter((p): p is Step => p.type !== "source" && (p.type === "tool" ? p.title !== "ToolSearch" : !!p.text || !p.done))
   const sources = parts.flatMap((p) => (p.type === "source" ? [p] : []))
-  // While it works, the site it's on shows by the line ("Opening axeai.com").
   const tools = steps.filter((p): p is ToolPart => p.type === "tool")
-  const liveSite = live ? (tools.filter((t) => t.state === "running").concat(tools.slice(-1)).map((t) => siteOf(t.title, t.input)).find(Boolean) ?? null) : null
+  const running = live ? tools.filter((t) => t.state === "running").at(-1) : undefined
+  // While it works, the site it's on shows by the line ("Opening axeai.com").
+  const liveSite = running ? siteOf(running.title, running.input) : null
 
   // Nothing to open yet: the live line alone.
-  if (live && !steps.some((p) => p.type === "tool")) {
-    return <ThinkingShimmer label={label} seconds={seconds ?? undefined} className="h-6 px-1" />
-  }
+  if (live && !waiting && !tools.length) return <LiveLine label="Thinking" seconds={seconds} />
   // Done, with nothing to show (thinking without words): the line alone, not a button.
   if (!steps.length && !sources.length) {
-    return <p className="m-0 flex h-6 items-center px-1 text-sm text-muted-foreground">{label}</p>
+    return <p className="m-0 flex h-6 items-center px-1 text-[13px] text-ink-3">{label}</p>
   }
 
-  // An agent chat (board RC-AgentWorking): what is done folds into one quiet line, and the step in
-  // progress sits under it as its own row with the command it runs and the seconds.
-  if (cwd) {
-    const running = live ? tools.filter((t) => t.state === "running").at(-1) : undefined
-    const thinking = live && !running
-    if (compact) {
-      const mark = (p: Exclude<StepPart, { type: "source" }>) =>
-        p.type === "reasoning" ? <ThoughtMark size={15} /> : p.kind === "edit" || p.kind === "delete" || p.kind === "move" ? <EditMark size={15} /> : p.kind === "execute" ? <TerminalMark size={15} /> : <FileMark size={15} />
-      // While a card asks about a step, nothing else moves: no spinner (it would sit on another step than
-      // the one asked about), and the asked step's row gives way to the card right under the list.
-      const waitingOnCard = !!asked?.length
-      const done = steps.filter((p) => (waitingOnCard || p !== running) && !(p.type === "reasoning" && !p.done) && !asked?.includes(p.id))
-      return (
-        <section data-slot="tool-group" aria-label={summarize(done, true)} className="flex flex-col gap-[6px] font-sans text-[14px] leading-[22px]">
-          {done.map((p) => (
-            <div key={p.id} className="flex items-center gap-[10px] text-ink-3">
-              <span className="flex">{mark(p)}</span>
-              <span>{p.type === "reasoning" ? (p.seconds !== undefined ? `Thought for ${formatSeconds(p.seconds)}` : "Thought") : relativeTo(p.title, cwd)}</span>
-            </div>
-          ))}
-          {live && !waitingOnCard && (
-            <div role="status" className="flex items-center gap-[10px] text-ink">
-              <span aria-hidden="true" className="flex w-[15px] justify-center">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="animate-spin motion-reduce:animate-none">
-                  <circle cx="12" cy="12" r="9" stroke="var(--fill-3)" strokeWidth="2.5" />
-                  <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                </svg>
-              </span>
-              <span>{thinking ? "Thinking" : relativeTo(running!.title, cwd)}</span>
-            </div>
-          )}
-        </section>
-      )
-    }
-    const settled = steps.filter((p) => p !== running && !(p.type === "reasoning" && !p.done))
-    const sub = running?.input && running.input.trim() !== running.title.trim() ? relativeTo(readableInput(running.input), cwd) : ""
+  if (cwd && compact) {
+    // While a card asks about a step, nothing else moves: no spinner (it would sit on another step than
+    // the one asked about), and the asked step's row gives way to the card right under the list.
+    const waitingOnCard = !!asked?.length
+    const done = steps.filter((p) => (waitingOnCard || p !== running) && !(p.type === "reasoning" && !p.done) && !asked?.includes(p.id))
     return (
-      <section data-slot="tool-group" className="flex flex-col gap-[10px] font-sans">
-        {settled.length > 0 && (
-          <div className="flex flex-col">
-            <button
-              type="button"
-              aria-label={summarize(settled, true)}
-              aria-expanded={open}
-              onClick={() => setOpen((o) => !o)}
-              className="group/steps inline-flex items-center gap-[6px] self-start rounded-[6px] border-0 bg-transparent p-0 text-left text-[15px] leading-[22px] text-ink-3 transition-colors duration-150 hover:text-ink-2"
-            >
-              <h3 className="m-0 min-w-0 truncate text-[15px] leading-[22px] font-normal">{summarize(settled, true)}</h3>
-              <ChevronRightMark size={13} className={`text-ink-3 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
-            </button>
-            <AnimatePresence initial={false}>
-              {open && (
-                <motion.div key="steps" {...m.collapse} className="overflow-hidden">
-                  <div className="mt-1 ml-[9px] flex flex-col pb-1 pl-3.5">
-                    {settled.map((p) =>
-                      p.type === "tool" ? (
-                        <ToolRow key={p.id} part={p} cwd={cwd} />
-                      ) : p.type === "reasoning" ? (
-                        <StepRow
-                          key={p.id}
-                          name={p.seconds !== undefined ? `Thought for ${formatSeconds(p.seconds)}` : "Thought"}
-                          summary={p.text.split("\n").find((l) => l.trim()) ?? ""}
-                          status="complete"
-                          detail={p.text ? <div className="selectable font-sans text-[13px] leading-5 whitespace-pre-wrap text-ink-2">{p.text}</div> : undefined}
-                        />
-                      ) : null,
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-        {live && (
-          // min-w-0: a long command truncates inside the column instead of pushing the seconds out of it.
-          <div role="status" className="flex min-w-0 items-center gap-[10px] text-[15px] leading-[22px] text-ink">
-            <span aria-hidden="true" className="flex w-[16px] shrink-0 justify-center">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="animate-spin motion-reduce:animate-none">
-                <circle cx="12" cy="12" r="9" stroke="var(--fill-3)" strokeWidth="2.5" />
-                <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span className="min-w-0 truncate" title={thinking ? undefined : running!.title}>
-              {thinking ? "Thinking" : relativeTo(running!.title, cwd)}
-            </span>
-            {sub && <span className="min-w-0 flex-1 truncate font-mono text-[12px] leading-[20px] text-ink-4">{sub}</span>}
-            {!sub && <span className="flex-1" />}
-            {seconds !== null && <span className="ml-auto shrink-0 text-[13px] tabular-nums text-ink-3">{formatSeconds(seconds)}</span>}
-          </div>
-        )}
+      <section data-slot="tool-group" aria-label={summarize(done, true)} className="flex flex-col gap-[2px] font-sans">
+        {done.map((p) => {
+          const l = stepLabel(p, formatSeconds)
+          return (
+            <div key={p.id} className="flex h-6 min-w-0 items-center gap-[8px] px-1 text-[13px] leading-[18px] text-ink-3">
+              <span className="flex w-3.5 shrink-0 justify-center">{p.type === "tool" && p.state === "running" ? <Spinner /> : null}</span>
+              <span className="min-w-0 truncate">{p.type === "tool" && p.state === "running" ? l.now : l.done}</span>
+              {l.extra && <span className="shrink-0 tabular-nums text-ink-4">{l.extra}</span>}
+            </div>
+          )
+        })}
+        {live && !waitingOnCard && <LiveLine label={running ? toolStep(running).now : "Thinking"} seconds={seconds} />}
       </section>
     )
   }
 
-  return (
-    <section data-slot="tool-group" className={`mb-[6px] font-sans ${live && !waiting ? "steps-live" : waiting ? "steps-waiting" : ""}`}>
-      <button
-        type="button"
-        aria-label={label}
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`group/steps flex items-center ${flat ? "h-[22px] gap-[10px] px-0" : "h-[32px] gap-[8px] px-[4px]"} rounded-[10px] border-0 bg-transparent text-[15px] text-ink-3 transition-colors duration-150 hover:text-ink-2`}
-      >
-        {only ? <PageIcon size={16} /> : hasSources ? <WebMark size={16} /> : null}
-        {liveSite && <Favicon key={liveSite} domain={liveSite} size={14} />}
-        <h3 className="m-0 min-w-0 truncate text-[15px] leading-6 font-normal">{label}</h3>
-        {live && seconds !== null && <span className="text-[13px] tabular-nums text-ink-4">{formatSeconds(seconds)}</span>}
-        {hasSources && !open && (
+  // While it works (and nothing waits on you), what is done folds into one line and the step in
+  // progress is the live line under it. Waiting on you, the line says so and opens every step.
+  if (live && !waiting) {
+    const settled = steps.filter((p) => p !== running && !(p.type === "reasoning" && !p.done))
+    return (
+      <section data-slot="tool-group" className="mb-[6px] flex flex-col font-sans">
+        {settled.length > 0 && (
           <>
-            <span className="inline-flex items-center" aria-hidden="true">
-              {sources.slice(0, 3).map((x, i) => (
-                <span key={x.id} className="relative flex first:ml-0 ml-[4px] rounded-[5px] shadow-[0_0_0_2px_var(--background)]" style={{ zIndex: 3 - i }}>
-                  <Favicon domain={host(x.url)} size={18} tile tileColor={i} />
-                </span>
-              ))}
-            </span>
-            <span className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-fill-2 px-[6px] text-[12px] text-ink-2">{sources.length}</span>
+            <FoldButton label={summarize(settled, !!cwd)} open={open} onToggle={() => setOpen((o) => !o)} />
+            <AnimatePresence initial={false}>
+              {open && (
+                <motion.div key="steps" {...m.collapse} className="overflow-hidden">
+                  <StepRows steps={settled} cwd={cwd} />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
-        <ChevronDown className={`text-ink-4 transition-[transform,opacity] duration-200 group-hover/steps:text-ink-3 ${flat && !open ? "opacity-0 group-hover/steps:opacity-100" : ""} ${open ? "" : "-rotate-90"}`} />
-      </button>
+        <LiveLine label={running ? toolStep(running).now : "Thinking"} seconds={seconds} site={liveSite} />
+      </section>
+    )
+  }
+
+  const head = live ? label : cwd && !flat ? summarize(steps, true) : label
+  return (
+    <section data-slot="tool-group" className={`mb-[6px] font-sans ${waiting ? "steps-waiting" : ""}`}>
+      <FoldButton
+        label={head}
+        open={open}
+        onToggle={() => setOpen((o) => !o)}
+        icon={only ? <PageIcon size={14} /> : hasSources ? <WebMark size={14} /> : null}
+        hideChevron={flat}
+        trailing={
+          hasSources && !open ? (
+            <>
+              <span className="inline-flex items-center" aria-hidden="true">
+                {sources.slice(0, 3).map((x, i) => (
+                  <span key={x.id} className="relative ml-[4px] flex rounded-full ring-2 ring-background first:ml-0" style={{ zIndex: 3 - i }}>
+                    <Favicon domain={host(x.url)} size={16} tile tileColor={i} />
+                  </span>
+                ))}
+              </span>
+              <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-fill-2 px-[5px] text-[12px] text-ink-3">{sources.length}</span>
+            </>
+          ) : null
+        }
+      />
       <AnimatePresence initial={false}>
         {open && (
           <motion.div key="steps" {...m.collapse} className="overflow-hidden">
-            <div className="mt-1 ml-[9px] flex flex-col pb-1 pl-3.5">
-              {steps.map((p) =>
-                p.type === "tool" ? (
-                  <ToolRow key={p.id} part={p} cwd={cwd} />
-                ) : (
-                  <StepRow
-                    key={p.id}
-                    name={p.done ? (p.seconds !== undefined ? `Thought for ${formatSeconds(p.seconds)}` : "Thought") : "Thinking"}
-                    summary={p.text.split("\n").find((l) => l.trim()) ?? ""}
-                    status={p.done ? "complete" : "running"}
-                    detail={p.text ? <div className="selectable font-sans text-[13px] leading-5 whitespace-pre-wrap text-ink-2">{p.text}</div> : undefined}
-                  />
-                ),
-              )}
-              {sources.length > 0 && (
-                <div className="pt-1.5">
-                  <Citations
-                    items={sources.map((s) => ({ id: s.id, title: s.title, url: s.url, domain: host(s.url), icon: <Favicon domain={host(s.url)} size={20} /> }))}
-                    onClick={(e) => {
-                      // Links open in the browser through the engine, never in the app window.
-                      const a = (e.target as HTMLElement).closest("a")
-                      if (a?.href) e.preventDefault()
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+            <StepRows steps={steps} cwd={cwd} />
+            {sources.length > 0 && (
+              <div className="ml-[9px] pt-1.5 pb-1 pl-3.5">
+                <Citations
+                  items={sources.map((s) => ({ id: s.id, title: s.title, url: s.url, domain: host(s.url), icon: <Favicon domain={host(s.url)} size={20} /> }))}
+                  onClick={(e) => {
+                    // Links open in the browser through the engine, never in the app window.
+                    const a = (e.target as HTMLElement).closest("a")
+                    if (a?.href) e.preventDefault()
+                  }}
+                />
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -247,24 +198,105 @@ export function StepGroup({
   )
 }
 
+/** The folded line: 13 px in ink-3, a small chevron; it opens the rows. */
+function FoldButton({
+  label,
+  open,
+  onToggle,
+  icon,
+  trailing,
+  hideChevron,
+}: {
+  label: string
+  open: boolean
+  onToggle: () => void
+  icon?: ReactNode
+  trailing?: ReactNode
+  hideChevron?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-expanded={open}
+      onClick={onToggle}
+      className="group/steps flex h-6 max-w-full min-w-0 items-center gap-[6px] self-start rounded-full border-0 bg-transparent px-1 text-left text-[13px] leading-[18px] text-ink-3 transition-colors duration-150 hover:text-ink-2"
+    >
+      {icon}
+      <h3 className="m-0 min-w-0 truncate text-[13px] leading-[18px] font-normal">{label}</h3>
+      {trailing}
+      <ChevronRightMark
+        size={11}
+        className={`shrink-0 text-ink-4 transition-[transform,opacity] duration-200 group-hover/steps:text-ink-3 ${hideChevron && !open ? "opacity-0 group-hover/steps:opacity-100" : ""} ${open ? "rotate-90" : ""}`}
+      />
+    </button>
+  )
+}
+
+/** The open list: one row per step, and a run of one kind as one row ("Read 4 files"). */
+function StepRows({ steps, cwd }: { steps: Step[]; cwd?: string }) {
+  const runs = groupRuns(steps, (p) => (p.type === "tool" && p.state === "done" ? toolStep(p).group : undefined))
+  return (
+    <div className="mt-0.5 ml-[9px] flex flex-col pb-1 pl-2">
+      {runs.map((run) => {
+        const first = run.items[0]!
+        if (run.group && run.items.length > 1) {
+          const items = run.items as ToolPart[]
+          return (
+            <StepRow
+              key={first.id}
+              name={groupPhrase(run.group, items.length)}
+              status="complete"
+              detail={
+                <div className="flex flex-col gap-0.5">
+                  {items.map((t) => (
+                    <div key={t.id} className="selectable truncate">
+                      {relativeTo(rawOf(t), cwd)}
+                    </div>
+                  ))}
+                </div>
+              }
+            />
+          )
+        }
+        return first.type === "tool" ? (
+          <ToolRow key={first.id} part={first} cwd={cwd} />
+        ) : (
+          <StepRow
+            key={first.id}
+            name={first.done ? stepLabel(first, formatSeconds).done : "Thinking"}
+            status={first.done ? "complete" : "running"}
+            detail={first.text ? <div className="selectable font-sans text-[13px] leading-5 whitespace-pre-wrap">{first.text}</div> : undefined}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+/** What a step ran or touched, raw: the command, else its path or query, else its title. */
+function rawOf(t: ToolPart): string {
+  const title = t.title.replace(/^`|`$/g, "")
+  if (isShellCommand(title)) return title
+  return t.input?.trim() ? readableInput(t.input) : title
+}
+
 type StepStatus = "complete" | "running" | "error" | "declined"
 
-/** One step: a small mark, its name, one muted line; opens to what it did when there is something to show. */
-function StepRow({ name, summary, status, detail, site }: { name: string; summary: string; status: StepStatus; detail?: ReactNode; site?: string | null }) {
+/** One step: one 13 px line in ink-3; opens to what it did, in small monospace on a faint fill. */
+function StepRow({ name, extra, status, detail, site }: { name: string; extra?: string; status: StepStatus; detail?: ReactNode; site?: string | null }) {
   const [open, setOpen] = useState(false)
   const m = useMotion()
   const mark =
-    site && (status === "running" || status === "complete") ? (
-      <Favicon key={site} domain={site} size={13} className={status === "running" ? "animate-pulse motion-reduce:animate-none" : ""} />
-    ) : status === "running" ? (
-      <span className="size-[11px] animate-spin rounded-full border-[1.5px] border-ink-4 border-t-transparent motion-reduce:animate-none" />
+    status === "running" ? (
+      <Spinner />
     ) : status === "error" ? (
       <XIcon size={11} className="text-bad" />
     ) : status === "declined" ? (
       <XIcon size={11} className="text-ink-4" />
-    ) : (
-      <CheckIcon size={12} className="text-ink-4" />
-    )
+    ) : site ? (
+      <Favicon key={site} domain={site} size={12} />
+    ) : null
   return (
     <div className="flex flex-col">
       <button
@@ -272,19 +304,22 @@ function StepRow({ name, summary, status, detail, site }: { name: string; summar
         disabled={!detail}
         aria-expanded={detail ? open : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="group/row flex h-8 min-w-0 items-center gap-2 rounded-[10px] border-0 bg-transparent px-1 text-left text-[15px] enabled:hover:bg-fill"
+        className="group/row flex h-7 min-w-0 items-center gap-2 rounded-full border-0 bg-transparent px-1.5 text-left text-[13px] leading-[18px] text-ink-3 enabled:hover:bg-fill"
       >
-        <span aria-hidden="true" className="flex w-3.5 shrink-0 justify-center">
-          {mark}
-        </span>
-        <span className={`shrink-0 truncate ${status === "declined" ? "text-ink-3" : "text-ink-2"}`}>{name}</span>
-        {summary && <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink-4">{summary}</span>}
-        {detail && <ChevronDown className={`ml-auto shrink-0 text-ink-4 opacity-0 transition-[opacity,transform] duration-150 group-hover/row:opacity-100 ${open ? "opacity-100" : "-rotate-90"}`} />}
+        {mark && (
+          <span aria-hidden="true" className="flex w-3 shrink-0 justify-center">
+            {mark}
+          </span>
+        )}
+        <span className="min-w-0 truncate">{name}</span>
+        {extra && <span className="shrink-0 tabular-nums text-ink-4">{extra}</span>}
+        {status === "declined" && <span className="shrink-0 text-ink-4">Not allowed</span>}
+        {detail && <ChevronRightMark size={10} className={`ml-auto shrink-0 text-ink-4 opacity-0 transition-[opacity,transform] duration-150 group-hover/row:opacity-100 ${open ? "rotate-90 opacity-100" : ""}`} />}
       </button>
       <AnimatePresence initial={false}>
         {open && detail && (
           <motion.div key="detail" {...m.collapse} className="overflow-hidden">
-            <div className="mt-0.5 mb-1.5 ml-[26px] rounded-[6px] bg-fill px-3 py-2 font-mono text-[12px] leading-[18px] text-ink-2">{detail}</div>
+            <div className="mt-0.5 mb-1.5 ml-1.5 rounded-media bg-fill px-3 py-2 font-mono text-[12px] leading-[18px] text-ink-3">{detail}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -320,26 +355,20 @@ export function readableInput(input: string): string {
 }
 
 function ToolRow({ part, cwd }: { part: ToolPart; cwd?: string }) {
-  // A raw shell command never shows as the step: it reads "Searched files", and the command itself
-  // waits inside, above what it printed.
-  const shell = isShellCommand(part.title)
+  const l = toolStep(part)
+  const raw = rawOf(part)
+  // The raw command or path shows only inside, above what it printed.
+  const showRaw = !!raw && (isShellCommand(raw) || raw.trim() !== l.done)
   const detail =
-    part.output || part.diff?.length || shell ? (
+    part.output || part.diff?.length || showRaw ? (
       <div className="flex flex-col gap-2">
-        {shell && <pre className="selectable scrollbar-hairline m-0 max-h-32 overflow-auto whitespace-pre-wrap text-ink-3">{relativeTo(part.title, cwd)}</pre>}
+        {showRaw && <pre className="selectable scrollbar-hairline m-0 max-h-32 overflow-auto whitespace-pre-wrap">{relativeTo(raw, cwd)}</pre>}
         {part.output && <pre className="selectable scrollbar-hairline m-0 max-h-48 overflow-auto whitespace-pre-wrap">{part.output}</pre>}
         {part.diff?.map((d) => <Diff key={d.path} {...d} />)}
       </div>
     ) : undefined
-  return (
-    <StepRow
-      name={shell ? commandLabel(part.title, part.state !== "running") : relativeTo(part.title, cwd)}
-      summary={part.state === "declined" ? "Not allowed" : !shell && part.input && part.input.trim() !== part.title.trim() ? relativeTo(readableInput(part.input), cwd) : ""}
-      status={part.state === "running" ? "running" : part.state === "failed" ? "error" : part.state === "declined" ? "declined" : "complete"}
-      detail={detail}
-      site={siteOf(part.title, part.input)}
-    />
-  )
+  const status: StepStatus = part.state === "running" ? "running" : part.state === "failed" ? "error" : part.state === "declined" ? "declined" : "complete"
+  return <StepRow name={relativeTo(status === "running" ? l.now : l.done, cwd)} extra={l.extra} status={status} detail={detail} site={siteOf(part.title, part.input)} />
 }
 
 function Diff({ path, before, after }: { path: string; before?: string; after: string }) {
@@ -347,7 +376,7 @@ function Diff({ path, before, after }: { path: string; before?: string; after: s
   const added = lines.filter((l) => l.sign === "+").length
   const removed = lines.filter((l) => l.sign === "-").length
   return (
-    <div className="overflow-hidden rounded-[16px] bg-card">
+    <div className="overflow-hidden rounded-3xl bg-card">
       <div className="flex h-9 items-center gap-2 px-3 font-mono text-[12px] text-ink-2">
         <span className="flex-1 truncate">{path}</span>
         <span className="text-ok">+{added}</span>

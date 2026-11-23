@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
@@ -127,6 +127,9 @@ describe("modes, without an agent", () => {
     expect(autoAnswer("acceptEdits", request("edit"), true)).toBe("yes")
     expect(autoAnswer("acceptEdits", request("execute"), true)).toBeUndefined()
     expect(autoAnswer("full", request("execute"), true)).toBe("yes")
+    // Bypass never waits: a request with nothing to allow is turned down for you.
+    const rejectOnly = { sessionId: "s", toolCall: { toolCallId: "c", title: "x", kind: "other" }, options: [{ optionId: "no", name: "No", kind: "reject_once" }] } as never
+    expect(autoAnswer("full", rejectOnly, true)).toBe("no")
     // Plan: an agent with its own plan mode is left to it; one without is told no for anything but reading.
     expect(autoAnswer("plan", request("edit"), true)).toBeUndefined()
     expect(autoAnswer("plan", request("edit"), false)).toBe("no")
@@ -181,6 +184,31 @@ describe("permission modes", () => {
     expect(replyText(c.done)).toContain("Wrote: c.txt. Ran: yes")
     expect(lastThreads().find((t) => t.id === a.threadId)?.mode).toBe("full")
     // Starting the test agent three times is slower on Windows.
+  }, process.platform === "win32" ? 30_000 : undefined)
+
+  it("shows a picture the agent wrote, from Axe's own copy, and only for that chat (spec 0035)", async () => {
+    const dir = folder("pictures")
+    const a = await turn(null, "edit:glass.svg=<svg></svg>;fake.png=hello;notes.txt=hi", { cwd: dir, mode: "full" })
+    const parts = a.done.message.parts
+    const images = parts.filter((p) => p.type === "image")
+    expect(images).toEqual([expect.objectContaining({ type: "image", name: "glass.svg", mime: "image/svg+xml", size: 12 })])
+    // Right after the tool that wrote it.
+    const at = parts.findIndex((p) => p.type === "image")
+    expect(parts[at - 1]).toMatchObject({ type: "tool", title: "Write glass.svg" })
+    const id = images[0]!.id
+    expect((await chat.imageFor(a.threadId, id)).bytes.toString()).toBe("<svg></svg>\n")
+    // The agent's file changing later doesn't change what the chat showed.
+    writeFileSync(join(dir, "glass.svg"), "<svg>changed</svg>")
+    expect((await chat.imageFor(a.threadId, id)).bytes.toString()).toBe("<svg></svg>\n")
+    // Nothing was written outside the chat's folder and Axe's own data folder.
+    expect(readdirSync(dir).sort()).toEqual(["fake.png", "glass.svg", "notes.txt"])
+    // Saved with the chat; another chat, or a part that isn't a picture, gets nothing.
+    expect(getLocal(a.threadId)?.messages.at(-1)?.parts.some((p) => p.type === "image")).toBe(true)
+    const other = await turn(null, "hello", { cwd: dir })
+    await expect(chat.imageFor(other.threadId, id)).rejects.toThrow("isn't a picture")
+    await expect(chat.imageFor(a.threadId, parts.find((p) => p.type === "tool")!.id)).rejects.toThrow("isn't a picture")
+    await chat.deleteThread(a.threadId)
+    await expect(chat.imageFor(a.threadId, id)).rejects.toThrow()
   }, process.platform === "win32" ? 30_000 : undefined)
 
   it("starts a new chat in the mode you picked", async () => {

@@ -23,15 +23,19 @@ async function settle(page: Page) {
   await page.waitForTimeout(150)
 }
 
+// Draft 3: one who-answers control under the box; its menu lists who answers, then the agent's Model and Effort.
+const who = (page: Page) => page.getByTitle("Choose who answers")
+
 for (const theme of ["light", "dark"] as const) {
   test.describe(theme, () => {
     test("model and effort for a new Claude Code chat", async ({ page }) => {
       await open(page, theme)
       await page.getByRole("button", { name: "Auto", exact: true }).click()
       await page.getByRole("listbox", { name: "Choose who answers" }).getByText("Claude Code", { exact: true }).click()
-      await page.getByRole("button", { name: "Model and effort: Default" }).click()
-      const menu = page.getByRole("menu", { name: "Model and effort" })
-      await expect(menu.getByRole("menuitemradio", { name: "Default (recommended)" })).toHaveAttribute("aria-checked", "true")
+      await expect(who(page)).toHaveText("Claude Code")
+      await who(page).click()
+      const menu = page.getByRole("listbox", { name: "Choose who answers" })
+      await expect(menu.getByRole("menuitemradio", { name: "Default" })).toHaveAttribute("aria-checked", "true")
       await expect(menu.getByText("Effort", { exact: true })).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-agent-options-menu.png`)
@@ -39,9 +43,10 @@ for (const theme of ["light", "dark"] as const) {
       // A model keeps the menu open for the effort; the effort closes it.
       await menu.getByRole("menuitemradio", { name: "Haiku 5.5" }).click()
       await expect(menu.getByRole("menuitemradio", { name: "Haiku 5.5" })).toHaveAttribute("aria-checked", "true")
-      await menu.getByRole("menuitemradio", { name: "Low" }).click()
+      await menu.getByRole("radio", { name: "Low" }).click()
       await expect(menu).toHaveCount(0)
-      await expect(page.getByRole("button", { name: "Model and effort: Haiku 5.5, Low effort" })).toBeVisible()
+      await expect(who(page)).toContainText("Haiku 5.5")
+      await expect(who(page)).toContainText("Low")
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-agent-options-picked.png`)
     })
@@ -52,10 +57,12 @@ test("Codex shows its own list, and Axe models show none", async ({ page }) => {
   await open(page, "light")
   await page.getByRole("button", { name: "Auto", exact: true }).click()
   await page.getByRole("listbox", { name: "Choose who answers" }).getByText("Codex", { exact: true }).click()
-  await page.getByRole("button", { name: "Model and effort: 5.6 Luna, Medium effort" }).click()
-  await expect(page.getByRole("menu", { name: "Model and effort" }).getByText("Reasoning effort")).toBeVisible()
-  await page.keyboard.press("Escape")
-  await page.getByRole("button", { name: "Codex", exact: true }).click()
+  await expect(who(page)).toContainText("5.6 Luna")
+  await expect(who(page)).toContainText("Medium")
+  await who(page).click()
+  await expect(page.getByRole("listbox", { name: "Choose who answers" }).getByText("Effort", { exact: true })).toBeVisible()
   await page.getByRole("listbox", { name: "Choose who answers" }).getByText("Auto", { exact: true }).first().click()
-  await expect(page.getByRole("button", { name: /^Model and effort/ })).toHaveCount(0)
+  await expect(who(page)).toHaveText("Auto")
+  await who(page).click()
+  await expect(page.getByRole("listbox", { name: "Choose who answers" }).getByText("Effort", { exact: true })).toHaveCount(0)
 })

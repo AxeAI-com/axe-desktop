@@ -404,7 +404,7 @@ export function createEngine(store: Store, d: EngineDeps) {
   /**
    * Validates a target before the plan shows. Uptime only checks that the site answers (the timed
    * first run starts after Start watching); the other kinds run their check once, and that run is the first.
-   * `force`: "Watch it anyway" on a site that isn't answering.
+   * `force`: "Check it anyway" on a site that isn't answering.
    */
   async function draft(input: DraftInput): Promise<Draft | DraftError> {
     // Disk: "20 GB" is the limit, and the target is this Mac.
@@ -429,7 +429,7 @@ export function createEngine(store: Store, d: EngineDeps) {
                 : input.kind === "wallets"
                   ? "Give 0x… (Base and Ethereum), Solana or Tron addresses, separated by commas."
                   : input.kind === "downloads"
-                    ? "Download counts are public only for GitHub releases. Give the repo, like mia/shop-app. For your own server, watch the update feed instead."
+                    ? "Download counts are public only for GitHub releases. Give the repo, like mia/shop-app. For your own server, check the update feed instead."
                     : input.kind === "mentions"
                       ? "Give two to eighty characters to look for."
                       : input.kind === "hogs" || input.kind === "gitrepos"
@@ -521,14 +521,14 @@ export function createEngine(store: Store, d: EngineDeps) {
       const p = await probe(target, d)
       if (!p.ok && p.error === "dns") return { error: `${target.split("/")[0]} doesn’t exist. Check the spelling.` }
       if ((!p.ok || p.status >= 500) && !input.force)
-        return { error: `${target.split("/")[0]} isn’t answering right now.`, button: { label: "Watch it anyway", kind: "uptime", target, force: true } }
+        return { error: `${target.split("/")[0]} isn’t answering right now.`, button: { label: "Check it anyway", kind: "uptime", target, force: true } }
       return make({ at, ms: p.ok ? p.ms : 0, status: "quiet", findings: [] })
     }
     const { run: first, memo, selector } = await check({ kind: input.kind, target, condition: input.condition, answerer: input.answerer, limit: input.limit, field: input.field, command: input.command }, [])
     const said = `${first.error ?? ""} ${first.findings[0]?.detail ?? ""}`
     if (/wasn’t found/.test(said)) return { error: `${target.split("/")[0]} doesn’t exist. Check the spelling.` }
     // A page with no price Axe can read can still be watched for changes: your click, not a guess.
-    if (first.error === NO_PRICE) return { error: NO_PRICE, button: { label: "Watch the page instead", kind: "page", target } }
+    if (first.error === NO_PRICE) return { error: NO_PRICE, button: { label: "Check the page instead", kind: "page", target } }
     if (first.status === "failed") return { error: first.error ?? "I couldn’t check that." }
     return { ...make(first, memo), ...(selector ? { selector } : {}) }
   }

@@ -33,9 +33,9 @@ const w = (id: string, name: string, o: Partial<WatchView> = {}): WatchView => (
 describe("the / menu on Watching", () => {
   it("lists the four commands, in the design's words, first", () => {
     expect(WATCHING_COMMANDS.map((c) => [`/${c.name}`, c.description])).toEqual([
-      ["/check", "Check a watch now"],
-      ["/pause", "Pause a watch"],
-      ["/resume", "Start a paused watch again"],
+      ["/check", "Run a check now"],
+      ["/pause", "Pause a check"],
+      ["/resume", "Start a paused check again"],
       ["/summary", "Show the morning summary now"],
     ])
     const agent = { name: "review", description: "Review", source: "agent" as const }
@@ -75,7 +75,7 @@ describe("@ watches", () => {
 describe("the quick bar's /watch", () => {
   it("lists Watch first for /wa, and nothing for plain words", () => {
     expect(quickSlash("/wa")?.map((c) => [c.label, c.description])).toEqual([
-      ["Watch", "Check something on a schedule"],
+      ["Check", "Keep an eye on something"],
       ["Write", "Draft in your voice"],
     ])
     expect(quickSlash("/wr")?.[0]?.label).toBe("Write")

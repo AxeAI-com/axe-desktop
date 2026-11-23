@@ -14,7 +14,7 @@ import { helperCommand } from "@/lib/slash"
 import { getState, lastFolder, plainError, setState, useStore } from "@/lib/store"
 
 import { agentLogo, BrandLogo, localModelLogo } from "./BrandLogo"
-import { FolderIcon, XIcon } from "./Icons"
+import { FolderIcon, XIcon } from "./SolarIcons"
 import { button } from "./Kit"
 import { ErrorLine, HelperMark } from "./Library"
 import { AxeMark } from "./Logo"
@@ -99,7 +99,7 @@ export function DescribeAgent() {
           e.preventDefault()
           void setUp()
         }}
-        className="flex h-[64px] items-center gap-[12px] rounded-[16px] bg-card py-0 pr-[12px] pl-[24px]"
+        className="flex h-[64px] items-center gap-[12px] rounded-3xl bg-card py-0 pr-[12px] pl-[24px]"
       >
         <input
           aria-label="Describe an agent"
@@ -162,7 +162,7 @@ function DraftCard({ draft, onChange, busy, onMake, onCancel }: { draft: AgentDr
   const label = "self-start pt-[5px] text-ink-3"
   const chip = "flex h-[28px] items-center gap-[6px] rounded-full bg-fill-2 py-0 pr-[6px] pl-[12px] text-[13px] text-ink"
   return (
-    <section aria-label="Draft agent" className="flex flex-col rounded-[16px] bg-card">
+    <section aria-label="Draft agent" className="flex flex-col rounded-3xl bg-card">
       <div className="flex items-center gap-[14px] px-[20px] py-[16px]">
         <HelperMark kind={draft.kind} size={40} />
         <div className="flex min-w-0 flex-1 flex-col gap-[2px]">

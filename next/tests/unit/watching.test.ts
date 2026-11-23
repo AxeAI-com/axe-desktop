@@ -58,6 +58,17 @@ describe("findings", () => {
     expect(c.state.past?.map((f) => f.key)).toEqual(["slow"])
     expect(applyRun(c.state, slowRun(T0 + 3), "x", 1).opened.length).toBe(1)
   })
+  it("a package count follows the latest run; other findings keep their first words", () => {
+    const behind = (at: number, n: number): Run => ({
+      at,
+      ms: 0,
+      status: "problem",
+      findings: [{ key: "outdated:major", level: "problem", headline: `${n} packages are a major version behind`, fix: "agent" }],
+    })
+    const a = applyRun(blank(), behind(T0, 4), "x")
+    const b = applyRun(a.state, behind(T0 + 1, 5), "x")
+    expect(b.state.open[0]).toMatchObject({ headline: "5 packages are a major version behind", openedAt: T0 })
+  })
   it("other kinds resolve after two clean runs", () => {
     const a = applyRun(blank(), slowRun(T0), "x")
     const b = applyRun(a.state, quiet(T0 + 1), "x")
@@ -348,13 +359,13 @@ describe("store and engine", () => {
     expect(again.runs(v.id).length).toBe(1)
   })
 
-  it("validates: not an address, a site that isn't answering (and Watch it anyway)", async () => {
+  it("validates: not an address, a site that isn't answering (and Check it anyway)", async () => {
     const { e, setStatus } = setup()
     expect(await e.draft({ kind: "uptime", target: "lane ceramics" })).toEqual({ error: "That doesn’t look like a site address." })
     setStatus(502)
     expect(await e.draft({ kind: "uptime", target: "a-site.com" })).toEqual({
       error: "a-site.com isn’t answering right now.",
-      button: { label: "Watch it anyway", kind: "uptime", target: "a-site.com", force: true },
+      button: { label: "Check it anyway", kind: "uptime", target: "a-site.com", force: true },
     })
     expect("error" in (await e.draft({ kind: "uptime", target: "a-site.com", force: true }))).toBe(false)
   })

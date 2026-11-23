@@ -7,7 +7,8 @@ import { fileDiff, hunks, totals } from "@/lib/changes"
 import { D, useMotion } from "@/lib/motion"
 import { keepChanges, openReview, undoChanges, useStore } from "@/lib/store"
 
-import { XIcon } from "./Icons"
+import { XIcon } from "./SolarIcons"
+import { button, compact, Empty } from "./Kit"
 
 const NONE: FileChange[] = []
 
@@ -37,13 +38,12 @@ export function ChangesPanel({ threadId }: { threadId: string }) {
   return (
     <motion.aside
       aria-label="Changes"
-      initial={{ width: 0, opacity: 0 }}
+      initial={false}
       animate={{ width: 440, opacity: 1 }}
-      exit={{ width: 0, opacity: 0 }}
       transition={m.t(D.slow)}
       className="flex shrink-0 overflow-hidden pr-[8px] pb-[8px] tracking-normal"
     >
-      <div className="flex w-[432px] min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] bg-card">
+      <div className="flex w-[432px] min-h-0 flex-1 flex-col overflow-hidden rounded-3xl bg-card">
         <div className="flex h-[52px] shrink-0 items-center pr-[12px] pl-[18px]">
           <span className="flex items-baseline gap-[8px]">
             <span className="text-[15px] text-ink">Changes</span>
@@ -64,9 +64,8 @@ export function ChangesPanel({ threadId }: { threadId: string }) {
           </button>
         </div>
         {files.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-1 px-10 text-center">
-            <div className="text-[14px] text-ink-2">Nothing changed yet</div>
-            <div className="text-[13px] text-ink-3">Files the agent changes in this chat show up here, ready to keep or undo.</div>
+          <div className="px-[16px]">
+            <Empty>Nothing changed yet. Files the agent changes in this chat show up here, ready to keep or undo.</Empty>
           </div>
         ) : (
           <>
@@ -78,17 +77,15 @@ export function ChangesPanel({ threadId }: { threadId: string }) {
                                     return (
                     <motion.li
                       key={f.path}
-                      layout="position"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                      initial={false}
                       exit={{ opacity: 0, height: 0 }}
                       transition={m.t()}
-                      className="flex h-[44px] shrink-0 items-center rounded-[12px] bg-fill pr-[8px] transition-colors duration-150 hover:bg-fill-2"
+                      className="flex h-[36px] shrink-0 items-center rounded-[8px] bg-fill pr-[4px] transition-colors duration-150 hover:bg-fill-2"
                     >
                       <button
                         aria-current={f.path === current?.path ? "true" : undefined}
                         onClick={() => setPicked(f.path)}
-                        className="flex h-full min-w-0 flex-1 items-center gap-[8px] rounded-[12px] border-0 bg-transparent pr-0 pl-[14px] text-left"
+                        className="flex h-full min-w-0 flex-1 items-center gap-[8px] rounded-full border-0 bg-transparent pr-0 pl-[14px] text-left"
                       >
                         <span className="min-w-0 flex-1 truncate font-mono text-[12px] leading-[20px] text-ink" title={f.rel}>
                           {f.rel}
@@ -99,7 +96,7 @@ export function ChangesPanel({ threadId }: { threadId: string }) {
                       <button
                         disabled={busy}
                         onClick={() => void act(() => keepChanges(threadId, [f.path]))}
-                        className={`${small} bg-fill-4 text-ink hover:bg-fill-3`}
+                        className={`${small} ${compact(button.secondary)}`}
                       >
                         Keep
                       </button>
@@ -108,7 +105,7 @@ export function ChangesPanel({ threadId }: { threadId: string }) {
                         disabled={busy || running}
                         title={running ? "Wait for it to finish" : undefined}
                         onClick={() => void act(() => undoChanges(threadId, [f.path]))}
-                        className={`${small} bg-transparent text-ink-2 hover:bg-fill hover:text-ink`}
+                        className={`${small} ${compact(button.ghost)}`}
                       >
                         Undo
                       </button>
@@ -119,7 +116,7 @@ export function ChangesPanel({ threadId }: { threadId: string }) {
             </ul>
             <div className="scroll min-h-0 flex-1 px-[12px] pt-[12px]">
               {current && (
-                <motion.div key={current.path} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={m.t(D.fast)}>
+                <motion.div key={current.path}>
                   <DiffView f={current} />
                 </motion.div>
               )}
@@ -144,12 +141,11 @@ export function ChangesPanel({ threadId }: { threadId: string }) {
 }
 
 /** Keep all and Undo all: 34 high pills. */
-const pill34 = "inline-flex h-[34px] items-center justify-center rounded-full border-0 px-[16px] text-[13px] transition-colors duration-150 disabled:opacity-40"
-const keepAll = `${pill34} bg-primary text-primary-foreground hover:opacity-85`
-const undoAll = `${pill34} bg-fill-4 text-foreground hover:bg-fill-3`
+const keepAll = button.primary
+const undoAll = button.secondary
 
 /** A small pill inside a file row: 28 high. */
-const small = "ml-[8px] inline-flex h-[28px] shrink-0 items-center rounded-full border-0 px-[12px] text-[13px] transition-colors duration-150 disabled:opacity-50"
+const small = "ml-[8px]"
 
 export function Counts({ added, removed, mono }: { added: number; removed: number; mono?: boolean }) {
   return (
@@ -175,7 +171,7 @@ function DiffView({ f }: { f: FileChange }) {
     )
   const rows = hunks(d.lines)
   return (
-    <div className="overflow-hidden rounded-[12px] bg-entity">
+    <div className="overflow-hidden rounded-media bg-entity">
       <div className="flex h-[32px] items-center gap-[8px] px-[14px] font-mono text-[12px] leading-[20px] text-ink">
         <span className="min-w-0 flex-1 truncate" title={f.path}>
           {f.rel}

@@ -1,5 +1,5 @@
 // The menu bar panel in the real app: a self-test opens the panel's window (hidden, no menu bar icon),
-// screenshots it in light and dark, and follows "Start a watch" and "Settings…" into the main window.
+// screenshots it in light and dark, and follows "Add a check" and "Settings…" into the main window.
 // Its own data folder, no account, nothing on screen (AXE_HEADLESS).
 // node tests/e2e/tray-run.mjs <out-dir>   (run `pnpm run build` first)
 import { mkdirSync, mkdtempSync } from "node:fs"
@@ -45,7 +45,7 @@ try {
   for (const theme of ["light", "dark"]) {
     await main.evaluate((t) => window.axe.invoke("settings:set", { theme: t }), theme)
     await tray.reload()
-    await tray.getByText("No watches yet").waitFor()
+    await tray.getByText("No checks yet").waitFor()
     await tray.waitForTimeout(500)
     // The window is system glass; an offscreen capture has no glass behind it, so stand in the popover colour.
     await tray.addStyleTag({ content: "html.tray-glass, html.tray-glass body { background: var(--pop) !important }" })
@@ -53,14 +53,14 @@ try {
     check(await tray.getByRole("button", { name: "Settings…" }).isVisible(), `${theme}: header, Watching, box and footer show`)
   }
 
-  await tray.getByRole("button", { name: "Start a watch" }).click()
-  await main.getByText("What should Axe watch?").waitFor()
-  check(true, "Start a watch opens Watching in the main window")
+  await tray.getByRole("button", { name: "Add a check" }).click()
+  await main.getByText("What should Axe keep an eye on?").waitFor()
+  check(true, "Add a check opens Watching in the main window")
   await app.evaluate(() => globalThis.__axeShowTray())
   await tray.getByRole("button", { name: /Settings…/ }).click()
-  await main.getByText("What should Axe watch?").waitFor({ state: "detached" })
+  await main.getByText("What should Axe keep an eye on?").waitFor({ state: "detached" })
   await main.waitForTimeout(600)
-  check(!(await main.getByText("Say what to watch").count()), "Settings… opens Settings in the main window")
+  check(!(await main.getByText("Say what to check").count()), "Settings… opens Settings in the main window")
   await main.screenshot({ path: join(out, "main-after-settings.png") })
 } catch (e) {
   console.log("FAIL", e.message)

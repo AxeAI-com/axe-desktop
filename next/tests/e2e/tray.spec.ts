@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test"
 
 // The menu bar panel (design: "Menu bar panel redesign", native, 630 by 720) on the mock engine, light
-// and dark: watches with their state, one opened inline, no watches yet, the last three chats, and a
+// and dark: watches with their state, one opened inline, no checks yet, the last three chats, and a
 // chat open in the panel. The clock is fixed so the times stay put.
 
 const NOW = new Date("2026-10-31T14:45:00Z")
@@ -26,7 +26,7 @@ for (const theme of ["light", "dark"] as const) {
   test.describe(`tray ${theme}`, () => {
     test("home: watching, recent chats, the box and the footer", async ({ page }) => {
       await open(page, theme, "watchsec")
-      const watching = page.getByRole("region", { name: "Watching" })
+      const watching = page.getByRole("region", { name: "Oversight" })
       await expect(watching.getByRole("button").first()).toBeVisible()
       const recents = page.getByRole("region", { name: "Recent chats" }).getByRole("button")
       await expect(recents).toHaveCount(3)
@@ -38,7 +38,7 @@ for (const theme of ["light", "dark"] as const) {
 
     test("a watch opens inline", async ({ page }) => {
       await open(page, theme, "watchsec")
-      const row = page.getByRole("region", { name: "Watching" }).getByRole("button", { expanded: false }).first()
+      const row = page.getByRole("region", { name: "Oversight" }).getByRole("button", { expanded: false }).first()
       await row.click()
       await expect(page.getByRole("button", { name: "Check now" })).toBeVisible()
       await expect(page.getByRole("img", { name: "Recent checks" })).toBeVisible()
@@ -46,10 +46,10 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page).toHaveScreenshot(`${theme}-tray-watch-open.png`)
     })
 
-    test("no watches yet", async ({ page }) => {
+    test("no checks yet", async ({ page }) => {
       await open(page, theme, "nowatches")
-      await expect(page.getByText("No watches yet")).toBeVisible()
-      await expect(page.getByRole("button", { name: "Start a watch" })).toBeVisible()
+      await expect(page.getByText("No checks yet")).toBeVisible()
+      await expect(page.getByRole("button", { name: "Add a check" })).toBeVisible()
       await settle(page)
       await expect(page).toHaveScreenshot(`${theme}-tray-empty.png`)
     })

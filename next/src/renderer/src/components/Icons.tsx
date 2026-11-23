@@ -416,3 +416,13 @@ export const MicGlyph = glyph("M12 3.5a3 3 0 0 0-3 3V12a3 3 0 0 0 6 0V6.5a3 3 0 
 export const ChatGlyph = glyph("M5 5h14a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 17h-8l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 5 5z")
 export const ChevronGlyph = glyph("M7 10l5 5 5-5")
 export const StopGlyph = glyph("M7.5 7.5h9v9h-9z")
+
+/**
+ * The sparkle on the composer's left button (files, tools and connectors): a four-point star whose sides curve
+ * inwards, like an astroid. Filled, one colour (currentColor), no gradient.
+ */
+export const MagicIcon = ({ size = 16, ...rest }: P) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" {...rest}>
+    <path d="M8 1.25C8.35 5.6 10.4 7.65 14.75 8 10.4 8.35 8.35 10.4 8 14.75 7.65 10.4 5.6 8.35 1.25 8 5.6 7.65 7.65 5.6 8 1.25Z" />
+  </svg>
+)
